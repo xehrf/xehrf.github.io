@@ -1,0 +1,95 @@
+export class ApiError extends Error {
+  constructor(status, message, details) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.details = details;
+  }
+}
+
+function safeJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function stringifyDetail(detail) {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object") {
+          const loc = Array.isArray(item.loc) ? item.loc.join(".") : "";
+          const msg = item.msg || item.message || JSON.stringify(item);
+          return loc ? `${loc}: ${msg}` : msg;
+        }
+        return String(item);
+      })
+      .join("; ");
+  }
+  if (detail && typeof detail === "object") {
+    return detail.message || JSON.stringify(detail);
+  }
+  return String(detail ?? "");
+}
+
+// Пустой BASE_URL → запросы на тот же origin (например http://192.168.x.x:5173/tasks),
+// Vite proxy пересылает на backend — так друг в локальной сети не попадает на localhost своего ПК.
+// Для продакшена задайте VITE_API_URL=https://api.example.com
+const BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
+
+export async function apiFetch(
+  path,
+  { method = "GET", body, auth = true, timeoutMs = 10000, headers: customHeaders = {} } = {},
+) {
+  const headers = { ...customHeaders };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+
+  if (auth) {
+    const token = localStorage.getItem("access_token");
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  let res;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      throw new ApiError(0, "Сервер не отвечает (таймаут). Проверьте backend.");
+    }
+    throw new ApiError(0, "Не удалось подключиться к серверу.");
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+
+  const text = await res.text();
+
+  if (!res.ok) {
+    const errJson = safeJson(text);
+    if (res.status === 404) {
+      throw new ApiError(404, `Endpoint not found: ${method} ${BASE_URL}${path}`, errJson);
+    }
+    const message =
+      (errJson && stringifyDetail(errJson.detail ?? errJson.message)) || text || `Request failed: ${res.status}`;
+    throw new ApiError(res.status, message, errJson);
+  }
+
+  const trimmed = text.trim();
+  if (trimmed === "") {
+    return null;
+  }
+  // Важно: JSON `null` должен остаться null (например GET /tasks/{id}/attempt без активной попытки).
+  return safeJson(trimmed);
+}
+
