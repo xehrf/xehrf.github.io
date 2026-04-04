@@ -7,7 +7,6 @@ from app.auth.security import create_access_token, hash_password, verify_passwor
 from app.core.config import get_settings
 from app.db.models import User, UserLevel
 from app.db.session import get_db
-from app.rating.elo import level_from_elo
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -17,14 +16,12 @@ def register(body: UserRegister, db: Session = Depends(get_db)) -> TokenResponse
     if db.query(User).filter(User.email == body.email).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
     settings = get_settings()
-    elo = settings.default_elo
     user = User(
         email=body.email,
         hashed_password=hash_password(body.password),
         display_name=body.display_name,
-        elo=elo,
         pts=settings.default_pts,
-        level=level_from_elo(elo),
+        level=UserLevel.beginner,
     )
     db.add(user)
     db.commit()
@@ -48,5 +45,4 @@ def me(user: User = Depends(get_current_user)) -> dict:
         "display_name": user.display_name,
         "elo": user.elo,
         "pts": user.pts,
-        "level": user.level.value,
-    }
+        "

@@ -296,33 +296,67 @@ export function TaskSolvePage() {
           {error ? <div className="text-sm text-accent">{error}</div> : null}
 
           {result ? (
-            <Card className="p-5">
-              <div
-                className={[
-                  "text-sm font-semibold",
-                  result.verdict === "correct" ? "text-emerald-400" : "text-red-400",
-                ].join(" ")}
-              >
-                {result.verdict === "correct" ? "✅ ПРАВИЛЬНО" : "❌ НЕПРАВИЛЬНО"}
+            <Card className="p-5 space-y-6">
+              <div>
+                <div
+                  className={[
+                    "text-sm font-semibold",
+                    result.verdict === "correct" ? "text-emerald-400" : "text-red-400",
+                  ].join(" ")}
+                >
+                  {result.verdict === "correct" ? "✅ ПРАВИЛЬНО!" : "❌ ОШИБКА"}
+                </div>
+                <p className="mt-2 text-sm text-muted">{result.message}</p>
+                <div className="mt-3 text-sm text-muted">
+                  Тесты:{" "}
+                  <span className="text-foreground">
+                    {result.passed_tests}/{result.total_tests}
+                  </span>
+                </div>
+                <div className="mt-1 text-sm text-muted">
+                  PTS:{" "}
+                  <span className={result.pts_delta > 0 ? "text-emerald-400" : "text-muted"}>
+                    {result.pts_delta > 0 ? `+${result.pts_delta}` : result.pts_delta}
+                  </span>
+                  <span className="mx-1 text-border">·</span>
+                  Всего: <span className="text-accent">{result.updated_pts}</span>
+                </div>
               </div>
-              <p className="mt-2 text-sm text-muted">{result.message}</p>
-              <div className="mt-3 text-sm text-muted">
-                Тесты:{" "}
-                <span className="text-foreground">
-                  {result.passed_tests}/{result.total_tests}
-                </span>
-              </div>
-              <div className="mt-1 text-sm text-muted">
-                Попытка: <span className="text-foreground">{result.attempt_status}</span>
-              </div>
-              <div className="mt-1 text-sm text-muted">
-                PTS:{" "}
-                <span className={result.pts_delta > 0 ? "text-emerald-400" : "text-muted"}>
-                  {result.pts_delta > 0 ? `+${result.pts_delta}` : result.pts_delta}
-                </span>
-                <span className="mx-1 text-border">·</span>
-                Всего: <span className="text-accent">{result.updated_pts}</span>
-              </div>
+
+              {/* Detailed educational explanation for wrong answers */}
+              {result.verdict === "wrong" && result.explanation && (
+                <div className="pt-4 border-t border-border space-y-4">
+                  {/* Show correct answer */}
+                  {result.correct_answer && (
+                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded p-3">
+                      <div className="text-xs font-semibold text-emerald-400 mb-1">✅ ПРАВИЛЬНЫЙ ОТВЕТ</div>
+                      <code className="text-sm font-mono text-foreground overflow-auto max-h-24">
+                        {result.correct_answer}
+                      </code>
+                    </div>
+                  )}
+
+                  {/* Detailed step-by-step explanation */}
+                  {result.explanation && (
+                    <div className="bg-blue-500/10 border border-blue-500/30 rounded p-3">
+                      <div className="text-xs font-semibold text-blue-400 mb-2">📘 ПОШАГОВОЕ ОБЪЯСНЕНИЕ</div>
+                      <p className="text-xs text-muted whitespace-pre-line leading-relaxed">
+                        {result.explanation}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Common mistakes */}
+                  {result.common_mistakes && (
+                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded p-3">
+                      <div className="text-xs font-semibold text-yellow-400 mb-2">⚠️ ЧАСТЫЕ ОШИБКИ</div>
+                      <p className="text-xs text-muted whitespace-pre-line leading-relaxed">
+                        {result.common_mistakes}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </Card>
           ) : null}
         </form>

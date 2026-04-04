@@ -81,10 +81,6 @@ export function ProfilePage() {
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Рейтинг</h2>
           <dl className="mt-4 space-y-3">
             <div className="flex justify-between text-sm">
-              <dt className="text-muted">ELO</dt>
-              <dd className="font-semibold tabular-nums text-accent">{u.elo}</dd>
-            </div>
-            <div className="flex justify-between text-sm">
               <dt className="text-muted">PTS</dt>
               <dd className="font-semibold tabular-nums text-accent">{u.pts}</dd>
             </div>

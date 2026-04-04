@@ -3,7 +3,7 @@ import { useAuth } from "../../auth/AuthProvider.jsx";
 
 /**
  * Верхняя панель только на мобильных (< md). Десктоп использует Navbar.
- * @param {{ elo: number, pts: number, display_name: string } | null} props.user
+ * @param {{ pts: number, display_name: string } | null} props.user
  */
 export function MobileHeader({ user }) {
   const { logout } = useAuth();

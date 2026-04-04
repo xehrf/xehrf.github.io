@@ -9,7 +9,7 @@ const navLinkClass = ({ isActive }) =>
 
 /**
  * @param {object} props
- * @param {{ elo: number, pts: number, display_name: string, email: string } | null} props.user
+ * @param {{ pts: number, display_name: string, email: string } | null} props.user
  */
 export function Navbar({ user }) {
   const { logout } = useAuth();
@@ -51,8 +51,6 @@ export function Navbar({ user }) {
               <>
                 <span className="font-medium text-foreground">{displayName}</span>
                 <span className="text-muted">
-                  ELO <span className="text-accent">{user.elo}</span>
-                  <span className="mx-1 text-border">·</span>
                   PTS <span className="text-accent">{user.pts}</span>
                 </span>
               </>

@@ -90,7 +90,7 @@ export function MatchmakingPage() {
       <div className="mb-2 text-center">
         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Матчмейкинг</h1>
         <p className="mt-2 text-sm text-muted">
-          4 игрока с похожим ELO · один таймер · честная раздача PTS
+          4 игрока · один таймер · честная раздача PTS
         </p>
       </div>
 
@@ -126,7 +126,7 @@ export function MatchmakingPage() {
           {state === "searching" && (
             <>
               <p className="text-lg font-medium text-accent">Поиск соперников…</p>
-              <p className="mt-1 text-sm text-muted">Подбираем похожий рейтинг</p>
+              <p className="mt-1 text-sm text-muted">Подбираем соперников</p>
             </>
           )}
           {state === "matched" && (

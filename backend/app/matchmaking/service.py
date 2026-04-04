@@ -8,9 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.models import Match, MatchParticipant, MatchStatus, Task, TaskType, User
-from app.rating.elo import elo_bucket
 
-QUEUE_KEY = "mm:queue:{bucket}"
+QUEUE_KEY = "mm:queue"
 USER_QUEUE_KEY = "mm:user_queue:{user_id}"
 
 # LRANGE 0..n-1 + LTRIM n -1 if LLEN >= n (atomic)
@@ -26,8 +25,8 @@ return items
 """
 
 
-def _queue_key(bucket: int) -> str:
-    return QUEUE_KEY.format(bucket=bucket)
+def _queue_key() -> str:
+    return QUEUE_KEY
 
 
 def _user_queue_key(user_id: int) -> str:
@@ -35,19 +34,21 @@ def _user_queue_key(user_id: int) -> str:
 
 
 def leave_queue_if_present(r: redis.Redis, user_id: int) -> None:
-    bucket_raw = r.get(_user_queue_key(user_id))
-    if bucket_raw is not None:
-        r.lrem(_queue_key(int(bucket_raw)), 0, str(user_id))
-        r.delete(_user_queue_key(user_id))
+    """Remove user from matchmaking queue."""
+    r.lrem(_queue_key(), 0, str(user_id))
+    r.delete(_user_queue_key(user_id))
 
 
 def try_queue_match(db: Session, r: redis.Redis, user: User) -> Match | None:
+    """Try to create a match if enough players are queued.
+    
+    Players are matched without ELO restriction - just the users who are waiting.
+    """
     settings = get_settings()
     leave_queue_if_present(r, user.id)
-    bucket = elo_bucket(user.elo)
-    key = _queue_key(bucket)
+    key = _queue_key()
     r.rpush(key, str(user.id))
-    r.set(_user_queue_key(user.id), str(bucket), ex=3600)
+    r.set(_user_queue_key(user.id), "1", ex=3600)
 
     raw = r.eval(_POP_N_IF_READY, 1, key, str(settings.matchmaking_party_size))
     if raw is None:
@@ -67,7 +68,7 @@ def try_queue_match(db: Session, r: redis.Redis, user: User) -> Match | None:
         for uid in reversed(user_ids):
             r.lpush(key, str(uid))
         for uid in user_ids:
-            r.set(_user_queue_key(uid), str(bucket), ex=3600)
+            r.set(_user_queue_key(uid), "1", ex=3600)
         return None
 
     now = datetime.now(timezone.utc)
@@ -82,16 +83,11 @@ def try_queue_match(db: Session, r: redis.Redis, user: User) -> Match | None:
     db.add(match)
     db.flush()
 
-    db_users = db.query(User).filter(User.id.in_(user_ids)).all()
-    by_id = {u.id: u for u in db_users}
     for uid in user_ids:
-        u = by_id.get(uid)
-        elo_val = u.elo if u else settings.default_elo
         db.add(
             MatchParticipant(
                 match_id=match.id,
                 user_id=uid,
-                elo_before=elo_val,
             )
         )
     db.commit()

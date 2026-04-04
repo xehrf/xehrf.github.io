@@ -21,6 +21,52 @@ def _penalty_points(difficulty: int) -> int:
     return {1: 2, 2: 5, 3: 10, 4: 15, 5: 20}.get(difficulty, 5)
 
 
+def _generate_explanation(task: Task, verdict) -> tuple[str | None, str | None, str | None]:
+    """Generate detailed educational explanation for wrong answers.
+    
+    Returns: (explanation, common_mistakes, correct_answer_hint)
+    """
+    if verdict.passed or not verdict.failed_test_case:
+        return None, None, None
+    
+    test_case = verdict.failed_test_case
+    correct_ans = verdict.correct_answer
+    user_ans = verdict.user_answer
+    
+    # Build detailed step-by-step explanation
+    explanation = f"""📘 Пошаговое объяснение решения:
+
+Тест #{test_case.get('test_num', '?')}:
+• Входные данные (input): {test_case.get('input', '?')}
+• Ожидаемый результат: {correct_ans}
+• Ваш результат: {user_ans}
+
+Как решить:
+1️⃣ Внимательно прочитайте условие задачи
+2️⃣ Разберите пример:
+   - Что именно нужно сделать с входными данными?
+   - Какие преобразования применять?
+   - Какой должен быть результат?
+3️⃣ Проверьте логику вашего кода:
+   - Все ли переменные инициализированы правильно?
+   - Правильно ли обрабатываются граничные случаи?
+   - Верна ли последовательность операций?
+4️⃣ Проверьте типы данных:
+   - Возвращаете ли вы правильный тип (int, str, list и т.д.)?
+   - Нет ли случайных преобразований типов?
+5️⃣ Запустите код ментыально шаг за шагом на примере"""
+    
+    common_mistakes = """⚠️ Частые ошибки:
+• Забыли обработать пустые входные данные (None, пустые списки)
+• Неправильный порядок операций
+• Используете неинициализированную переменную
+• Забыли вернуть результат
+• Опечатка в названии переменной или функции
+• Неправильная логика сравнения или условия"""
+    
+    return explanation, common_mistakes, correct_ans
+
+
 @router.post("", response_model=SubmissionResultOut)
 def submit(
     body: SubmissionCreate,
@@ -86,6 +132,12 @@ def submit(
     db.commit()
     db.refresh(sub)
     db.refresh(user)
+    
+    # Generate explanation for failed solutions
+    explanation, common_mistakes, correct_answer_hint = None, None, None
+    if not verdict.passed:
+        explanation, common_mistakes, correct_answer_hint = _generate_explanation(task, verdict)
+    
     return SubmissionResultOut(
         submission_id=sub.id,
         task_id=sub.task_id,
@@ -96,6 +148,9 @@ def submit(
         total_tests=verdict.total_tests,
         pts_delta=pts_delta,
         updated_pts=user.pts,
+        correct_answer=correct_answer_hint,
+        explanation=explanation,
+        common_mistakes=common_mistakes,
     )
 
 

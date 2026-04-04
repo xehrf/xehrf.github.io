@@ -1,7 +1,6 @@
 /** Навыки и история для демо-профиля */
 export const mockUser = {
   name: "dev_junior",
-  elo: 1084,
   pts: 340,
   level: "junior",
   skills: [

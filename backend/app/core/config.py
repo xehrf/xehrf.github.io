@@ -19,7 +19,6 @@ class Settings(BaseSettings):
 
     api_url: str | None = None
 
-    default_elo: int = 1000
     default_pts: int = 0
     matchmaking_party_size: int = 4
     match_default_duration_minutes: int = 120

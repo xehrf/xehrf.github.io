@@ -19,7 +19,6 @@ class ProfileOut(BaseModel):
 
     id: int
     display_name: str
-    elo: int
     pts: int
     level: str
     skills: list[SkillOut]

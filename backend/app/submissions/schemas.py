@@ -28,3 +28,7 @@ class SubmissionResultOut(BaseModel):
     total_tests: int
     pts_delta: int
     updated_pts: int
+    # For wrong answers: detailed explanation
+    correct_answer: str | None = None
+    explanation: str | None = None
+    common_mistakes: str | None = None
