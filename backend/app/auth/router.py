@@ -20,6 +20,7 @@ def register(body: UserRegister, db: Session = Depends(get_db)) -> TokenResponse
         email=body.email,
         hashed_password=hash_password(body.password),
         display_name=body.display_name,
+        nickname=body.display_name,
         pts=settings.default_pts,
         level=UserLevel.beginner,
     )

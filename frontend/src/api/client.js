@@ -46,7 +46,7 @@ export async function apiFetch(
   { method = "GET", body, auth = true, timeoutMs = 10000, headers: customHeaders = {} } = {},
 ) {
   const headers = { ...customHeaders };
-  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (body !== undefined && !(body instanceof FormData)) headers["Content-Type"] = "application/json";
 
   if (auth) {
     const token = localStorage.getItem("access_token");
@@ -61,7 +61,7 @@ export async function apiFetch(
     res = await fetch(`${BASE_URL}${path}`, {
       method,
       headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body !== undefined ? (body instanceof FormData ? body : JSON.stringify(body)) : undefined,
       signal: controller.signal,
     });
   } catch (err) {

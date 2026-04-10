@@ -81,6 +81,11 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
     display_name: Mapped[str] = mapped_column(String(100))
+    nickname: Mapped[str] = mapped_column(String(100), nullable=False, server_default="")
+    avatar_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    banner_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    bio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    elo: Mapped[int] = mapped_column(Integer, default=1000)
     pts: Mapped[int] = mapped_column(Integer, default=0)
     level: Mapped[UserLevel] = mapped_column(Enum(UserLevel), default=UserLevel.beginner)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -166,10 +171,63 @@ class MatchParticipant(Base):
     match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     placement: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    elo_before: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    elo_after: Mapped[int | None] = mapped_column(Integer, nullable=True)
     pts_awarded: Mapped[int] = mapped_column(Integer, default=0)
 
     match: Mapped["Match"] = relationship(back_populates="participants")
     user: Mapped["User"] = relationship()
+
+
+class TeamMatchmakingQueue(Base):
+    __tablename__ = "team_matchmaking_queue"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    ptc: Mapped[int] = mapped_column(Integer, nullable=False)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped["User"] = relationship()
+
+
+class Team(Base):
+    __tablename__ = "teams"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    members: Mapped[list["TeamMember"]] = relationship(back_populates="team", cascade="all, delete-orphan")
+    tasks: Mapped[list["TeamTask"]] = relationship(back_populates="team", cascade="all, delete-orphan")
+
+
+class TeamMember(Base):
+    __tablename__ = "team_members"
+    __table_args__ = (UniqueConstraint("team_id", "user_id", name="uq_team_user"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    team: Mapped["Team"] = relationship(back_populates="members")
+    user: Mapped["User"] = relationship()
+
+
+class TeamTaskStatus(str, enum.Enum):
+    active = "active"
+    completed = "completed"
+
+
+class TeamTask(Base):
+    __tablename__ = "team_tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"), index=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    status: Mapped[TeamTaskStatus] = mapped_column(Enum(TeamTaskStatus), default=TeamTaskStatus.active, index=True)
+    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    team: Mapped["Team"] = relationship(back_populates="tasks")
+    task: Mapped["Task"] = relationship()
 
 
 class Submission(Base):
@@ -201,6 +259,8 @@ class RatingHistory(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     match_id: Mapped[int | None] = mapped_column(ForeignKey("matches.id"), nullable=True)
     task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"), nullable=True)
+    elo_before: Mapped[int] = mapped_column(Integer)
+    elo_after: Mapped[int] = mapped_column(Integer)
     pts_delta: Mapped[int] = mapped_column(Integer, default=0)
     reason: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

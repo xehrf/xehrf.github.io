@@ -10,10 +10,6 @@ class EvaluationResult:
     message: str
     passed_tests: int
     total_tests: int
-    # For failed solutions: detailed educational feedback
-    failed_test_case: dict | None = None  # The first failed test case
-    correct_answer: str | None = None  # str representation of expected value
-    user_answer: str | None = None  # str representation of actual value
 
 
 def _to_tuple(value: Any) -> tuple[Any, ...]:
@@ -99,7 +95,6 @@ def evaluate_python_function(code: str, tests_json: dict | None) -> EvaluationRe
 
     passed = 0
     total = len(tests)
-    first_failed_case = None
 
     for idx, case in enumerate(tests, start=1):
         if not isinstance(case, dict) or "input" not in case or "expected" not in case:
@@ -119,26 +114,13 @@ def evaluate_python_function(code: str, tests_json: dict | None) -> EvaluationRe
                 message=f"Test #{idx} crashed: {exc}",
                 passed_tests=passed,
                 total_tests=total,
-                failed_test_case=case,
-                correct_answer=repr(expected),
-                user_answer=f"Error: {exc}",
             )
         if actual != expected:
-            if first_failed_case is None:
-                first_failed_case = {
-                    "test_num": idx,
-                    "input": args,
-                    "expected": expected,
-                    "actual": actual,
-                }
             return EvaluationResult(
                 passed=False,
                 message=f"Test #{idx} failed: expected {expected!r}, got {actual!r}",
                 passed_tests=passed,
                 total_tests=total,
-                failed_test_case=first_failed_case,
-                correct_answer=repr(expected),
-                user_answer=repr(actual),
             )
         passed += 1
 

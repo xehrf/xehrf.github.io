@@ -9,6 +9,7 @@ export function MatchmakingPage() {
   const navigate = useNavigate();
   const isMobile = useMediaQuery("(max-width: 767px)");
   const [activeMatch, setActiveMatch] = useState(null);
+  const [membersFound, setMembersFound] = useState(0);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
 
@@ -22,23 +23,26 @@ export function MatchmakingPage() {
     if (state === "searching") return;
     setError("");
     setSearching(true);
+    setMembersFound(1);
 
     (async () => {
       try {
-        const res = await apiFetch("/matchmaking/queue", { method: "POST" });
-        if (res.status === "matched" && res.task_id && res.match_id) {
-          setActiveMatch({
-            match_id: res.match_id,
-            task_id: res.task_id,
-            status: "active",
-            started_at: null,
-            ends_at: res.ends_at ?? null,
-            seconds_remaining: null,
-          });
-          setSearching(false);
+        const res = await apiFetch("/team-matchmaking/join", { method: "POST" });
+        if (res.status === "matched") {
+          navigate("/team");
           return;
         }
-        // queued -> polling via effect
+        if (res.status === "already_in_team") {
+          navigate("/team");
+          return;
+        }
+        if (res.status === "queued") {
+          setMembersFound(res.members_found ?? 1);
+          return;
+        }
+
+        setError(res.message || "Ошибка матчмейкинга");
+        setSearching(false);
       } catch (e) {
         setError(e?.message || "Ошибка матчмейкинга");
         setSearching(false);
@@ -50,27 +54,29 @@ export function MatchmakingPage() {
     setError("");
     (async () => {
       try {
-        await apiFetch("/matchmaking/queue", { method: "DELETE" });
+        await apiFetch("/team-matchmaking/leave", { method: "POST" });
       } catch {
         // If leave fails, we still reset UI.
       } finally {
         setActiveMatch(null);
         setSearching(false);
+        setMembersFound(0);
       }
     })();
   }
 
   useEffect(() => {
-    if (!searching || activeMatch) return;
+    if (!searching) return;
 
     let mounted = true;
     const id = window.setInterval(async () => {
       try {
-        const m = await apiFetch("/matchmaking/active");
+        const current = await apiFetch("/team/current");
         if (!mounted) return;
-        if (m) {
-          setActiveMatch(m);
+        if (current) {
+          setActiveMatch(current);
           setSearching(false);
+          navigate("/team");
         }
       } catch {
         // ignore transient polling errors
@@ -81,16 +87,16 @@ export function MatchmakingPage() {
       mounted = false;
       window.clearInterval(id);
     };
-  }, [activeMatch, searching]);
+  }, [navigate, searching]);
 
   if (isMobile) return <Navigate to="/dashboard" replace />;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
       <div className="mb-2 text-center">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Матчмейкинг</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Поиск команды</h1>
         <p className="mt-2 text-sm text-muted">
-          4 игрока · один таймер · честная раздача PTS
+          3 человека с похожим PTC · команда + общее задание
         </p>
       </div>
 
@@ -125,8 +131,8 @@ export function MatchmakingPage() {
           )}
           {state === "searching" && (
             <>
-              <p className="text-lg font-medium text-accent">Поиск соперников…</p>
-              <p className="mt-1 text-sm text-muted">Подбираем соперников</p>
+              <p className="text-lg font-medium text-accent">Поиск команды…</p>
+              <p className="mt-1 text-sm text-muted">Найдено {membersFound}/3 участников</p>
             </>
           )}
           {state === "matched" && (
@@ -147,7 +153,7 @@ export function MatchmakingPage() {
               className="w-full sm:w-auto sm:min-w-[200px] py-3.5 text-base"
               onClick={handleFindMatch}
             >
-              Найти матч
+              Найти команду
             </Button>
           ) : (
             <>
