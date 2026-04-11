@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
+import { useAuth } from "../auth/AuthProvider.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
@@ -21,6 +22,7 @@ export function EditProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const { refreshMe } = useAuth();
 
   useEffect(() => {
     let mounted = true;
@@ -98,6 +100,7 @@ export function EditProfilePage() {
         body: payload,
         headers: {},
       });
+      await refreshMe();
       navigate("/profile");
     } catch (e) {
       setError(e?.message || "Не удалось сохранить профиль");
