@@ -44,6 +44,7 @@ def me(user: User = Depends(get_current_user)) -> dict:
         "id": user.id,
         "email": user.email,
         "display_name": user.display_name,
+        "avatar_url": user.avatar_url,
         "pts": user.pts,
         "level": user.level.value,
     }

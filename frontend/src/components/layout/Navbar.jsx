@@ -1,5 +1,6 @@
 import { Link, NavLink } from "react-router-dom";
 import { useAuth } from "../../auth/AuthProvider.jsx";
+import { resolveAssetUrl } from "../../api/client";
 
 const navLinkClass = ({ isActive }) =>
   [
@@ -9,13 +10,14 @@ const navLinkClass = ({ isActive }) =>
 
 /**
  * @param {object} props
- * @param {{ pts: number, display_name: string, email: string } | null} props.user
+ * @param {{ pts: number, display_name: string, email: string, avatar_url?: string } | null} props.user
  */
 export function Navbar({ user }) {
   const { logout } = useAuth();
 
   const displayName = user?.display_name ?? "Guest";
   const initials = displayName.slice(0, 2).toUpperCase();
+  const avatarUrl = user?.avatar_url ? resolveAssetUrl(user.avatar_url) : "";
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-canvas/90 backdrop-blur-md">
@@ -66,10 +68,14 @@ export function Navbar({ user }) {
             <div className="flex items-center gap-2">
               <Link
                 to="/profile"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-elevated text-xs font-semibold text-accent transition-all duration-200 hover:border-accent/50 hover:shadow-glow"
+                className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-border bg-elevated text-xs font-semibold text-accent transition-all duration-200 hover:border-accent/50 hover:shadow-glow"
                 title="Профиль"
               >
-                {initials}
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="User avatar" className="h-full w-full object-cover" />
+                ) : (
+                  <span>{initials}</span>
+                )}
               </Link>
               <button
                 type="button"
