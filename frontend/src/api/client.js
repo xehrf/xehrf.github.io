@@ -91,7 +91,10 @@ export async function apiFetch(
     });
   } catch (err) {
     if (err?.name === "AbortError") {
-      throw new ApiError(0, "Сервер не отвечает (таймаут). Проверьте backend.");
+      throw new ApiError(
+        0,
+        "Сервер не отвечает (таймаут). Если вы загружаете файл, попробуйте уменьшить размер или подождать дольше."
+      );
     }
     throw new ApiError(0, "Не удалось подключиться к серверу.");
   } finally {

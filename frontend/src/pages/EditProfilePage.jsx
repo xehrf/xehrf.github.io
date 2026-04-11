@@ -98,6 +98,7 @@ export function EditProfilePage() {
       await apiFetch("/users/me", {
         method: "PATCH",
         body: payload,
+        timeoutMs: 30000,
         headers: {},
       });
       await refreshMe();
