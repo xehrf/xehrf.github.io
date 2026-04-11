@@ -22,7 +22,6 @@ from app.users.router import router as users_router
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:

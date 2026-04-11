@@ -137,11 +137,7 @@ export function ProfilePage() {
             </p>
           )}
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-3xl border border-border bg-canvas p-4">
-              <div className="text-xs uppercase tracking-wider text-muted">ELO</div>
-              <div className="mt-2 text-2xl font-semibold text-foreground">{u.elo}</div>
-            </div>
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-3xl border border-border bg-canvas p-4">
               <div className="text-xs uppercase tracking-wider text-muted">PTS</div>
               <div className="mt-2 text-2xl font-semibold text-foreground">{u.pts}</div>

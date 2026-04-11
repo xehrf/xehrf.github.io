@@ -4,7 +4,7 @@ import { Card } from "../components/ui/Card.jsx";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 
 const highlightsDesktop = [
-  ["Матчмейкинг", "Четыре игрока, один таймер, ELO как на FACEIT."],
+  ["Матчмейкинг", "Четыре игрока, один таймер, PTS за победы."],
   ["Solo-задачи", "Мини-фриланс, PTS и отзывы исполнителей."],
   ["Чистый UI", "Тёмная тема GitHub + жёлтые акценты арены."],
 ];
