@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Button } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
-import { apiFetch } from "../api/client";
+import { apiFetch, resolveAssetUrl } from "../api/client";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -43,12 +44,12 @@ export function EditProfilePage() {
 
   const bannerPreview = useMemo(() => {
     if (bannerFile) return URL.createObjectURL(bannerFile);
-    return profile?.banner_url;
+    return resolveAssetUrl(profile?.banner_url ?? "");
   }, [bannerFile, profile]);
 
   const avatarPreview = useMemo(() => {
     if (avatarFile) return URL.createObjectURL(avatarFile);
-    return profile?.avatar_url;
+    return resolveAssetUrl(profile?.avatar_url ?? "");
   }, [avatarFile, profile]);
 
   useEffect(() => {
@@ -209,20 +210,21 @@ export function EditProfilePage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-muted">Максимальный размер файла: 5MB.</p>
               <div className="flex flex-wrap gap-3">
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
+                  className="rounded-[12px] px-4 py-2"
                   onClick={() => navigate("/profile")}
-                  className="rounded-2xl border border-border bg-canvas px-4 py-2 text-sm text-foreground transition hover:border-accent/40"
                 >
                   Отмена
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
+                  className="rounded-[12px] px-4 py-2"
                   disabled={saving}
-                  className="rounded-2xl bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {saving ? "Сохраняем..." : "Сохранить профиль"}
-                </button>
+                </Button>
               </div>
             </div>
           </div>

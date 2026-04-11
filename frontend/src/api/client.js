@@ -55,6 +55,17 @@ if (!BASE_URL && !import.meta.env.DEV) {
   );
 }
 
+export function resolveAssetUrl(url) {
+  if (!url) return url;
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+  if (url.startsWith("/")) {
+    return `${BASE_URL}${url}`;
+  }
+  return url;
+}
+
 export async function apiFetch(
   path,
   { method = "GET", body, auth = true, timeoutMs = 10000, headers: customHeaders = {} } = {},
