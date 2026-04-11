@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { apiFetch } from "../api/client";
 
@@ -82,12 +82,12 @@ export function ProfilePage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Профиль</h1>
           <p className="mt-1 text-sm text-muted">@{u.nickname || u.display_name}</p>
         </div>
-        <Link
+        <LinkButton
           to="/profile/edit"
-          className="inline-flex items-center justify-center rounded-2xl bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent/90"
+          className="h-12 justify-center rounded-[12px] px-5 py-2.5 text-sm"
         >
           Редактировать профиль
-        </Link>
+        </LinkButton>
       </div>
 
       <Card className="overflow-hidden border-border">
