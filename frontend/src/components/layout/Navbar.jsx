@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useAuth } from "../../auth/AuthProvider.jsx";
 import { resolveAssetUrl } from "../../api/client";
@@ -14,10 +15,15 @@ const navLinkClass = ({ isActive }) =>
  */
 export function Navbar({ user }) {
   const { logout } = useAuth();
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   const displayName = user?.display_name ?? "Guest";
   const initials = displayName.slice(0, 2).toUpperCase();
   const avatarUrl = user?.avatar_url ? resolveAssetUrl(user.avatar_url) : "";
+
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [avatarUrl]);
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-canvas/90 backdrop-blur-md">
@@ -71,8 +77,13 @@ export function Navbar({ user }) {
                 className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-border bg-elevated text-xs font-semibold text-accent transition-all duration-200 hover:border-accent/50 hover:shadow-glow"
                 title="Профиль"
               >
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt="User avatar" className="h-full w-full object-cover" />
+                {avatarUrl && !avatarFailed ? (
+                  <img
+                    src={avatarUrl}
+                    alt="User avatar"
+                    className="h-full w-full object-cover"
+                    onError={() => setAvatarFailed(true)}
+                  />
                 ) : (
                   <span>{initials}</span>
                 )}
