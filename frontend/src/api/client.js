@@ -36,10 +36,24 @@ function stringifyDetail(detail) {
   return String(detail ?? "");
 }
 
-// Пустой BASE_URL → запросы на тот же origin (например http://192.168.x.x:5173/tasks),
-// Vite proxy пересылает на backend — так друг в локальной сети не попадает на localhost своего ПК.
-// Для продакшена задайте VITE_API_URL=https://api.example.com
-const BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
+// Пустой BASE_URL → запросы на тот же origin при локальной разработке.
+// В продакшене frontend и backend хостятся отдельно.
+// Обязательно задайте именно домен backend без /api, например:
+// VITE_API_URL=https://your-render-backend.onrender.com
+const rawBaseUrl = import.meta.env.VITE_API_URL ?? "";
+const BASE_URL = rawBaseUrl.replace(/\/+$/, "");
+
+if (BASE_URL.includes("/api")) {
+  throw new Error(
+    "VITE_API_URL не должен содержать '/api'. Укажите только домен backend без префикса /api, например https://your-backend.onrender.com."
+  );
+}
+
+if (!BASE_URL && !import.meta.env.DEV) {
+  throw new Error(
+    "VITE_API_URL не задан. Установите переменную окружения VITE_API_URL на URL backend-сервера."
+  );
+}
 
 export async function apiFetch(
   path,
