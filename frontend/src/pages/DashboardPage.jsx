@@ -43,23 +43,18 @@ export function DashboardPage() {
   }, []);
 
   const filtered = useMemo(() => {
-    let list = tasks;
-    if (isMobile) list = list.filter((t) => t.task_type !== "match");
+    let list = tasks.filter((t) => t.task_type === "solo");
     if (filter === "all") return list;
     const n = Number(filter);
     return list.filter((t) => t.difficulty === n);
-  }, [filter, tasks, isMobile]);
+  }, [filter, tasks]);
 
   return (
     <div className="mx-auto w-full max-w-[430px] px-4 py-6 md:max-w-6xl md:px-6 md:py-8">
       <div className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Задачи</h1>
-          <p className="mt-1 text-sm text-muted">
-            {isMobile
-              ? "Solo-задания. Открой карточку, прими задачу и отправь решение до дедлайна."
-              : "Solo и матч-задания. Фильтруй по сложности и забирай PTS."}
-          </p>
+          <p className="mt-1 text-sm text-muted">Решай задачи и зарабатывай PTS</p>
         </div>
       </div>
 
