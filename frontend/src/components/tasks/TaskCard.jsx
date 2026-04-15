@@ -31,7 +31,7 @@ export function TaskCard({ task, onSolve, actionLabel = "Решить", showPts 
     task.task_type === "solo" ? "Solo" : task.task_type === "match" ? "Match" : task.task_type;
 
   return (
-    <Card className="group flex flex-col gap-4">
+    <Card className="group flex h-full flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="text-lg font-semibold text-foreground transition-colors group-hover:text-accent">

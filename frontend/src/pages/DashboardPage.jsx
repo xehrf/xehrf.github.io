@@ -87,9 +87,9 @@ export function DashboardPage() {
           Нет задач с этой сложностью. Сбросьте фильтр.
         </p>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
           {filtered.map((task) => (
-            <li key={task.id}>
+            <li key={task.id} className="flex h-full">
               <TaskCard
                 task={task}
                 actionLabel={isMobile ? "Открыть" : "Решить"}
