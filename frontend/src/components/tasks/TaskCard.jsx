@@ -31,42 +31,44 @@ export function TaskCard({ task, onSolve, actionLabel = "Решить", showPts 
     task.task_type === "solo" ? "Solo" : task.task_type === "match" ? "Match" : task.task_type;
 
   return (
-    <Card className="group flex h-full flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h3 className="text-lg font-semibold text-foreground transition-colors group-hover:text-accent">
-            {task.title}
-          </h3>
+    <Card className="group flex h-full min-h-[240px] flex-col rounded-[20px] border border-[#2B2B3C] bg-[#1E1E2E] p-5 shadow-[0_20px_40px_rgba(0,0,0,0.18)]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 className="truncate text-xl font-semibold text-white transition-colors group-hover:text-[#FFD600]">
+              {task.title}
+            </h3>
+            <span
+              className={[
+                "rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]",
+                diffClass,
+              ].join(" ")}
+            >
+              {difficultyLabels[task.difficulty] ?? `Уровень ${task.difficulty}`}
+            </span>
+          </div>
           {taskTypeLabel && (
-            <p className="mt-0.5 text-xs uppercase tracking-wider text-muted">{taskTypeLabel}</p>
+            <p className="mt-3 text-sm uppercase tracking-[0.18em] text-slate-400">{taskTypeLabel}</p>
           )}
         </div>
-        <span
-          className={[
-            "rounded-full border px-2.5 py-1 text-xs font-medium",
-            diffClass,
-          ].join(" ")}
-        >
-          {difficultyLabels[task.difficulty] ?? `Уровень ${task.difficulty}`}
-        </span>
       </div>
-      <div className="mt-auto flex flex-col gap-3 border-t border-border pt-4 md:flex-row md:flex-wrap md:items-center md:justify-between">
-        <div className="text-sm text-muted">
+      <div className="mt-auto flex flex-col gap-4 border-t border-[#2B2B3C] pt-4">
+        <div className="text-sm text-slate-300">
           Лимит:{" "}
-          <span className="font-semibold text-accent tabular-nums">
+          <span className="font-semibold text-white tabular-nums">
             {task.time_limit_minutes} мин
           </span>
           {showPts ? (
             <>
-              <span className="mx-2 text-border">·</span>
-              <span className="font-semibold tabular-nums text-accent">+{ptsForDifficulty(task.difficulty)} PTS</span>
+              <span className="mx-2 text-slate-500">·</span>
+              <span className="font-semibold tabular-nums text-white">+{ptsForDifficulty(task.difficulty)} PTS</span>
             </>
           ) : null}
         </div>
         <Button
           type="button"
           onClick={onSolve}
-          className="h-12 w-full shrink-0 justify-center rounded-[12px] text-base md:h-auto md:w-auto md:rounded-btn md:text-sm"
+          className="h-12 w-full rounded-[16px] bg-[#FFD600] px-4 py-2 text-sm font-semibold text-black shadow-[0_10px_30px_rgba(255,214,0,0.3)] transition-colors duration-200 hover:bg-[#f9d400] md:w-auto"
         >
           {actionLabel}
         </Button>
