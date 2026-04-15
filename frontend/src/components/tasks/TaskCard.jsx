@@ -3,11 +3,11 @@ import { Card } from "../ui/Card.jsx";
 import { ptsForDifficulty } from "../../utils/taskPts.js";
 
 const difficultyLabels = {
-  1: "Лёгкая",
+  1: "Лёгкие",
   2: "Средняя",
-  3: "Сложная",
+  3: "Сложные",
   4: "Эксперт",
-  5: "Легенда",
+  5: "Легендарные",
 };
 
 const difficultyColors = {
