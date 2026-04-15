@@ -87,7 +87,7 @@ export function DashboardPage() {
           Нет задач с этой сложностью. Сбросьте фильтр.
         </p>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
+        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
           {filtered.map((task) => (
             <li key={task.id} className="flex h-full">
               <TaskCard
