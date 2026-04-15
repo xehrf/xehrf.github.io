@@ -10,6 +10,8 @@ export function ProfilePage() {
   const [taskTitles, setTaskTitles] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [bannerLoadError, setBannerLoadError] = useState(false);
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
 
   const completedTasks = useMemo(() => {
     const seen = new Set();
@@ -77,6 +79,8 @@ export function ProfilePage() {
     "linear-gradient(135deg, rgba(30,41,59,0.9), rgba(15,23,42,0.95))";
   const bannerUrl = resolveAssetUrl(u.banner_url || "");
   const avatarUrl = resolveAssetUrl(u.avatar_url || "");
+  const showBanner = bannerUrl && !bannerLoadError;
+  const showAvatar = avatarUrl && !avatarLoadError;
 
   return (
     <div className="mx-auto w-full max-w-[900px] px-4 py-6 md:px-6 md:py-8">
@@ -95,11 +99,12 @@ export function ProfilePage() {
 
       <Card className="overflow-hidden border-border">
         <div className="relative h-56 bg-slate-950/80 sm:h-72">
-          {bannerUrl ? (
+          {showBanner ? (
             <img
               src={bannerUrl}
               alt="Banner"
               className="h-full w-full object-cover"
+              onError={() => setBannerLoadError(true)}
             />
           ) : (
             <div
@@ -113,8 +118,13 @@ export function ProfilePage() {
             </span>
           </div>
           <div className="absolute left-6 bottom-[-40px] flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-slate-950 bg-slate-800 shadow-xl">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+            {showAvatar ? (
+              <img
+                src={avatarUrl}
+                alt="Avatar"
+                className="h-full w-full object-cover"
+                onError={() => setAvatarLoadError(true)}
+              />
             ) : (
               <span className="text-4xl font-bold text-white">
                 {u.nickname?.[0]?.toUpperCase() ?? u.display_name?.[0]?.toUpperCase() ?? "?"}

@@ -21,6 +21,8 @@ export function EditProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [avatarPreviewError, setAvatarPreviewError] = useState(false);
+  const [bannerPreviewError, setBannerPreviewError] = useState(false);
   const navigate = useNavigate();
   const { refreshMe } = useAuth();
 
@@ -60,6 +62,11 @@ export function EditProfilePage() {
       if (avatarPreview && avatarFile) URL.revokeObjectURL(avatarPreview);
     };
   }, [bannerPreview, bannerFile, avatarPreview, avatarFile]);
+
+  useEffect(() => {
+    setAvatarPreviewError(false);
+    setBannerPreviewError(false);
+  }, [avatarPreview, bannerPreview]);
 
   const handleFile = (setter) => (event) => {
     const file = event.target.files?.[0] ?? null;
@@ -138,21 +145,27 @@ export function EditProfilePage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="overflow-hidden">
           <div className="relative h-52 bg-slate-950/80">
-            {bannerPreview ? (
+            {bannerPreview && !bannerPreviewError ? (
               <img
                 src={bannerPreview}
                 alt="Banner preview"
                 className="h-full w-full object-cover"
+                onError={() => setBannerPreviewError(true)}
               />
             ) : (
               <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-sm text-muted">
-                Баннер не установлен
+                {bannerPreviewError ? "Не удалось загрузить баннер" : "Баннер не установлен"}
               </div>
             )}
             <div className="absolute left-6 bottom-[-30px]">
               <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-slate-950 bg-slate-900">
-                {avatarPreview ? (
-                  <img src={avatarPreview} alt="Avatar preview" className="h-full w-full object-cover" />
+                {avatarPreview && !avatarPreviewError ? (
+                  <img
+                    src={avatarPreview}
+                    alt="Avatar preview"
+                    className="h-full w-full object-cover"
+                    onError={() => setAvatarPreviewError(true)}
+                  />
                 ) : (
                   <div className="flex h-full items-center justify-center bg-slate-700 text-2xl font-bold text-white">
                     {profile.nickname?.[0]?.toUpperCase() ?? "?"}
