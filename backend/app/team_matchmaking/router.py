@@ -29,38 +29,69 @@ team_router = APIRouter(prefix="/team", tags=["team"])
 
 @router.post("/join", response_model=TeamMatchmakingJoinResponse)
 async def join_team(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> TeamMatchmakingJoinResponse:
-    active_team = tm_service.get_current_team(db, user.id)
-    if active_team is not None:
+    try:
+        print(f"User {user.id} attempting to join team matchmaking")
+        
+        active_team = tm_service.get_current_team(db, user.id)
+        if active_team is not None:
+            return TeamMatchmakingJoinResponse(
+                status="already_in_team",
+                team_id=active_team.id,
+                task_id=active_team.tasks[0].task_id if active_team.tasks else None,
+                message="Você já está em uma equipe.",
+            )
+
+        result = tm_service.join_queue(db, user)
+        print(f"Join queue result: {result}")
+        
+        if result.get("status") == "matched":
+            await manager.broadcast(
+                result["team_id"],
+                "team_formed",
+                {
+                    "team_id": result["team_id"],
+                    "task_id": result["task_id"],
+                    "message": "Equipe formada!",
+                },
+            )
+            await manager.broadcast(
+                result["team_id"],
+                "task_assigned",
+                {
+                    "team_id": result["team_id"],
+                    "task_id": result["task_id"],
+                    "status": "active",
+                    "assigned_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+
+        # Ensure result has all required fields for response model
+        response_data = {
+            "status": result.get("status", "unknown"),
+            "team_id": result.get("team_id"),
+            "task_id": result.get("task_id"),
+            "queue_size": result.get("queue_size"),
+            "queue_position": result.get("queue_position"),
+            "members_found": result.get("members_found"),
+            "message": result.get("message", ""),
+            "ends_at": result.get("ends_at"),
+        }
+        
+        return TeamMatchmakingJoinResponse(**response_data)
+        
+    except Exception as e:
+        print(f"Error in join_team: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Return a safe response instead of crashing
         return TeamMatchmakingJoinResponse(
-            status="already_in_team",
-            team_id=active_team.id,
-            task_id=active_team.tasks[0].task_id if active_team.tasks else None,
-            message="Вы уже в команде.",
+            status="error",
+            message="An error occurred while joining the queue",
+            queue_size=0,
+            queue_position=None,
+            members_found=0,
         )
-
-    result = tm_service.join_queue(db, user)
-    if result["status"] == "matched":
-        await manager.broadcast(
-            result["team_id"],
-            "team_formed",
-            {
-                "team_id": result["team_id"],
-                "task_id": result["task_id"],
-                "message": "Команда собрана!",
-            },
-        )
-        await manager.broadcast(
-            result["team_id"],
-            "task_assigned",
-            {
-                "team_id": result["team_id"],
-                "task_id": result["task_id"],
-                "status": "active",
-                "assigned_at": datetime.now(timezone.utc).isoformat(),
-            },
-        )
-
-    return TeamMatchmakingJoinResponse(**result)
 
 
 @router.post("/leave")
