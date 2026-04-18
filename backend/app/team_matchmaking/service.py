@@ -284,12 +284,19 @@ def _queue_size(db: Session) -> int:
 
 
 def join_queue(db: Session, user: User) -> dict:
-    active_team = get_current_team(db, user.id)
-    if active_team is not None:
+    try:
+        active_team = get_current_team(db, user.id)
+        if active_team is not None:
+            return {
+                "status": "already_in_team",
+                "team_id": active_team.id,
+                "task_id": active_team.tasks[0].task_id if active_team.tasks else None,
+            }
+    except Exception as e:
+        print(f"Error getting current team: {e}")
         return {
-            "status": "already_in_team",
-            "team_id": active_team.id,
-            "task_id": active_team.tasks[0].task_id if active_team.tasks else None,
+            "status": "error",
+            "message": "Database error occurred",
         }
 
     queued = get_queue_entry(db, user.id)
@@ -324,13 +331,19 @@ def join_queue(db: Session, user: User) -> dict:
             }
 
         average_ptc = sum(item.ptc for item in selected) // TEAM_SIZE
-        task = _select_task_by_ptc(db, average_ptc)
+        try:
+            task = _select_task_by_ptc(db, average_ptc)
+        except Exception as e:
+            # Log error but don't crash
+            print(f"Error selecting task: {e}")
+            task = None
+
         if task is None:
             return {
                 "status": "queued",
                 "queue_size": len(queue_items),
                 "members_found": len(queue_items),
-                "message": "Нет доступных командных заданий.",
+                "message": "No available team tasks.",
             }
 
         for item in selected:
