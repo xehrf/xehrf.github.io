@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     debug: bool = False
 
     database_url: str = "postgresql://codearena:codearena@localhost:5432/codearena"
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str = "redis://red-d7htv8hkh4rs73aluag0:6379"
 
     secret_key: str | None = None
     jwt_secret: str = "change-me-in-production-use-openssl-rand-hex-32"
