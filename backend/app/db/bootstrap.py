@@ -4,16 +4,19 @@ from app.db.models import Task, TaskType
 
 
 def seed_if_empty(db: Session) -> None:
-    existing_titles = {row[0] for row in db.query(Task.title).all()}
+    # Важно: не плодим дубликаты, если раньше уже сидили английские названия.
+    # Обновляем известные сиды на русский и solo, а недостающие добавляем.
+    existing_by_title: dict[str, Task] = {t.title: t for t in db.query(Task).all()}
 
-    seeded: list[Task] = [
-        Task(
-            title="Sum Two Numbers",
-            description="Implement function sum_two(a, b) that returns a + b.",
-            task_type=TaskType.solo,
-            difficulty=1,
-            time_limit_minutes=30,
-            tests_json={
+    seeds: list[dict] = [
+        # ===== ЛЁГКИЕ (1) =====
+        {
+            "legacy_titles": ["Sum Two Numbers"],
+            "title": "Сумма двух чисел",
+            "description": "Реализуйте функцию sum_two(a, b), которая возвращает a + b.",
+            "difficulty": 1,
+            "time_limit_minutes": 30,
+            "tests_json": {
                 "type": "python_function",
                 "function_name": "sum_two",
                 "tests": [
@@ -22,16 +25,15 @@ def seed_if_empty(db: Session) -> None:
                     {"input": [0, 0], "expected": 0},
                 ],
             },
-            starter_code="def sum_two(a, b):\n    return a + b\n",
-            is_published=True,
-        ),
-        Task(
-            title="Is Even",
-            description="Implement is_even(n) that returns True for even numbers.",
-            task_type=TaskType.solo,
-            difficulty=1,
-            time_limit_minutes=30,
-            tests_json={
+            "starter_code": "def sum_two(a, b):\n    return a + b\n",
+        },
+        {
+            "legacy_titles": ["Is Even"],
+            "title": "Чётное число",
+            "description": "Реализуйте is_even(n): верните True, если n чётное, иначе False.",
+            "difficulty": 1,
+            "time_limit_minutes": 30,
+            "tests_json": {
                 "type": "python_function",
                 "function_name": "is_even",
                 "tests": [
@@ -40,16 +42,15 @@ def seed_if_empty(db: Session) -> None:
                     {"input": [0], "expected": True},
                 ],
             },
-            starter_code="def is_even(n):\n    return n % 2 == 0\n",
-            is_published=True,
-        ),
-        Task(
-            title="Reverse String",
-            description="Implement reverse_string(s) that returns the reversed string.",
-            task_type=TaskType.solo,
-            difficulty=1,
-            time_limit_minutes=30,
-            tests_json={
+            "starter_code": "def is_even(n):\n    return n % 2 == 0\n",
+        },
+        {
+            "legacy_titles": ["Reverse String"],
+            "title": "Разворот строки",
+            "description": "Реализуйте reverse_string(s) и верните строку в обратном порядке.",
+            "difficulty": 1,
+            "time_limit_minutes": 30,
+            "tests_json": {
                 "type": "python_function",
                 "function_name": "reverse_string",
                 "tests": [
@@ -58,16 +59,15 @@ def seed_if_empty(db: Session) -> None:
                     {"input": [""], "expected": ""},
                 ],
             },
-            starter_code="def reverse_string(s):\n    return s[::-1]\n",
-            is_published=True,
-        ),
-        Task(
-            title="Factorial",
-            description="Implement factorial(n) for n >= 0.",
-            task_type=TaskType.solo,
-            difficulty=1,
-            time_limit_minutes=40,
-            tests_json={
+            "starter_code": "def reverse_string(s):\n    return s[::-1]\n",
+        },
+        {
+            "legacy_titles": ["Factorial"],
+            "title": "Факториал",
+            "description": "Реализуйте factorial(n) для n ≥ 0.",
+            "difficulty": 1,
+            "time_limit_minutes": 40,
+            "tests_json": {
                 "type": "python_function",
                 "function_name": "factorial",
                 "tests": [
@@ -76,16 +76,15 @@ def seed_if_empty(db: Session) -> None:
                     {"input": [7], "expected": 5040},
                 ],
             },
-            starter_code="def factorial(n):\n    res = 1\n    for i in range(2, n + 1):\n        res *= i\n    return res\n",
-            is_published=True,
-        ),
-        Task(
-            title="Count Vowels",
-            description="Implement count_vowels(s) that counts aeiou vowels.",
-            task_type=TaskType.solo,
-            difficulty=1,
-            time_limit_minutes=30,
-            tests_json={
+            "starter_code": "def factorial(n):\n    res = 1\n    for i in range(2, n + 1):\n        res *= i\n    return res\n",
+        },
+        {
+            "legacy_titles": ["Count Vowels"],
+            "title": "Подсчёт гласных",
+            "description": "Реализуйте count_vowels(s): посчитайте количество гласных (a, e, i, o, u) в строке.",
+            "difficulty": 1,
+            "time_limit_minutes": 30,
+            "tests_json": {
                 "type": "python_function",
                 "function_name": "count_vowels",
                 "tests": [
@@ -94,16 +93,15 @@ def seed_if_empty(db: Session) -> None:
                     {"input": ["AEIOU"], "expected": 5},
                 ],
             },
-            starter_code="def count_vowels(s):\n    vowels = set('aeiou')\n    return sum(1 for ch in s.lower() if ch in vowels)\n",
-            is_published=True,
-        ),
-        Task(
-            title="FizzBuzz N",
-            description="Implement fizz_buzz(n) returning list from 1..n with fizz/buzz rules.",
-            task_type=TaskType.solo,
-            difficulty=1,
-            time_limit_minutes=40,
-            tests_json={
+            "starter_code": "def count_vowels(s):\n    vowels = set('aeiou')\n    return sum(1 for ch in s.lower() if ch in vowels)\n",
+        },
+        {
+            "legacy_titles": ["FizzBuzz N"],
+            "title": "FizzBuzz до N",
+            "description": "Реализуйте fizz_buzz(n): верните список строк от 1 до n по правилам fizz/buzz/fizzbuzz.",
+            "difficulty": 1,
+            "time_limit_minutes": 40,
+            "tests_json": {
                 "type": "python_function",
                 "function_name": "fizz_buzz",
                 "tests": [
@@ -111,7 +109,7 @@ def seed_if_empty(db: Session) -> None:
                     {"input": [3], "expected": ["1", "2", "fizz"]},
                 ],
             },
-            starter_code=(
+            "starter_code": (
                 "def fizz_buzz(n):\n"
                 "    out = []\n"
                 "    for i in range(1, n + 1):\n"
@@ -125,15 +123,102 @@ def seed_if_empty(db: Session) -> None:
                 "            out.append(str(i))\n"
                 "    return out\n"
             ),
-            is_published=True,
-        ),
-        Task(
-            title="Two Sum Indices",
-            description="Implement two_sum(nums, target) returning indices of two numbers.",
-            task_type=TaskType.solo,
-            difficulty=3,
-            time_limit_minutes=90,
-            tests_json={
+        },
+        {
+            "legacy_titles": [],
+            "title": "Сумма цифр",
+            "description": "Реализуйте sum_digits(n): верните сумму цифр целого числа n (n может быть отрицательным).",
+            "difficulty": 1,
+            "time_limit_minutes": 30,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "sum_digits",
+                "tests": [
+                    {"input": [123], "expected": 6},
+                    {"input": [-90], "expected": 9},
+                    {"input": [0], "expected": 0},
+                ],
+            },
+            "starter_code": "def sum_digits(n):\n    n = abs(n)\n    return sum(int(ch) for ch in str(n))\n",
+        },
+        # ===== СРЕДНИЕ (2) =====
+        {
+            "legacy_titles": [],
+            "title": "Палиндром",
+            "description": "Реализуйте is_palindrome(s): верните True, если строка читается одинаково слева направо и справа налево.",
+            "difficulty": 2,
+            "time_limit_minutes": 45,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "is_palindrome",
+                "tests": [
+                    {"input": ["level"], "expected": True},
+                    {"input": ["абба"], "expected": True},
+                    {"input": ["hello"], "expected": False},
+                ],
+            },
+            "starter_code": "def is_palindrome(s):\n    return s == s[::-1]\n",
+        },
+        {
+            "legacy_titles": [],
+            "title": "Частоты слов",
+            "description": "Реализуйте word_freq(text): верните словарь {слово: частота}. Разделители — пробелы.",
+            "difficulty": 2,
+            "time_limit_minutes": 60,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "word_freq",
+                "tests": [
+                    {"input": ["a b a"], "expected": {"a": 2, "b": 1}},
+                    {"input": ["one"], "expected": {"one": 1}},
+                ],
+            },
+            "starter_code": (
+                "def word_freq(text):\n"
+                "    freq = {}\n"
+                "    for w in text.split():\n"
+                "        freq[w] = freq.get(w, 0) + 1\n"
+                "    return freq\n"
+            ),
+        },
+        {
+            "legacy_titles": [],
+            "title": "Проверка простого числа",
+            "description": "Реализуйте is_prime(n): верните True, если n — простое число (n ≥ 0).",
+            "difficulty": 2,
+            "time_limit_minutes": 60,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "is_prime",
+                "tests": [
+                    {"input": [1], "expected": False},
+                    {"input": [2], "expected": True},
+                    {"input": [49], "expected": False},
+                    {"input": [97], "expected": True},
+                ],
+            },
+            "starter_code": (
+                "def is_prime(n):\n"
+                "    if n < 2:\n"
+                "        return False\n"
+                "    if n % 2 == 0:\n"
+                "        return n == 2\n"
+                "    d = 3\n"
+                "    while d * d <= n:\n"
+                "        if n % d == 0:\n"
+                "            return False\n"
+                "        d += 2\n"
+                "    return True\n"
+            ),
+        },
+        # ===== СЛОЖНЫЕ (3) =====
+        {
+            "legacy_titles": ["Two Sum Indices"],
+            "title": "Две суммы (индексы)",
+            "description": "Реализуйте two_sum(nums, target): верните индексы двух чисел, сумма которых равна target.",
+            "difficulty": 3,
+            "time_limit_minutes": 90,
+            "tests_json": {
                 "type": "python_function",
                 "function_name": "two_sum",
                 "tests": [
@@ -141,7 +226,7 @@ def seed_if_empty(db: Session) -> None:
                     {"input": [[3, 2, 4], 6], "expected": [1, 2]},
                 ],
             },
-            starter_code=(
+            "starter_code": (
                 "def two_sum(nums, target):\n"
                 "    seen = {}\n"
                 "    for i, n in enumerate(nums):\n"
@@ -151,45 +236,14 @@ def seed_if_empty(db: Session) -> None:
                 "        seen[n] = i\n"
                 "    return []\n"
             ),
-            is_published=True,
-        ),
-        Task(
-            title="Valid Parentheses",
-            description="Implement valid_parentheses(s) for (), {}, [].",
-            task_type=TaskType.match,
-            difficulty=3,
-            time_limit_minutes=90,
-            tests_json={
-                "type": "python_function",
-                "function_name": "valid_parentheses",
-                "tests": [
-                    {"input": ["()[]{}"], "expected": True},
-                    {"input": ["(]"], "expected": False},
-                    {"input": ["([{}])"], "expected": True},
-                ],
-            },
-            starter_code=(
-                "def valid_parentheses(s):\n"
-                "    st = []\n"
-                "    pairs = {')': '(', ']': '[', '}': '{'}\n"
-                "    for ch in s:\n"
-                "        if ch in '([{':\n"
-                "            st.append(ch)\n"
-                "        elif ch in pairs:\n"
-                "            if not st or st[-1] != pairs[ch]:\n"
-                "                return False\n"
-                "            st.pop()\n"
-                "    return not st\n"
-            ),
-            is_published=True,
-        ),
-        Task(
-            title="Binary Search",
-            description="Implement binary_search(nums, target) returning index or -1.",
-            task_type=TaskType.solo,
-            difficulty=3,
-            time_limit_minutes=90,
-            tests_json={
+        },
+        {
+            "legacy_titles": ["Binary Search"],
+            "title": "Бинарный поиск",
+            "description": "Реализуйте binary_search(nums, target): верните индекс target или -1.",
+            "difficulty": 3,
+            "time_limit_minutes": 90,
+            "tests_json": {
                 "type": "python_function",
                 "function_name": "binary_search",
                 "tests": [
@@ -197,7 +251,7 @@ def seed_if_empty(db: Session) -> None:
                     {"input": [[1, 3, 5, 7, 9], 2], "expected": -1},
                 ],
             },
-            starter_code=(
+            "starter_code": (
                 "def binary_search(nums, target):\n"
                 "    l, r = 0, len(nums) - 1\n"
                 "    while l <= r:\n"
@@ -210,46 +264,24 @@ def seed_if_empty(db: Session) -> None:
                 "            r = m - 1\n"
                 "    return -1\n"
             ),
-            is_published=True,
-        ),
-        Task(
-            title="Top K Frequent",
-            description="Implement top_k_frequent(nums, k).",
-            task_type=TaskType.match,
-            difficulty=3,
-            time_limit_minutes=120,
-            tests_json={
-                "type": "python_function",
-                "function_name": "top_k_frequent",
-                "tests": [
-                    {"input": [[1, 1, 1, 2, 2, 3], 2], "expected": [1, 2]},
-                    {"input": [[4, 4, 4, 6, 6, 1], 1], "expected": [4]},
-                ],
-            },
-            starter_code=(
-                "def top_k_frequent(nums, k):\n"
-                "    freq = {}\n"
-                "    for n in nums:\n"
-                "        freq[n] = freq.get(n, 0) + 1\n"
-                "    pairs = sorted(freq.items(), key=lambda x: (-x[1], x[0]))\n"
-                "    return [n for n, _ in pairs[:k]]\n"
-            ),
-            is_published=True,
-        ),
-        Task(
-            title="Group Anagrams",
-            description="Implement group_anagrams(words) sorted by group key.",
-            task_type=TaskType.solo,
-            difficulty=3,
-            time_limit_minutes=120,
-            tests_json={
+        },
+        {
+            "legacy_titles": ["Group Anagrams"],
+            "title": "Группировка анаграмм",
+            "description": "Реализуйте group_anagrams(words): сгруппируйте слова-ананаграммы, внутри группы отсортируйте.",
+            "difficulty": 3,
+            "time_limit_minutes": 120,
+            "tests_json": {
                 "type": "python_function",
                 "function_name": "group_anagrams",
                 "tests": [
-                    {"input": [["eat", "tea", "tan", "ate", "nat", "bat"]], "expected": [["ate", "eat", "tea"], ["bat"], ["nat", "tan"]]},
+                    {
+                        "input": [["eat", "tea", "tan", "ate", "nat", "bat"]],
+                        "expected": [["ate", "eat", "tea"], ["bat"], ["nat", "tan"]],
+                    },
                 ],
             },
-            starter_code=(
+            "starter_code": (
                 "def group_anagrams(words):\n"
                 "    groups = {}\n"
                 "    for w in words:\n"
@@ -258,39 +290,129 @@ def seed_if_empty(db: Session) -> None:
                 "    out = [sorted(v) for v in groups.values()]\n"
                 "    return sorted(out, key=lambda g: g[0])\n"
             ),
-            is_published=True,
-        ),
-        Task(
-            title="Rotate Matrix 90",
-            description="Implement rotate_matrix(mat) clockwise.",
-            task_type=TaskType.match,
-            difficulty=3,
-            time_limit_minutes=120,
-            tests_json={
+        },
+        {
+            "legacy_titles": ["Valid Parentheses"],
+            "title": "Валидные скобки",
+            "description": "Реализуйте valid_parentheses(s): проверьте корректность скобок (), {}, [].",
+            "difficulty": 3,
+            "time_limit_minutes": 90,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "valid_parentheses",
+                "tests": [
+                    {"input": ["()[]{}"], "expected": True},
+                    {"input": ["(]"], "expected": False},
+                    {"input": ["([{}])"], "expected": True},
+                ],
+            },
+            "starter_code": (
+                "def valid_parentheses(s):\n"
+                "    st = []\n"
+                "    pairs = {')': '(', ']': '[', '}': '{'}\n"
+                "    for ch in s:\n"
+                "        if ch in '([{':\n"
+                "            st.append(ch)\n"
+                "        elif ch in pairs:\n"
+                "            if not st or st[-1] != pairs[ch]:\n"
+                "                return False\n"
+                "            st.pop()\n"
+                "    return not st\n"
+            ),
+        },
+        # ===== ЭКСПЕРТ (4) =====
+        {
+            "legacy_titles": [],
+            "title": "BFS по неориентированному графу",
+            "description": "Реализуйте bfs_levels(n, edges, start): верните список расстояний (в рёбрах) от start до всех вершин, -1 если недостижимо.",
+            "difficulty": 4,
+            "time_limit_minutes": 150,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "bfs_levels",
+                "tests": [
+                    {"input": [5, [[0, 1], [1, 2], [0, 3]], 0], "expected": [0, 1, 2, 1, -1]},
+                ],
+            },
+            "starter_code": (
+                "from collections import deque\n"
+                "def bfs_levels(n, edges, start):\n"
+                "    g = [[] for _ in range(n)]\n"
+                "    for u, v in edges:\n"
+                "        g[u].append(v)\n"
+                "        g[v].append(u)\n"
+                "    dist = [-1] * n\n"
+                "    dist[start] = 0\n"
+                "    q = deque([start])\n"
+                "    while q:\n"
+                "        u = q.popleft()\n"
+                "        for v in g[u]:\n"
+                "            if dist[v] == -1:\n"
+                "                dist[v] = dist[u] + 1\n"
+                "                q.append(v)\n"
+                "    return dist\n"
+            ),
+        },
+        {
+            "legacy_titles": ["Rotate Matrix 90"],
+            "title": "Поворот матрицы на 90°",
+            "description": "Реализуйте rotate_matrix(mat): поверните квадратную матрицу по часовой стрелке.",
+            "difficulty": 4,
+            "time_limit_minutes": 150,
+            "tests_json": {
                 "type": "python_function",
                 "function_name": "rotate_matrix",
                 "tests": [
                     {"input": [[[1, 2], [3, 4]]], "expected": [[3, 1], [4, 2]]},
-                    {"input": [[[1, 2, 3], [4, 5, 6], [7, 8, 9]]], "expected": [[7, 4, 1], [8, 5, 2], [9, 6, 3]]},
+                    {
+                        "input": [[[1, 2, 3], [4, 5, 6], [7, 8, 9]]],
+                        "expected": [[7, 4, 1], [8, 5, 2], [9, 6, 3]],
+                    },
                 ],
             },
-            starter_code="def rotate_matrix(mat):\n    return [list(row) for row in zip(*mat[::-1])]\n",
-            is_published=True,
-        ),
-        Task(
-            title="Dijkstra Shortest Path",
-            description="Implement dijkstra(n, edges, start) returning distances list.",
-            task_type=TaskType.solo,
-            difficulty=5,
-            time_limit_minutes=180,
-            tests_json={
+            "starter_code": "def rotate_matrix(mat):\n    return [list(row) for row in zip(*mat[::-1])]\n",
+        },
+        {
+            "legacy_titles": ["Top K Frequent"],
+            "title": "Топ-K самых частых",
+            "description": "Реализуйте top_k_frequent(nums, k): верните k самых частых чисел.",
+            "difficulty": 4,
+            "time_limit_minutes": 150,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "top_k_frequent",
+                "tests": [
+                    {"input": [[1, 1, 1, 2, 2, 3], 2], "expected": [1, 2]},
+                    {"input": [[4, 4, 4, 6, 6, 1], 1], "expected": [4]},
+                ],
+            },
+            "starter_code": (
+                "def top_k_frequent(nums, k):\n"
+                "    freq = {}\n"
+                "    for n in nums:\n"
+                "        freq[n] = freq.get(n, 0) + 1\n"
+                "    pairs = sorted(freq.items(), key=lambda x: (-x[1], x[0]))\n"
+                "    return [n for n, _ in pairs[:k]]\n"
+            ),
+        },
+        # ===== ЛЕГЕНДАРНЫЕ (5) =====
+        {
+            "legacy_titles": ["Dijkstra Shortest Path"],
+            "title": "Дейкстра: кратчайшие пути",
+            "description": "Реализуйте dijkstra(n, edges, start): верните массив расстояний от start до всех вершин (или -1 если пути нет).",
+            "difficulty": 5,
+            "time_limit_minutes": 180,
+            "tests_json": {
                 "type": "python_function",
                 "function_name": "dijkstra",
                 "tests": [
-                    {"input": [5, [[0, 1, 2], [1, 2, 3], [0, 3, 1], [3, 4, 4], [4, 2, 1]], 0], "expected": [0, 2, 5, 1, 5]},
+                    {
+                        "input": [5, [[0, 1, 2], [1, 2, 3], [0, 3, 1], [3, 4, 4], [4, 2, 1]], 0],
+                        "expected": [0, 2, 5, 1, 5],
+                    },
                 ],
             },
-            starter_code=(
+            "starter_code": (
                 "import heapq\n"
                 "def dijkstra(n, edges, start):\n"
                 "    g = [[] for _ in range(n)]\n"
@@ -311,22 +433,27 @@ def seed_if_empty(db: Session) -> None:
                 "                heapq.heappush(pq, (nd, v))\n"
                 "    return [x if x < INF else -1 for x in dist]\n"
             ),
-            is_published=True,
-        ),
-        Task(
-            title="LRU Cache Simulation",
-            description="Implement lru_sim(capacity, ops) returning outputs for GET ops.",
-            task_type=TaskType.match,
-            difficulty=5,
-            time_limit_minutes=180,
-            tests_json={
+        },
+        {
+            "legacy_titles": ["LRU Cache Simulation"],
+            "title": "Симуляция LRU-кэша",
+            "description": "Реализуйте lru_sim(capacity, ops): для операций GET верните список значений (или -1).",
+            "difficulty": 5,
+            "time_limit_minutes": 180,
+            "tests_json": {
                 "type": "python_function",
                 "function_name": "lru_sim",
                 "tests": [
-                    {"input": [2, [["PUT", 1, 1], ["PUT", 2, 2], ["GET", 1], ["PUT", 3, 3], ["GET", 2], ["GET", 3]]], "expected": [1, -1, 3]},
+                    {
+                        "input": [
+                            2,
+                            [["PUT", 1, 1], ["PUT", 2, 2], ["GET", 1], ["PUT", 3, 3], ["GET", 2], ["GET", 3]],
+                        ],
+                        "expected": [1, -1, 3],
+                    },
                 ],
             },
-            starter_code=(
+            "starter_code": (
                 "from collections import OrderedDict\n"
                 "def lru_sim(capacity, ops):\n"
                 "    cache = OrderedDict()\n"
@@ -348,22 +475,21 @@ def seed_if_empty(db: Session) -> None:
                 "                cache.popitem(last=False)\n"
                 "    return out\n"
             ),
-            is_published=True,
-        ),
-        Task(
-            title="Merge K Sorted Lists",
-            description="Implement merge_k_lists(lists) returning one sorted list.",
-            task_type=TaskType.solo,
-            difficulty=5,
-            time_limit_minutes=180,
-            tests_json={
+        },
+        {
+            "legacy_titles": ["Merge K Sorted Lists"],
+            "title": "Слить K отсортированных списков",
+            "description": "Реализуйте merge_k_lists(lists): слейте k отсортированных списков в один отсортированный.",
+            "difficulty": 5,
+            "time_limit_minutes": 180,
+            "tests_json": {
                 "type": "python_function",
                 "function_name": "merge_k_lists",
                 "tests": [
                     {"input": [[[1, 4, 5], [1, 3, 4], [2, 6]]], "expected": [1, 1, 2, 3, 4, 4, 5, 6]},
                 ],
             },
-            starter_code=(
+            "starter_code": (
                 "import heapq\n"
                 "def merge_k_lists(lists):\n"
                 "    heap = []\n"
@@ -379,48 +505,14 @@ def seed_if_empty(db: Session) -> None:
                 "            heapq.heappush(heap, (lists[li][ni], li, ni))\n"
                 "    return out\n"
             ),
-            is_published=True,
-        ),
-        Task(
-            title="Longest Increasing Subsequence Length",
-            description="Implement lis_len(nums).",
-            task_type=TaskType.match,
-            difficulty=5,
-            time_limit_minutes=180,
-            tests_json={
-                "type": "python_function",
-                "function_name": "lis_len",
-                "tests": [
-                    {"input": [[10, 9, 2, 5, 3, 7, 101, 18]], "expected": 4},
-                    {"input": [[0, 1, 0, 3, 2, 3]], "expected": 4},
-                ],
-            },
-            starter_code=(
-                "def lis_len(nums):\n"
-                "    tails = []\n"
-                "    for x in nums:\n"
-                "        l, r = 0, len(tails)\n"
-                "        while l < r:\n"
-                "            m = (l + r) // 2\n"
-                "            if tails[m] < x:\n"
-                "                l = m + 1\n"
-                "            else:\n"
-                "                r = m\n"
-                "        if l == len(tails):\n"
-                "            tails.append(x)\n"
-                "        else:\n"
-                "            tails[l] = x\n"
-                "    return len(tails)\n"
-            ),
-            is_published=True,
-        ),
-        Task(
-            title="Min Window Substring Length",
-            description="Implement min_window_len(s, t), return minimal window length or 0.",
-            task_type=TaskType.solo,
-            difficulty=5,
-            time_limit_minutes=180,
-            tests_json={
+        },
+        {
+            "legacy_titles": ["Min Window Substring Length"],
+            "title": "Минимальное окно (длина)",
+            "description": "Реализуйте min_window_len(s, t): верните длину минимального подотрезка s, содержащего все символы t (или 0).",
+            "difficulty": 5,
+            "time_limit_minutes": 180,
+            "tests_json": {
                 "type": "python_function",
                 "function_name": "min_window_len",
                 "tests": [
@@ -428,7 +520,7 @@ def seed_if_empty(db: Session) -> None:
                     {"input": ["a", "aa"], "expected": 0},
                 ],
             },
-            starter_code=(
+            "starter_code": (
                 "def min_window_len(s, t):\n"
                 "    if not t or not s:\n"
                 "        return 0\n"
@@ -453,15 +545,46 @@ def seed_if_empty(db: Session) -> None:
                 "            l += 1\n"
                 "    return 0 if best == 10**9 else best\n"
             ),
-            is_published=True,
-        ),
-        Task(
-            title="Thread-safe Counter Design",
-            description="Implement lock_counter(ops) where ops is list of increments/decrements.",
-            task_type=TaskType.match,
-            difficulty=5,
-            time_limit_minutes=180,
-            tests_json={
+        },
+        {
+            "legacy_titles": ["Longest Increasing Subsequence Length"],
+            "title": "Длина наибольшей возрастающей подпоследовательности",
+            "description": "Реализуйте lis_len(nums): верните длину LIS.",
+            "difficulty": 5,
+            "time_limit_minutes": 180,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "lis_len",
+                "tests": [
+                    {"input": [[10, 9, 2, 5, 3, 7, 101, 18]], "expected": 4},
+                    {"input": [[0, 1, 0, 3, 2, 3]], "expected": 4},
+                ],
+            },
+            "starter_code": (
+                "def lis_len(nums):\n"
+                "    tails = []\n"
+                "    for x in nums:\n"
+                "        l, r = 0, len(tails)\n"
+                "        while l < r:\n"
+                "            m = (l + r) // 2\n"
+                "            if tails[m] < x:\n"
+                "                l = m + 1\n"
+                "            else:\n"
+                "                r = m\n"
+                "        if l == len(tails):\n"
+                "            tails.append(x)\n"
+                "        else:\n"
+                "            tails[l] = x\n"
+                "    return len(tails)\n"
+            ),
+        },
+        {
+            "legacy_titles": ["Thread-safe Counter Design"],
+            "title": "Дизайн счётчика операций",
+            "description": "Реализуйте lock_counter(ops): примените последовательность операций inc/dec и верните итог.",
+            "difficulty": 5,
+            "time_limit_minutes": 180,
+            "tests_json": {
                 "type": "python_function",
                 "function_name": "lock_counter",
                 "tests": [
@@ -469,7 +592,7 @@ def seed_if_empty(db: Session) -> None:
                     {"input": [[["dec", 2], ["inc", 5]]], "expected": 3},
                 ],
             },
-            starter_code=(
+            "starter_code": (
                 "def lock_counter(ops):\n"
                 "    value = 0\n"
                 "    for op, n in ops:\n"
@@ -479,11 +602,65 @@ def seed_if_empty(db: Session) -> None:
                 "            value -= n\n"
                 "    return value\n"
             ),
-            is_published=True,
-        ),
+        },
     ]
 
-    to_insert = [task for task in seeded if task.title not in existing_titles]
+    changed = False
+    to_insert: list[Task] = []
+
+    for seed in seeds:
+        # Ищем существующую задачу по текущему title или по legacy_titles (если была сидирована раньше на EN).
+        candidates = [seed["title"], *seed.get("legacy_titles", [])]
+        existing = None
+        for t in candidates:
+            existing = existing_by_title.get(t)
+            if existing is not None:
+                break
+
+        if existing is None:
+            to_insert.append(
+                Task(
+                    title=seed["title"],
+                    description=seed["description"],
+                    task_type=TaskType.solo,
+                    difficulty=seed["difficulty"],
+                    time_limit_minutes=seed["time_limit_minutes"],
+                    tests_json=seed["tests_json"],
+                    starter_code=seed.get("starter_code"),
+                    is_published=True,
+                )
+            )
+            continue
+
+        # Обновляем существующие сиды под новые требования: русские тексты + только solo.
+        if existing.title != seed["title"]:
+            existing.title = seed["title"]
+            changed = True
+        if existing.description != seed["description"]:
+            existing.description = seed["description"]
+            changed = True
+        if existing.task_type != TaskType.solo:
+            existing.task_type = TaskType.solo
+            changed = True
+        if existing.difficulty != seed["difficulty"]:
+            existing.difficulty = seed["difficulty"]
+            changed = True
+        if existing.time_limit_minutes != seed["time_limit_minutes"]:
+            existing.time_limit_minutes = seed["time_limit_minutes"]
+            changed = True
+        if existing.tests_json != seed["tests_json"]:
+            existing.tests_json = seed["tests_json"]
+            changed = True
+        if seed.get("starter_code") is not None and existing.starter_code != seed.get("starter_code"):
+            existing.starter_code = seed.get("starter_code")
+            changed = True
+        if existing.is_published is not True:
+            existing.is_published = True
+            changed = True
+
     if to_insert:
         db.add_all(to_insert)
+        changed = True
+
+    if changed:
         db.commit()
