@@ -53,7 +53,7 @@ def set_ready_vote(db: Session, team_id: int, user_id: int, is_ready: bool) -> d
     else:
         vote.is_ready = is_ready
         vote.updated_at = datetime.now(timezone.utc)
-    db.commit()
+    db.flush()
     return get_team_ready_votes(db, team_id)
 
 
@@ -83,7 +83,7 @@ def create_team(db: Session, owner: User, name: str) -> Team:
     db.add(team)
     db.flush()
     db.add(TeamMember(team_id=team.id, user_id=owner.id, joined_at=datetime.now(timezone.utc)))
-    db.commit()
+    db.flush()
     db.refresh(team)
     return get_team_by_id(db, team.id) or team
 
@@ -91,13 +91,13 @@ def create_team(db: Session, owner: User, name: str) -> Team:
 def update_team_name(db: Session, team: Team, name: str) -> Team:
     team.name = name.strip()[:120] or team.name
     db.add(team)
-    db.commit()
+    db.flush()
     return get_team_by_id(db, team.id) or team
 
 
 def delete_team(db: Session, team: Team) -> None:
     db.delete(team)
-    db.commit()
+    db.flush()
 
 
 def create_invitation(db: Session, team: Team, inviter_user_id: int, invitee_user_id: int) -> TeamInvitation:
@@ -109,7 +109,7 @@ def create_invitation(db: Session, team: Team, inviter_user_id: int, invitee_use
         created_at=datetime.now(timezone.utc),
     )
     db.add(inv)
-    db.commit()
+    db.flush()
     db.refresh(inv)
     return inv
 
@@ -140,7 +140,7 @@ def accept_invitation(db: Session, invitation: TeamInvitation, user_id: int) -> 
         db.add(TeamMember(team_id=team.id, user_id=user_id, joined_at=datetime.now(timezone.utc)))
     invitation.status = TeamInvitationStatus.accepted
     invitation.decided_at = datetime.now(timezone.utc)
-    db.commit()
+    db.flush()
     return get_team_by_id(db, team.id)
 
 
@@ -149,7 +149,7 @@ def decline_invitation(db: Session, invitation: TeamInvitation, user_id: int) ->
         return False
     invitation.status = TeamInvitationStatus.declined
     invitation.decided_at = datetime.now(timezone.utc)
-    db.commit()
+    db.flush()
     return True
 
 
@@ -158,7 +158,7 @@ def cancel_invitation(db: Session, invitation: TeamInvitation, user_id: int) -> 
         return False
     invitation.status = TeamInvitationStatus.cancelled
     invitation.decided_at = datetime.now(timezone.utc)
-    db.commit()
+    db.flush()
     return True
 
 
@@ -205,7 +205,7 @@ def leave_queue(db: Session, user_id: int) -> bool:
     if entry is None:
         return False
     db.delete(entry)
-    db.commit()
+    db.flush()
     return True
 
 
@@ -217,14 +217,14 @@ def leave_team(db: Session, user_id: int) -> int | None:
     if membership is None:
         return None
     db.delete(membership)
-    db.commit()
+    db.flush()
     active_members = db.query(TeamMember).filter(TeamMember.team_id == team.id).count()
     if active_members == 0:
         active_task = next((task for task in team.tasks if task.status == TeamTaskStatus.active), None)
         if active_task is not None:
             active_task.status = TeamTaskStatus.completed
             db.add(active_task)
-            db.commit()
+            db.flush()
     return team.id
 
 
