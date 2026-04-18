@@ -55,6 +55,15 @@ if (!BASE_URL && !import.meta.env.DEV) {
   );
 }
 
+if (
+  !import.meta.env.DEV &&
+  (BASE_URL.includes("localhost") || BASE_URL.includes("127.0.0.1"))
+) {
+  throw new Error(
+    "VITE_API_URL указывает на localhost в продакшене. Для Vercel укажите публичный URL backend на Render."
+  );
+}
+
 export function resolveAssetUrl(url) {
   if (!url) return url;
   if (url.startsWith("http://") || url.startsWith("https://")) {

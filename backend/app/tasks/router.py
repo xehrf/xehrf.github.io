@@ -17,6 +17,7 @@ from app.db.models import (
     User,
 )
 from app.db.session import get_db
+from app.matchmaking import service as mm_service
 from app.submissions import anti_cheat
 from app.submissions.evaluator import evaluate_python_function
 from app.tasks.schemas import (
@@ -101,7 +102,8 @@ def list_tasks(
     q = db.query(Task).filter(Task.is_published.is_(True))
     if task_type is not None:
         q = q.filter(Task.task_type == task_type)
-    return q.order_by(Task.id.desc()).limit(100).all()
+    # Порядок в списке: от лёгкого к легендарному.
+    return q.order_by(Task.difficulty.asc(), Task.id.asc()).limit(200).all()
 
 
 @router.post("/{task_id}/start", response_model=TaskAttemptOut)
@@ -291,6 +293,10 @@ def submit_task_solution(
 
     db.add(sub)
     db.commit()
+    if match is not None and verdict.passed:
+        db.refresh(match)
+        mm_service.complete_match_with_winner(db, match, user.id)
+        db.refresh(user)
     db.refresh(sub)
     db.refresh(attempt)
     db.refresh(user)

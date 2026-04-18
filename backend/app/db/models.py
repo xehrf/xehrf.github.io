@@ -190,6 +190,7 @@ class Team(Base):
     __tablename__ = "teams"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(120), default="Team")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     members: Mapped[list["TeamMember"]] = relationship(back_populates="team", cascade="all, delete-orphan")
@@ -207,6 +208,65 @@ class TeamMember(Base):
 
     team: Mapped["Team"] = relationship(back_populates="members")
     user: Mapped["User"] = relationship()
+
+
+class TeamInvitationStatus(str, enum.Enum):
+    pending = "pending"
+    accepted = "accepted"
+    declined = "declined"
+    cancelled = "cancelled"
+
+
+class TeamInvitation(Base):
+    __tablename__ = "team_invitations"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"), index=True)
+    inviter_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    invitee_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    status: Mapped[TeamInvitationStatus] = mapped_column(
+        Enum(TeamInvitationStatus), default=TeamInvitationStatus.pending, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    team: Mapped["Team"] = relationship()
+    inviter: Mapped["User"] = relationship(foreign_keys=[inviter_user_id])
+    invitee: Mapped["User"] = relationship(foreign_keys=[invitee_user_id])
+
+
+class TeamReadyVote(Base):
+    __tablename__ = "team_ready_votes"
+    __table_args__ = (UniqueConstraint("team_id", "user_id", name="uq_team_ready_vote"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    is_ready: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    team: Mapped["Team"] = relationship()
+    user: Mapped["User"] = relationship()
+
+
+class TeamMatchResult(str, enum.Enum):
+    win = "win"
+    lose = "lose"
+    draw = "draw"
+
+
+class TeamMatchHistory(Base):
+    __tablename__ = "team_match_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"), index=True)
+    match_id: Mapped[int | None] = mapped_column(ForeignKey("matches.id"), nullable=True, index=True)
+    result: Mapped[TeamMatchResult] = mapped_column(Enum(TeamMatchResult), index=True)
+    rating_delta: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    team: Mapped["Team"] = relationship()
+    match: Mapped["Match | None"] = relationship()
 
 
 class TeamTaskStatus(str, enum.Enum):

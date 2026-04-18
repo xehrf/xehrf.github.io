@@ -48,6 +48,9 @@ export function Navbar({ user }) {
           <NavLink to="/matchmaking" className={navLinkClass}>
             Матчмейкинг
           </NavLink>
+          <NavLink to="/teams" className={navLinkClass}>
+            Команды
+          </NavLink>
           <NavLink to="/profile" className={navLinkClass}>
             Профиль
           </NavLink>

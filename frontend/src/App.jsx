@@ -10,7 +10,11 @@ import { MyJobsPage } from "./pages/MyJobsPage.jsx";
 import { PostDetailsPage } from "./pages/PostDetailsPage.jsx";
 import { RegisterPage } from "./pages/RegisterPage.jsx";
 import { ProfilePage } from "./pages/ProfilePage.jsx";
-import { EditProfilePage } from "./pages/EditProfilePage.jsx";import { TeamPage } from "./pages/TeamPage.jsx";import { TaskSolvePage } from "./pages/TaskSolvePage.jsx";
+import { EditProfilePage } from "./pages/EditProfilePage.jsx";
+import { TeamPage } from "./pages/TeamPage.jsx";
+import { TaskSolvePage } from "./pages/TaskSolvePage.jsx";
+import { TeamCreatePage } from "./pages/TeamCreatePage.jsx";
+import { TeamsPage } from "./pages/TeamsPage.jsx";
 import { TaskDetailPage } from "./pages/TaskDetailPage.jsx";
 import { RequireAuth } from "./auth/RequireAuth.jsx";
 
@@ -90,6 +94,22 @@ export default function App() {
           element={
             <RequireAuth>
               <TeamPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/teams"
+          element={
+            <RequireAuth>
+              <TeamsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/team/create"
+          element={
+            <RequireAuth>
+              <TeamCreatePage />
             </RequireAuth>
           }
         />

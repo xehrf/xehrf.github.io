@@ -603,6 +603,292 @@ def seed_if_empty(db: Session) -> None:
                 "    return value\n"
             ),
         },
+        # ===== ДОПОЛНИТЕЛЬНЫЕ SOLO-ЗАДАЧИ (разные уровни) =====
+        # Лёгкие (1)
+        {
+            "legacy_titles": ["Sum Array"],
+            "title": "Сумма элементов массива",
+            "description": "Реализуйте sum_array(nums): верните сумму всех чисел в списке.",
+            "difficulty": 1,
+            "time_limit_minutes": 30,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "sum_array",
+                "tests": [
+                    {"input": [[1, 2, 3]], "expected": 6},
+                    {"input": [[-1, 5, -4]], "expected": 0},
+                    {"input": [[]], "expected": 0},
+                ],
+            },
+            "starter_code": "def sum_array(nums):\n    return sum(nums)\n",
+        },
+        {
+            "legacy_titles": ["Max In Array"],
+            "title": "Максимум в массиве",
+            "description": "Реализуйте max_in_array(nums): верните максимум. Если список пуст — верните None.",
+            "difficulty": 1,
+            "time_limit_minutes": 35,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "max_in_array",
+                "tests": [
+                    {"input": [[1, 9, 3]], "expected": 9},
+                    {"input": [[-10, -3, -7]], "expected": -3},
+                    {"input": [[]], "expected": None},
+                ],
+            },
+            "starter_code": "def max_in_array(nums):\n    return max(nums) if nums else None\n",
+        },
+        {
+            "legacy_titles": ["GCD Two Numbers"],
+            "title": "НОД двух чисел",
+            "description": "Реализуйте gcd(a, b): верните наибольший общий делитель (алгоритм Евклида).",
+            "difficulty": 1,
+            "time_limit_minutes": 40,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "gcd",
+                "tests": [
+                    {"input": [48, 18], "expected": 6},
+                    {"input": [7, 13], "expected": 1},
+                    {"input": [0, 5], "expected": 5},
+                ],
+            },
+            "starter_code": (
+                "def gcd(a, b):\n"
+                "    a, b = abs(a), abs(b)\n"
+                "    while b:\n"
+                "        a, b = b, a % b\n"
+                "    return a\n"
+            ),
+        },
+        # Нормальные (2)
+        {
+            "legacy_titles": ["Is Prime"],
+            "title": "Проверка простоты",
+            "description": "Реализуйте is_prime(n): верните True, если n — простое число (n ≥ 0).",
+            "difficulty": 2,
+            "time_limit_minutes": 60,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "is_prime",
+                "tests": [
+                    {"input": [2], "expected": True},
+                    {"input": [1], "expected": False},
+                    {"input": [49], "expected": False},
+                    {"input": [97], "expected": True},
+                ],
+            },
+            "starter_code": (
+                "def is_prime(n):\n"
+                "    n = int(n)\n"
+                "    if n < 2:\n"
+                "        return False\n"
+                "    if n % 2 == 0:\n"
+                "        return n == 2\n"
+                "    d = 3\n"
+                "    while d * d <= n:\n"
+                "        if n % d == 0:\n"
+                "            return False\n"
+                "        d += 2\n"
+                "    return True\n"
+            ),
+        },
+        {
+            "legacy_titles": ["Anagram Check"],
+            "title": "Анаграммы",
+            "description": "Реализуйте is_anagram(a, b): верните True, если строки — анаграммы (регистр игнорируйте).",
+            "difficulty": 2,
+            "time_limit_minutes": 60,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "is_anagram",
+                "tests": [
+                    {"input": ["listen", "silent"], "expected": True},
+                    {"input": ["А роза", "за ора"], "expected": True},
+                    {"input": ["abc", "ab"], "expected": False},
+                ],
+            },
+            "starter_code": (
+                "def is_anagram(a, b):\n"
+                "    import re\n"
+                "    a = re.sub(r'\\s+', '', str(a).lower())\n"
+                "    b = re.sub(r'\\s+', '', str(b).lower())\n"
+                "    return sorted(a) == sorted(b)\n"
+            ),
+        },
+        {
+            "legacy_titles": ["Valid Parentheses"],
+            "title": "Правильные скобки",
+            "description": "Реализуйте is_valid_brackets(s): проверьте корректность скобочной последовательности из ()[]{}.",
+            "difficulty": 2,
+            "time_limit_minutes": 70,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "is_valid_brackets",
+                "tests": [
+                    {"input": ["()[]{}"], "expected": True},
+                    {"input": ["([{}])"], "expected": True},
+                    {"input": ["(]"], "expected": False},
+                    {"input": ["((("], "expected": False},
+                ],
+            },
+            "starter_code": (
+                "def is_valid_brackets(s):\n"
+                "    pairs = {')': '(', ']': '[', '}': '{'}\n"
+                "    st = []\n"
+                "    for ch in s:\n"
+                "        if ch in '([{':\n"
+                "            st.append(ch)\n"
+                "        elif ch in pairs:\n"
+                "            if not st or st[-1] != pairs[ch]:\n"
+                "                return False\n"
+                "            st.pop()\n"
+                "    return not st\n"
+            ),
+        },
+        # Сложные (3)
+        {
+            "legacy_titles": ["Binary Search"],
+            "title": "Бинарный поиск",
+            "description": "Реализуйте binary_search(nums, target): верните индекс target в отсортированном nums или -1.",
+            "difficulty": 3,
+            "time_limit_minutes": 90,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "binary_search",
+                "tests": [
+                    {"input": [[1, 3, 5, 7, 9], 7], "expected": 3},
+                    {"input": [[1, 3, 5, 7, 9], 2], "expected": -1},
+                    {"input": [[], 1], "expected": -1},
+                ],
+            },
+            "starter_code": (
+                "def binary_search(nums, target):\n"
+                "    l, r = 0, len(nums) - 1\n"
+                "    while l <= r:\n"
+                "        m = (l + r) // 2\n"
+                "        if nums[m] == target:\n"
+                "            return m\n"
+                "        if nums[m] < target:\n"
+                "            l = m + 1\n"
+                "        else:\n"
+                "            r = m - 1\n"
+                "    return -1\n"
+            ),
+        },
+        {
+            "legacy_titles": ["BFS Shortest Path Unweighted"],
+            "title": "BFS: кратчайший путь (без весов)",
+            "description": "Реализуйте bfs_shortest(n, edges, start, goal): верните длину кратчайшего пути или -1.",
+            "difficulty": 3,
+            "time_limit_minutes": 110,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "bfs_shortest",
+                "tests": [
+                    {"input": [5, [[0, 1], [1, 2], [2, 3], [0, 4]], 0, 3], "expected": 3},
+                    {"input": [4, [[0, 1], [2, 3]], 0, 3], "expected": -1},
+                ],
+            },
+            "starter_code": (
+                "from collections import deque\n"
+                "def bfs_shortest(n, edges, start, goal):\n"
+                "    g = [[] for _ in range(n)]\n"
+                "    for u, v in edges:\n"
+                "        g[u].append(v)\n"
+                "        g[v].append(u)\n"
+                "    dist = [-1] * n\n"
+                "    q = deque([start])\n"
+                "    dist[start] = 0\n"
+                "    while q:\n"
+                "        u = q.popleft()\n"
+                "        if u == goal:\n"
+                "            return dist[u]\n"
+                "        for v in g[u]:\n"
+                "            if dist[v] == -1:\n"
+                "                dist[v] = dist[u] + 1\n"
+                "                q.append(v)\n"
+                "    return -1\n"
+            ),
+        },
+        # Очень сложные (4)
+        {
+            "legacy_titles": ["Topological Sort"],
+            "title": "Топологическая сортировка",
+            "description": "Реализуйте topo_sort(n, edges): верните порядок вершин DAG или пустой список, если есть цикл.",
+            "difficulty": 4,
+            "time_limit_minutes": 150,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "topo_sort",
+                "tests": [
+                    {"input": [4, [[0, 1], [0, 2], [1, 3], [2, 3]]], "expected": [0, 1, 2, 3]},
+                    {"input": [2, [[0, 1], [1, 0]]], "expected": []},
+                ],
+            },
+            "starter_code": (
+                "from collections import deque\n"
+                "def topo_sort(n, edges):\n"
+                "    g = [[] for _ in range(n)]\n"
+                "    indeg = [0] * n\n"
+                "    for u, v in edges:\n"
+                "        g[u].append(v)\n"
+                "        indeg[v] += 1\n"
+                "    q = deque([i for i in range(n) if indeg[i] == 0])\n"
+                "    out = []\n"
+                "    while q:\n"
+                "        u = q.popleft()\n"
+                "        out.append(u)\n"
+                "        for v in g[u]:\n"
+                "            indeg[v] -= 1\n"
+                "            if indeg[v] == 0:\n"
+                "                q.append(v)\n"
+                "    return out if len(out) == n else []\n"
+            ),
+        },
+        # Легендарные (5)
+        {
+            "legacy_titles": ["KMP Substring Search"],
+            "title": "KMP: поиск подстроки",
+            "description": "Реализуйте kmp_find(s, p): верните первый индекс вхождения p в s или -1.",
+            "difficulty": 5,
+            "time_limit_minutes": 180,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "kmp_find",
+                "tests": [
+                    {"input": ["ababcabcabababd", "ababd"], "expected": 10},
+                    {"input": ["aaaaa", "bba"], "expected": -1},
+                    {"input": ["abc", ""], "expected": 0},
+                ],
+            },
+            "starter_code": (
+                "def kmp_find(s, p):\n"
+                "    s = str(s)\n"
+                "    p = str(p)\n"
+                "    if p == '':\n"
+                "        return 0\n"
+                "    # prefix-function (lps)\n"
+                "    lps = [0] * len(p)\n"
+                "    j = 0\n"
+                "    for i in range(1, len(p)):\n"
+                "        while j > 0 and p[i] != p[j]:\n"
+                "            j = lps[j - 1]\n"
+                "        if p[i] == p[j]:\n"
+                "            j += 1\n"
+                "            lps[i] = j\n"
+                "    j = 0\n"
+                "    for i, ch in enumerate(s):\n"
+                "        while j > 0 and ch != p[j]:\n"
+                "            j = lps[j - 1]\n"
+                "        if ch == p[j]:\n"
+                "            j += 1\n"
+                "            if j == len(p):\n"
+                "                return i - len(p) + 1\n"
+                "    return -1\n"
+            ),
+        },
     ]
 
     changed = False
