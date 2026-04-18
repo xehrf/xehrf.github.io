@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24 * 7
 
     api_url: str | None = None
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,https://*.vercel.app"
     cors_origin_regex: str = r"^https:\/\/.*\.vercel\.app$"
 
     default_pts: int = 0
