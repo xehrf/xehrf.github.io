@@ -5,13 +5,28 @@ import { Button } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { apiFetch } from "../api/client";
 
+function getMatchmakingSocketUrl(token) {
+  const origin = import.meta.env.VITE_API_URL ?? window.location.origin;
+  const wsOrigin = origin.replace(/^http/, "ws").replace(/\/+$/, "");
+  return `${wsOrigin}/matchmaking/ws?token=${encodeURIComponent(token)}`;
+}
+
+function formatCountdown(totalSeconds) {
+  if (totalSeconds == null || totalSeconds < 0) return "—";
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 export function MatchmakingPage() {
   const navigate = useNavigate();
-  const isMobile = useMediaQuery("(max-width: 767px)");
   const [activeMatch, setActiveMatch] = useState(null);
-  const [membersFound, setMembersFound] = useState(0);
+  const [queueInfo, setQueueInfo] = useState({ queue_size: 0, queue_position: null });
   const [searching, setSearching] = useState(false);
+  const [secondsRemaining, setSecondsRemaining] = useState(null);
+  const [statusNote, setStatusNote] = useState("Нажмите кнопку, чтобы встать в очередь.");
   const [error, setError] = useState("");
+  const isMobile = useMediaQuery("(max-width: 767px)");
 
   const state = useMemo(() => {
     if (activeMatch) return "matched";
@@ -23,21 +38,31 @@ export function MatchmakingPage() {
     if (state === "searching") return;
     setError("");
     setSearching(true);
-    setMembersFound(1);
+    setStatusNote("Ищем соперника с близким PTS...");
 
     (async () => {
       try {
-        const res = await apiFetch("/team-matchmaking/join", { method: "POST" });
+        const res = await apiFetch("/matchmaking/queue", { method: "POST" });
         if (res.status === "matched") {
-          navigate("/team");
+          setActiveMatch(res);
+          setSearching(false);
+          const end = res.ends_at ? new Date(res.ends_at).getTime() : null;
+          setSecondsRemaining(end ? Math.max(0, Math.floor((end - Date.now()) / 1000)) : null);
+          setStatusNote("Матч найден. Можно переходить к задаче.");
           return;
         }
-        if (res.status === "already_in_team") {
-          navigate("/team");
+        if (res.status === "already_in_match") {
+          setActiveMatch(res);
+          setSearching(false);
+          setStatusNote("У вас уже есть активный матч.");
           return;
         }
         if (res.status === "queued") {
-          setMembersFound(res.members_found ?? 1);
+          setQueueInfo({
+            queue_size: res.queue_size ?? 0,
+            queue_position: res.queue_position ?? null,
+          });
+          setStatusNote("Вы в очереди. Ожидаем соперника...");
           return;
         }
 
@@ -54,50 +79,91 @@ export function MatchmakingPage() {
     setError("");
     (async () => {
       try {
-        await apiFetch("/team-matchmaking/leave", { method: "POST" });
+        await apiFetch("/matchmaking/queue", { method: "DELETE" });
       } catch {
         // If leave fails, we still reset UI.
       } finally {
         setActiveMatch(null);
         setSearching(false);
-        setMembersFound(0);
+        setSecondsRemaining(null);
+        setQueueInfo({ queue_size: 0, queue_position: null });
+        setStatusNote("Поиск отменен.");
       }
     })();
   }
 
   useEffect(() => {
-    if (!searching) return;
-
     let mounted = true;
-    const id = window.setInterval(async () => {
+    (async () => {
       try {
-        const current = await apiFetch("/team/current");
+        const current = await apiFetch("/matchmaking/active");
         if (!mounted) return;
         if (current) {
           setActiveMatch(current);
           setSearching(false);
-          navigate("/team");
+          const end = current.ends_at ? new Date(current.ends_at).getTime() : null;
+          setSecondsRemaining(end ? Math.max(0, Math.floor((end - Date.now()) / 1000)) : null);
         }
       } catch {
         // ignore transient polling errors
       }
-    }, 1500);
+    })();
 
     return () => {
       mounted = false;
-      window.clearInterval(id);
     };
-  }, [navigate, searching]);
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+    const ws = new WebSocket(getMatchmakingSocketUrl(token));
+
+    ws.addEventListener("message", (event) => {
+      const payload = JSON.parse(event.data);
+      if (payload.event === "queue_update") {
+        const data = payload.data ?? {};
+        setQueueInfo({
+          queue_size: data.queue_size ?? 0,
+          queue_position: data.queue_position ?? null,
+        });
+        const queued = data.status === "queued" && (data.queue_position ?? null) != null;
+        setSearching(queued);
+        if (queued) {
+          setStatusNote("Очередь обновлена.");
+        }
+      }
+      if (payload.event === "active_match" || payload.event === "match_found") {
+        const data = payload.data ?? {};
+        setActiveMatch((prev) => ({ ...(prev ?? {}), ...data }));
+        setSearching(false);
+        const end = data.ends_at ? new Date(data.ends_at).getTime() : null;
+        setSecondsRemaining(end ? Math.max(0, Math.floor((end - Date.now()) / 1000)) : null);
+        setStatusNote("Соперник найден.");
+      }
+    });
+
+    return () => {
+      ws.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!activeMatch?.ends_at) return;
+    const deadline = new Date(activeMatch.ends_at).getTime();
+    const intervalId = window.setInterval(() => {
+      setSecondsRemaining(Math.max(0, Math.floor((deadline - Date.now()) / 1000)));
+    }, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [activeMatch]);
 
   if (isMobile) return <Navigate to="/dashboard" replace />;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
       <div className="mb-2 text-center">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Поиск команды</h1>
-        <p className="mt-2 text-sm text-muted">
-          3 человека с похожим PTC · команда + общее задание
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">PvP матчмейкинг</h1>
+        <p className="mt-2 text-sm text-muted">Система подберет соперника с близким PTS и запустит таймер матча</p>
       </div>
 
       <Card className="mt-10 flex flex-col items-center gap-8 p-8 sm:p-12">
@@ -131,17 +197,23 @@ export function MatchmakingPage() {
           )}
           {state === "searching" && (
             <>
-              <p className="text-lg font-medium text-accent">Поиск команды…</p>
-              <p className="mt-1 text-sm text-muted">Найдено {membersFound}/3 участников</p>
+              <p className="text-lg font-medium text-accent">Поиск соперника…</p>
+              <p className="mt-1 text-sm text-muted">
+                В очереди: {queueInfo.queue_size} · Ваша позиция: {queueInfo.queue_position ?? "—"}
+              </p>
             </>
           )}
           {state === "matched" && (
             <>
               <p className="text-lg font-medium text-accent">Матч найден</p>
               <p className="mt-1 text-sm text-muted">
-                Задание откроется в лобби
-                {activeMatch?.seconds_remaining != null ? ` (${activeMatch.seconds_remaining}s)` : ""}
+                До конца матча: {formatCountdown(secondsRemaining)}
               </p>
+              {activeMatch?.opponent ? (
+                <p className="mt-2 text-xs text-muted">
+                  Соперник: {activeMatch.opponent.nickname || activeMatch.opponent.display_name} · PTS {activeMatch.opponent.pts}
+                </p>
+              ) : null}
             </>
           )}
         </div>
@@ -153,12 +225,12 @@ export function MatchmakingPage() {
               className="w-full sm:w-auto sm:min-w-[200px] py-3.5 text-base"
               onClick={handleFindMatch}
             >
-              Найти команду
+              Найти матч
             </Button>
           ) : (
             <>
               <Button type="button" className="w-full sm:flex-1 py-3.5" onClick={handleReset}>
-                В очередь снова
+                Отменить поиск
               </Button>
               <Button
                 type="button"
@@ -166,12 +238,13 @@ export function MatchmakingPage() {
                 className="w-full sm:flex-1 py-3.5"
                 onClick={() => navigate(`/tasks/${activeMatch.task_id}/solve`)}
               >
-                В лобби
+                Открыть задачу
               </Button>
             </>
           )}
         </div>
 
+        <div className="text-xs text-muted">{statusNote}</div>
         {error ? <div className="text-sm text-accent">{error}</div> : null}
       </Card>
     </div>

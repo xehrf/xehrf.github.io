@@ -2,15 +2,23 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Card } from "../components/ui/Card.jsx";
 import { apiFetch } from "../api/client";
+import { useAuth } from "../auth/AuthProvider.jsx";
 
 function getWebSocketUrl(teamId) {
   const origin = import.meta.env.VITE_API_URL ?? window.location.origin;
   const wsOrigin = origin.replace(/^http/, "ws").replace(/\/+$/, "");
-  return `${wsOrigin}/team/ws/${teamId}`;
+  const token = localStorage.getItem("access_token") ?? "";
+  return `${wsOrigin}/team/ws/${teamId}?token=${encodeURIComponent(token)}`;
 }
 
 export function TeamPage() {
+  const { user } = useAuth();
   const [team, setTeam] = useState(null);
+  const [teamStats, setTeamStats] = useState(null);
+  const [teamHistory, setTeamHistory] = useState([]);
+  const [myInvites, setMyInvites] = useState([]);
+  const [inviteeId, setInviteeId] = useState("");
+  const [readyVotes, setReadyVotes] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [messages, setMessages] = useState([]);
@@ -32,6 +40,16 @@ export function TeamPage() {
           return;
         }
         setTeam(current);
+        setReadyVotes(current.ready_votes ?? {});
+        const [stats, history, invites] = await Promise.all([
+          apiFetch(`/team/${current.team_id}/stats`),
+          apiFetch(`/team/${current.team_id}/history`),
+          apiFetch("/team/invites/me"),
+        ]);
+        if (!mounted) return;
+        setTeamStats(stats);
+        setTeamHistory(history ?? []);
+        setMyInvites(invites ?? []);
       } catch (e) {
         if (mounted) setError(e?.message || "Не удалось загрузить команду");
       } finally {
@@ -68,6 +86,12 @@ export function TeamPage() {
       if (eventName === "task_assigned") {
         setStatusMessage(`Задача ${data.task_id} назначена.`);
       }
+      if (eventName === "team_ready_update") {
+        setReadyVotes(data.votes ?? {});
+      }
+      if (eventName === "invitation_accepted") {
+        setMessages((prev) => [...prev, { system: true, message: `Пользователь #${data.user_id} принял приглашение.` }]);
+      }
     });
 
     ws.addEventListener("close", () => setStatusMessage("Соединение отключено."));
@@ -87,6 +111,53 @@ export function TeamPage() {
     websocketRef.current.send(JSON.stringify({ event: "chat_message", message: chatText.trim() }));
     setChatText("");
   };
+
+  const currentUserId = user?.id ?? 0;
+  const isCaptain = team?.captain_user_id === currentUserId;
+
+  async function handleReadyToggle(nextReady) {
+    if (!team) return;
+    try {
+      const res = await apiFetch(`/team/${team.team_id}/ready`, {
+        method: "POST",
+        body: { is_ready: nextReady },
+      });
+      setReadyVotes(res.votes ?? {});
+    } catch (e) {
+      setError(e?.message || "Не удалось обновить готовность");
+    }
+  }
+
+  async function handleInviteUser(e) {
+    e.preventDefault();
+    if (!team || !inviteeId.trim()) return;
+    try {
+      await apiFetch(`/team/${team.team_id}/invites`, {
+        method: "POST",
+        body: { invitee_user_id: Number(inviteeId) },
+      });
+      setInviteeId("");
+      setStatusMessage("Приглашение отправлено.");
+    } catch (e2) {
+      setError(e2?.message || "Не удалось отправить приглашение");
+    }
+  }
+
+  async function handleInviteAction(invitationId, action) {
+    try {
+      await apiFetch(`/team/invites/${invitationId}`, {
+        method: "POST",
+        body: { action },
+      });
+      setMyInvites((prev) => prev.filter((inv) => inv.invitation_id !== invitationId));
+      if (action === "accept") {
+        const current = await apiFetch("/team/current");
+        setTeam(current);
+      }
+    } catch (e) {
+      setError(e?.message || "Не удалось обработать приглашение");
+    }
+  }
 
   if (loading) {
     return (
@@ -115,12 +186,14 @@ export function TeamPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Командная комната</h1>
           <p className="mt-1 text-sm text-muted">Работайте вместе над задачей и обсуждайте ход.</p>
         </div>
-        <Link
-          to={`/tasks/${team.task.task_id}/solve`}
-          className="inline-flex items-center justify-center rounded-2xl bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent/90"
-        >
-          Открыть задачу
-        </Link>
+        {team.task ? (
+          <Link
+            to={`/tasks/${team.task.task_id}/solve`}
+            className="inline-flex items-center justify-center rounded-2xl bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent/90"
+          >
+            Открыть задачу
+          </Link>
+        ) : null}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[280px_1fr]">
@@ -132,8 +205,8 @@ export function TeamPage() {
 
           <div>
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Задача</h2>
-            <p className="mt-2 text-sm text-foreground">#{team.task.task_id}</p>
-            <p className="text-xs text-muted">{team.task.status}</p>
+            <p className="mt-2 text-sm text-foreground">{team.task ? `#${team.task.task_id}` : "Нет активной"}</p>
+            <p className="text-xs text-muted">{team.task?.status ?? "idle"}</p>
           </div>
 
           <div>
@@ -141,12 +214,52 @@ export function TeamPage() {
             <ul className="mt-3 space-y-2">
               {team.members.map((member) => (
                 <li key={member.user_id} className="flex items-center justify-between rounded-2xl border border-border bg-canvas px-3 py-2 text-sm">
-                  <span>{member.nickname}</span>
-                  <span className="text-xs text-muted">{member.online ? "online" : "offline"}</span>
+                  <span>
+                    {member.nickname}
+                    {member.user_id === team.captain_user_id ? " (капитан)" : ""}
+                  </span>
+                  <span className="text-xs text-muted">
+                    {member.online ? "online" : "offline"} · {readyVotes[member.user_id] ? "ready" : "not ready"}
+                  </span>
                 </li>
               ))}
             </ul>
           </div>
+
+          <div>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Готовность</h2>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleReadyToggle(true)}
+                className="rounded-2xl border border-border px-3 py-2 text-xs text-foreground"
+              >
+                Я готов
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReadyToggle(false)}
+                className="rounded-2xl border border-border px-3 py-2 text-xs text-muted"
+              >
+                Не готов
+              </button>
+            </div>
+          </div>
+
+          {isCaptain ? (
+            <form className="space-y-2" onSubmit={handleInviteUser}>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Пригласить по user_id</h2>
+              <input
+                value={inviteeId}
+                onChange={(e) => setInviteeId(e.target.value)}
+                className="w-full rounded-xl border border-border bg-canvas px-3 py-2 text-sm"
+                placeholder="Например, 12"
+              />
+              <button type="submit" className="rounded-2xl bg-accent px-3 py-2 text-xs font-semibold text-white">
+                Отправить инвайт
+              </button>
+            </form>
+          ) : null}
         </Card>
 
         <Card className="p-6">
@@ -189,6 +302,67 @@ export function TeamPage() {
               Отправить чат
             </button>
           </form>
+        </Card>
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <Card className="p-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">Статистика команды</h2>
+          {teamStats ? (
+            <div className="mt-3 space-y-1 text-sm text-foreground">
+              <div>Рейтинг: {teamStats.rating}</div>
+              <div>Матчи: {teamStats.total_matches}</div>
+              <div>W/L/D: {teamStats.wins}/{teamStats.losses}/{teamStats.draws}</div>
+              <div>Win rate: {(teamStats.win_rate * 100).toFixed(1)}%</div>
+            </div>
+          ) : (
+            <div className="mt-3 text-sm text-muted">Пока нет данных.</div>
+          )}
+        </Card>
+        <Card className="p-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">История матчей</h2>
+          <div className="mt-3 space-y-2 text-sm">
+            {teamHistory.length === 0 ? (
+              <div className="text-muted">История пуста.</div>
+            ) : (
+              teamHistory.map((item) => (
+                <div key={item.id} className="rounded-xl border border-border px-3 py-2">
+                  {item.result} · Δ{item.rating_delta} · {new Date(item.created_at).toLocaleString()}
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+      </div>
+
+      <div className="mt-6">
+        <Card className="p-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">Входящие приглашения</h2>
+          <div className="mt-3 space-y-2 text-sm">
+            {myInvites.length === 0 ? (
+              <div className="text-muted">Нет приглашений.</div>
+            ) : (
+              myInvites.map((inv) => (
+                <div key={inv.invitation_id} className="flex flex-wrap items-center gap-2 rounded-xl border border-border px-3 py-2">
+                  <span>Team #{inv.team_id} от user #{inv.inviter_user_id}</span>
+                  <button
+                    type="button"
+                    className="rounded-xl bg-accent px-2 py-1 text-xs text-white"
+                    onClick={() => handleInviteAction(inv.invitation_id, "accept")}
+                  >
+                    Принять
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-xl border border-border px-2 py-1 text-xs"
+                    onClick={() => handleInviteAction(inv.invitation_id, "decline")}
+                  >
+                    Отклонить
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
         </Card>
       </div>
     </div>
