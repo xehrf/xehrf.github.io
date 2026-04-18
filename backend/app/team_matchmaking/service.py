@@ -307,70 +307,67 @@ def join_queue(db: Session, user: User) -> dict:
             "members_found": min(_queue_size(db), TEAM_SIZE),
         }
 
-    with db.begin():
-        queue_items = db.query(TeamMatchmakingQueue).with_for_update().order_by(TeamMatchmakingQueue.ptc).all()
-        if get_queue_entry(db, user.id) is None:
-            entry = TeamMatchmakingQueue(user_id=user.id, ptc=user.pts)
-            db.add(entry)
-            db.flush()
-            queue_items.append(entry)
-
-        if len(queue_items) < TEAM_SIZE:
-            return {
-                "status": "queued",
-                "queue_size": len(queue_items),
-                "members_found": len(queue_items),
-            }
-
-        selected = _choose_team_members(queue_items, user)
-        if len(selected) < TEAM_SIZE:
-            return {
-                "status": "queued",
-                "queue_size": len(queue_items),
-                "members_found": len(queue_items),
-            }
-
-        average_ptc = sum(item.ptc for item in selected) // TEAM_SIZE
-        try:
-            task = _select_task_by_ptc(db, average_ptc)
-        except Exception as e:
-            # Log error but don't crash
-            print(f"Error selecting task: {e}")
-            task = None
-
-        if task is None:
-            return {
-                "status": "queued",
-                "queue_size": len(queue_items),
-                "members_found": len(queue_items),
-                "message": "No available team tasks.",
-            }
-
-        for item in selected:
-            db.delete(item)
-
-        team = Team(created_at=datetime.now(timezone.utc))
-        db.add(team)
+    queue_items = db.query(TeamMatchmakingQueue).with_for_update().order_by(TeamMatchmakingQueue.ptc).all()
+    if get_queue_entry(db, user.id) is None:
+        entry = TeamMatchmakingQueue(user_id=user.id, ptc=user.pts)
+        db.add(entry)
         db.flush()
+        queue_items.append(entry)
 
-        for item in selected:
-            db.add(TeamMember(team_id=team.id, user_id=item.user_id, joined_at=datetime.now(timezone.utc)))
-
-        db.add(
-            TeamTask(
-                team_id=team.id,
-                task_id=task.id,
-                status=TeamTaskStatus.active,
-                assigned_at=datetime.now(timezone.utc),
-            )
-        )
-        db.flush()
-
+    if len(queue_items) < TEAM_SIZE:
         return {
-            "status": "matched",
-            "team_id": team.id,
-            "task_id": task.id,
+            "status": "queued",
+            "queue_size": len(queue_items),
+            "members_found": len(queue_items),
         }
+
+    selected = _choose_team_members(queue_items, user)
+    if len(selected) < TEAM_SIZE:
+        return {
+            "status": "queued",
+            "queue_size": len(queue_items),
+            "members_found": len(queue_items),
+        }
+
+    average_ptc = sum(item.ptc for item in selected) // TEAM_SIZE
+    try:
+        task = _select_task_by_ptc(db, average_ptc)
+    except Exception as e:
+        # Log error but don't crash
+        print(f"Error selecting task: {e}")
+        task = None
+
+    if task is None:
+        return {
+            "status": "queued",
+            "queue_size": len(queue_items),
+            "members_found": len(queue_items),
+            "message": "No available team tasks.",
+        }
+
+    for item in selected:
+        db.delete(item)
+
+    team = Team(created_at=datetime.now(timezone.utc))
+    db.add(team)
+    db.flush()
+
+    for item in selected:
+        member = TeamMember(team_id=team.id, user_id=item.user_id, joined_at=datetime.now(timezone.utc))
+        db.add(member)
+
+    team_task = TeamTask(team_id=team.id, task_id=task.id, status=TeamTaskStatus.active, assigned_at=datetime.now(timezone.utc))
+    db.add(team_task)
+
+    for item in selected:
+        vote = TeamReadyVote(team_id=team.id, user_id=item.user_id, is_ready=False)
+        db.add(vote)
+
+    return {
+        "status": "matched",
+        "team_id": team.id,
+        "task_id": task.id,
+    }
 
 
 def get_team_queue_status(db: Session) -> dict:
