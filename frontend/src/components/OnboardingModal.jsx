@@ -80,7 +80,7 @@ export function OnboardingModal({ onComplete }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-      <div className="w-full max-w-md rounded-2xl border border-yellow-500/20 bg-slate-950 p-6 text-white">
+      <div className="w-full max-w-md rounded-2xl border border-yellow-500/20 bg-gray-900 p-6 text-white">
         <div className="mb-6 text-center">
           <h2 className="text-xl font-bold text-yellow-400">
             {step === 1 ? "Выберите вашу роль" : "Выберите технологии"}
@@ -107,7 +107,7 @@ export function OnboardingModal({ onComplete }) {
                 className={`w-full rounded-lg border p-3 text-left transition-all duration-200 ${
                   selectedRole === role
                     ? "border-yellow-500 bg-yellow-500/10 text-gray-300"
-                    : "border-white/10 bg-slate-800 text-white hover:border-yellow-500/50 hover:text-yellow-400"
+                    : "border-white/10 bg-gray-700 text-white hover:border-yellow-500/50 hover:text-yellow-400"
                 }`}
               >
                 {role}
@@ -126,7 +126,7 @@ export function OnboardingModal({ onComplete }) {
                   className={`rounded-lg border p-2 text-sm transition-all duration-200 ${
                     selectedTechnologies.includes(tech)
                       ? "border-yellow-500 bg-yellow-500/10 text-gray-300"
-                      : "border-white/10 bg-slate-800 text-white hover:border-yellow-500/50 hover:text-yellow-400"
+                      : "border-white/10 bg-gray-700 text-white hover:border-yellow-500/50 hover:text-yellow-400"
                   }`}
                 >
                   {tech}
@@ -140,7 +140,7 @@ export function OnboardingModal({ onComplete }) {
                 value={customTech}
                 onChange={(e) => setCustomTech(e.target.value)}
                 placeholder="Другое..."
-                className="flex-1 rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white placeholder-gray-400 focus:border-yellow-500 focus:outline-none"
+                className="flex-1 rounded-lg border border-white/10 bg-gray-700 px-3 py-2 text-sm text-white placeholder-gray-400 focus:border-yellow-500 focus:outline-none"
                 onKeyPress={(e) => e.key === "Enter" && handleAddCustomTech()}
               />
               <Button
@@ -172,7 +172,7 @@ export function OnboardingModal({ onComplete }) {
             <Button
               onClick={() => setStep(1)}
               variant="secondary"
-              className="rounded-lg border border-white/10 bg-slate-800 px-4 py-2 text-white hover:bg-slate-700"
+              className="rounded-lg border border-white/10 bg-gray-700 px-4 py-2 text-white hover:bg-gray-600"
             >
               Назад
             </Button>
