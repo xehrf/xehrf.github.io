@@ -7,6 +7,7 @@ import { apiFetch } from "../api/client";
 export function TeamCreatePage() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -15,9 +16,9 @@ export function TeamCreatePage() {
     setLoading(true);
     setError("");
     try {
-      await apiFetch("/team", {
+      await apiFetch("/teams", {
         method: "POST",
-        body: { name },
+        body: { name, description },
       });
       navigate("/team");
     } catch (err) {
@@ -38,6 +39,12 @@ export function TeamCreatePage() {
             onChange={(e) => setName(e.target.value)}
             className="w-full rounded-2xl border border-border bg-canvas px-4 py-3 text-sm text-foreground"
             placeholder="Название команды"
+          />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full min-h-[120px] rounded-2xl border border-border bg-canvas px-4 py-3 text-sm text-foreground"
+            placeholder="Описание команды"
           />
           <Button type="submit" disabled={loading} className="w-full">
             {loading ? "Создаем..." : "Создать"}

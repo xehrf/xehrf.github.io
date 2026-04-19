@@ -441,6 +441,7 @@ export function MatchmakingPage() {
   const [statusNote, setStatusNote] = useState("Нажмите кнопку, чтобы встать в очередь.");
   const [error, setError] = useState("");
   const [selectedUserId, setSelectedUserId] = useState(null);
+  const [teamCurrent, setTeamCurrent] = useState(null);
   const isMobile = useMediaQuery("(max-width: 767px)");
 
   const myUserId = useMemo(() => {
@@ -511,6 +512,20 @@ export function MatchmakingPage() {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const currentTeam = await apiFetch("/teams/current");
+        if (!mounted) return;
+        setTeamCurrent(currentTeam);
+      } catch {
+        setTeamCurrent(null);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
     const token = localStorage.getItem("access_token");
     if (!token) return;
     const ws = new WebSocket(getMatchmakingSocketUrl(token));
@@ -547,6 +562,25 @@ export function MatchmakingPage() {
             Система подберёт соперника с близким PTS и запустит таймер матча
           </p>
         </div>
+
+        {teamCurrent ? (
+          <div className="mb-6 rounded-2xl border border-yellow-500/20 bg-slate-950 p-5 text-sm text-white">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-yellow-300">Текущая команда</p>
+                <h2 className="mt-2 text-xl font-semibold">{teamCurrent.name}</h2>
+                <p className="mt-1 text-sm text-slate-400">Участников: {teamCurrent.members.length}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate("/team")}
+                className="rounded-2xl bg-yellow-400 px-4 py-2 text-sm font-semibold text-slate-950"
+              >
+                Перейти в команду
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {state === "matched" && (
           <div style={{ height: "520px" }}>

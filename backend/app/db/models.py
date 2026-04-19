@@ -186,15 +186,24 @@ class TeamMatchmakingQueue(Base):
     user: Mapped["User"] = relationship()
 
 
+class TeamMemberRole(str, enum.Enum):
+    captain = "captain"
+    member = "member"
+
+
 class Team(Base):
     __tablename__ = "teams"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(120), default="Team")
+    description: Mapped[str] = mapped_column(String(256), default="")
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True)
+    rating: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     members: Mapped[list["TeamMember"]] = relationship(back_populates="team", cascade="all, delete-orphan")
     tasks: Mapped[list["TeamTask"]] = relationship(back_populates="team", cascade="all, delete-orphan")
+    owner: Mapped["User | None"] = relationship(foreign_keys=[owner_id])
 
 
 class TeamMember(Base):
@@ -204,6 +213,7 @@ class TeamMember(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    role: Mapped[TeamMemberRole] = mapped_column(Enum(TeamMemberRole), default=TeamMemberRole.member, index=True)
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     team: Mapped["Team"] = relationship(back_populates="members")
@@ -263,6 +273,7 @@ class TeamMatchHistory(Base):
     match_id: Mapped[int | None] = mapped_column(ForeignKey("matches.id"), nullable=True, index=True)
     result: Mapped[TeamMatchResult] = mapped_column(Enum(TeamMatchResult), index=True)
     rating_delta: Mapped[int] = mapped_column(Integer, default=0)
+    ptc_earned: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     team: Mapped["Team"] = relationship()

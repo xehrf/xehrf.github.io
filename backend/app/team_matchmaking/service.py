@@ -35,7 +35,14 @@ def get_team_by_id(db: Session, team_id: int) -> Team | None:
     )
 
 
+def get_team_captain_member(team: Team) -> TeamMember | None:
+    return next((member for member in team.members if member.role == TeamMemberRole.captain), None)
+
+
 def get_team_captain_user_id(team: Team) -> int:
+    captain = get_team_captain_member(team)
+    if captain is not None:
+        return captain.user_id
     member_ids = sorted([m.user_id for m in team.members])
     return member_ids[0] if member_ids else 0
 
@@ -62,6 +69,8 @@ def is_captain(team: Team, user_id: int) -> bool:
 
 
 def _team_rating(team: Team) -> int:
+    if team.rating:
+        return team.rating
     if not team.members:
         return 0
     return sum(member.user.pts for member in team.members) // len(team.members)
@@ -75,21 +84,37 @@ def list_teams(db: Session, query: str | None = None) -> list[Team]:
     return q.order_by(Team.id.desc()).limit(100).all()
 
 
-def create_team(db: Session, owner: User, name: str) -> Team:
+def create_team(db: Session, owner: User, name: str, description: str = "") -> Team:
     existing = get_current_team(db, owner.id)
     if existing is not None:
         return existing
-    team = Team(created_at=datetime.now(timezone.utc), name=name.strip()[:120] or f"Team {owner.id}")
+    team = Team(
+        created_at=datetime.now(timezone.utc),
+        name=name.strip()[:120] or f"Team {owner.id}",
+        description=description.strip()[:256] if description else "",
+        owner_id=owner.id,
+        rating=owner.pts,
+    )
     db.add(team)
     db.flush()
-    db.add(TeamMember(team_id=team.id, user_id=owner.id, joined_at=datetime.now(timezone.utc)))
+    db.add(
+        TeamMember(
+            team_id=team.id,
+            user_id=owner.id,
+            role=TeamMemberRole.captain,
+            joined_at=datetime.now(timezone.utc),
+        )
+    )
     db.flush()
     db.refresh(team)
     return get_team_by_id(db, team.id) or team
 
 
-def update_team_name(db: Session, team: Team, name: str) -> Team:
-    team.name = name.strip()[:120] or team.name
+def update_team(db: Session, team: Team, name: str | None = None, description: str | None = None) -> Team:
+    if name is not None:
+        team.name = name.strip()[:120] or team.name
+    if description is not None:
+        team.description = description.strip()[:256]
     db.add(team)
     db.flush()
     return get_team_by_id(db, team.id) or team
@@ -101,6 +126,22 @@ def delete_team(db: Session, team: Team) -> None:
 
 
 def create_invitation(db: Session, team: Team, inviter_user_id: int, invitee_user_id: int) -> TeamInvitation:
+    existing_member = any(m.user_id == invitee_user_id for m in team.members)
+    if invitee_user_id == inviter_user_id or existing_member:
+        raise ValueError("Cannot invite yourself or an existing team member")
+
+    duplicate = (
+        db.query(TeamInvitation)
+        .filter(
+            TeamInvitation.team_id == team.id,
+            TeamInvitation.invitee_user_id == invitee_user_id,
+            TeamInvitation.status == TeamInvitationStatus.pending,
+        )
+        .first()
+    )
+    if duplicate is not None:
+        return duplicate
+
     inv = TeamInvitation(
         team_id=team.id,
         inviter_user_id=inviter_user_id,
@@ -131,6 +172,9 @@ def accept_invitation(db: Session, invitation: TeamInvitation, user_id: int) -> 
     if invitation.invitee_user_id != user_id:
         return None
     if invitation.status != TeamInvitationStatus.pending:
+        return None
+    existing_team = get_current_team(db, user_id)
+    if existing_team is not None:
         return None
     team = get_team_by_id(db, invitation.team_id)
     if team is None:
@@ -169,6 +213,8 @@ def get_team_stats(db: Session, team_id: int) -> dict:
     draws = sum(1 for row in rows if row.result == TeamMatchResult.draw)
     total = len(rows)
     team = get_team_by_id(db, team_id)
+    total_ptc = sum(member.user.pts for member in team.members) if team else 0
+    average_ptc = (total_ptc / len(team.members)) if team and team.members else 0.0
     return {
         "team_id": team_id,
         "total_matches": total,
@@ -176,12 +222,25 @@ def get_team_stats(db: Session, team_id: int) -> dict:
         "losses": losses,
         "draws": draws,
         "win_rate": (wins / total) if total else 0.0,
+        "total_ptc": total_ptc,
+        "average_ptc": average_ptc,
         "rating": _team_rating(team) if team else 0,
     }
 
 
 def get_team_match_history(db: Session, team_id: int) -> list[TeamMatchHistory]:
     return db.query(TeamMatchHistory).filter(TeamMatchHistory.team_id == team_id).order_by(TeamMatchHistory.id.desc()).limit(50).all()
+
+
+def get_team_members(db: Session, team_id: int) -> list[TeamMember]:
+    return (
+        db.query(TeamMember)
+        .options(selectinload(TeamMember.user))
+        .filter(TeamMember.team_id == team_id)
+        .order_by(TeamMember.joined_at.asc())
+        .all()
+    )
+
 
 
 def get_current_team(db: Session, user_id: int) -> Team | None:
@@ -216,16 +275,62 @@ def leave_team(db: Session, user_id: int) -> int | None:
     membership = db.query(TeamMember).filter(TeamMember.team_id == team.id, TeamMember.user_id == user_id).first()
     if membership is None:
         return None
+
+    is_captain = membership.role == TeamMemberRole.captain
     db.delete(membership)
     db.flush()
-    active_members = db.query(TeamMember).filter(TeamMember.team_id == team.id).count()
-    if active_members == 0:
+
+    remaining_members = db.query(TeamMember).filter(TeamMember.team_id == team.id).order_by(TeamMember.joined_at.asc()).all()
+    if not remaining_members:
         active_task = next((task for task in team.tasks if task.status == TeamTaskStatus.active), None)
         if active_task is not None:
             active_task.status = TeamTaskStatus.completed
             db.add(active_task)
-            db.flush()
+        db.delete(team)
+        db.flush()
+        return team.id
+
+    if is_captain:
+        new_captain = next((member for member in remaining_members if member.user_id != user_id), remaining_members[0])
+        new_captain.role = TeamMemberRole.captain
+        team.owner_id = new_captain.user_id
+        db.add(new_captain)
+        db.add(team)
+        db.flush()
+
     return team.id
+
+
+def kick_team_member(db: Session, team: Team, target_user_id: int) -> bool:
+    membership = db.query(TeamMember).filter(TeamMember.team_id == team.id, TeamMember.user_id == target_user_id).first()
+    if membership is None:
+        return False
+    if membership.role == TeamMemberRole.captain:
+        return False
+    db.delete(membership)
+    db.flush()
+    return True
+
+
+def promote_team_member(db: Session, team: Team, user_id: int, promote: bool) -> bool:
+    membership = db.query(TeamMember).filter(TeamMember.team_id == team.id, TeamMember.user_id == user_id).first()
+    if membership is None:
+        return False
+    if promote:
+        current_captain = get_team_captain_member(team)
+        if current_captain is not None and current_captain.user_id != user_id:
+            current_captain.role = TeamMemberRole.member
+            db.add(current_captain)
+        membership.role = TeamMemberRole.captain
+        team.owner_id = membership.user_id
+        db.add(team)
+    else:
+        if membership.role != TeamMemberRole.captain:
+            return False
+        membership.role = TeamMemberRole.member
+    db.add(membership)
+    db.flush()
+    return True
 
 
 def _select_task_by_ptc(db: Session, average_ptc: int) -> Task | None:

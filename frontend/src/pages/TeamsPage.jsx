@@ -13,7 +13,7 @@ export function TeamsPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await apiFetch(`/team${nextQuery ? `?q=${encodeURIComponent(nextQuery)}` : ""}`);
+      const data = await apiFetch(`/teams${nextQuery ? `?search=${encodeURIComponent(nextQuery)}` : ""}`);
       setTeams(data ?? []);
     } catch (e) {
       setError(e?.message || "Не удалось загрузить команды");

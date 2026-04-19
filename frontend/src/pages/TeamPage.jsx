@@ -8,7 +8,7 @@ function getWebSocketUrl(teamId) {
   const origin = import.meta.env.VITE_API_URL ?? window.location.origin;
   const wsOrigin = origin.replace(/^http/, "ws").replace(/\/+$/, "");
   const token = localStorage.getItem("access_token") ?? "";
-  return `${wsOrigin}/team/ws/${teamId}?token=${encodeURIComponent(token)}`;
+  return `${wsOrigin}/teams/ws/${teamId}?token=${encodeURIComponent(token)}`;
 }
 
 export function TeamPage() {
@@ -33,7 +33,7 @@ export function TeamPage() {
       setLoading(true);
       setError("");
       try {
-        const current = await apiFetch("/team/current");
+        const current = await apiFetch("/teams/current");
         if (!mounted) return;
         if (current == null) {
           navigate("/matchmaking");
@@ -42,9 +42,9 @@ export function TeamPage() {
         setTeam(current);
         setReadyVotes(current.ready_votes ?? {});
         const [stats, history, invites] = await Promise.all([
-          apiFetch(`/team/${current.team_id}/stats`),
-          apiFetch(`/team/${current.team_id}/history`),
-          apiFetch("/team/invites/me"),
+          apiFetch(`/teams/${current.team_id}/stats`),
+          apiFetch(`/teams/${current.team_id}/matches`),
+          apiFetch("/teams/invites"),
         ]);
         if (!mounted) return;
         setTeamStats(stats);
@@ -118,7 +118,7 @@ export function TeamPage() {
   async function handleReadyToggle(nextReady) {
     if (!team) return;
     try {
-      const res = await apiFetch(`/team/${team.team_id}/ready`, {
+      const res = await apiFetch(`/teams/${team.team_id}/ready`, {
         method: "POST",
         body: { is_ready: nextReady },
       });
@@ -132,7 +132,7 @@ export function TeamPage() {
     e.preventDefault();
     if (!team || !inviteeId.trim()) return;
     try {
-      await apiFetch(`/team/${team.team_id}/invites`, {
+      await apiFetch(`/teams/${team.team_id}/invite`, {
         method: "POST",
         body: { invitee_user_id: Number(inviteeId) },
       });
@@ -145,17 +145,39 @@ export function TeamPage() {
 
   async function handleInviteAction(invitationId, action) {
     try {
-      await apiFetch(`/team/invites/${invitationId}`, {
+      await apiFetch(`/teams/invites/${invitationId}/${action}`, {
         method: "POST",
-        body: { action },
       });
       setMyInvites((prev) => prev.filter((inv) => inv.invitation_id !== invitationId));
       if (action === "accept") {
-        const current = await apiFetch("/team/current");
+        const current = await apiFetch("/teams/current");
         setTeam(current);
       }
     } catch (e) {
       setError(e?.message || "Не удалось обработать приглашение");
+    }
+  }
+
+  async function handleLeaveTeam() {
+    if (!team) return;
+    try {
+      await apiFetch(`/teams/${team.team_id}/leave`, { method: "POST" });
+      navigate("/matchmaking");
+    } catch (e) {
+      setError(e?.message || "Не удалось выйти из команды");
+    }
+  }
+
+  async function handleKickMember(memberUserId) {
+    if (!team) return;
+    try {
+      await apiFetch(`/teams/${team.team_id}/kick/${memberUserId}`, { method: "POST" });
+      setTeam((prev) => ({
+        ...prev,
+        members: prev.members.filter((member) => member.user_id !== memberUserId),
+      }));
+    } catch (e) {
+      setError(e?.message || "Не удалось исключить участника");
     }
   }
 
@@ -184,7 +206,7 @@ export function TeamPage() {
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Командная комната</h1>
-          <p className="mt-1 text-sm text-muted">Работайте вместе над задачей и обсуждайте ход.</p>
+          <p className="mt-1 text-sm text-muted">{team?.description || "Работайте вместе над задачей и обсуждайте ход."}</p>
         </div>
         {team.task ? (
           <Link
@@ -213,14 +235,28 @@ export function TeamPage() {
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Участники</h2>
             <ul className="mt-3 space-y-2">
               {team.members.map((member) => (
-                <li key={member.user_id} className="flex items-center justify-between rounded-2xl border border-border bg-canvas px-3 py-2 text-sm">
-                  <span>
-                    {member.nickname}
-                    {member.user_id === team.captain_user_id ? " (капитан)" : ""}
-                  </span>
-                  <span className="text-xs text-muted">
-                    {member.online ? "online" : "offline"} · {readyVotes[member.user_id] ? "ready" : "not ready"}
-                  </span>
+                <li key={member.user_id} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-canvas px-3 py-2 text-sm">
+                  <div>
+                    <div className="font-medium">
+                      {member.nickname}
+                      {member.user_id === team.captain_user_id ? " (капитан)" : ""}
+                    </div>
+                    <div className="text-[11px] text-muted">{member.role}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted">
+                      {member.online ? "online" : "offline"} · {readyVotes[member.user_id] ? "ready" : "not ready"}
+                    </span>
+                    {isCaptain && member.user_id !== currentUserId ? (
+                      <button
+                        type="button"
+                        onClick={() => handleKickMember(member.user_id)}
+                        className="rounded-full border border-border px-2 py-1 text-[10px] text-accent"
+                      >
+                        Kick
+                      </button>
+                    ) : null}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -260,6 +296,14 @@ export function TeamPage() {
               </button>
             </form>
           ) : null}
+
+          <button
+            type="button"
+            onClick={handleLeaveTeam}
+            className="mt-4 w-full rounded-2xl border border-border px-3 py-2 text-sm text-accent"
+          >
+            Выйти из команды
+          </button>
         </Card>
 
         <Card className="p-6">
@@ -314,6 +358,8 @@ export function TeamPage() {
               <div>Матчи: {teamStats.total_matches}</div>
               <div>W/L/D: {teamStats.wins}/{teamStats.losses}/{teamStats.draws}</div>
               <div>Win rate: {(teamStats.win_rate * 100).toFixed(1)}%</div>
+              <div>Общий PTS: {teamStats.total_ptc}</div>
+              <div>Средний PTS: {teamStats.average_ptc.toFixed(1)}</div>
             </div>
           ) : (
             <div className="mt-3 text-sm text-muted">Пока нет данных.</div>

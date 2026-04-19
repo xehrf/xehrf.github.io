@@ -8,6 +8,7 @@ class TeamMemberOut(BaseModel):
     display_name: str
     nickname: str
     pts: int
+    role: str
     online: bool
 
 
@@ -37,10 +38,12 @@ class TeamMatchmakingJoinResponse(BaseModel):
 
 class TeamCreateBody(BaseModel):
     name: str
+    description: str | None = None
 
 
 class TeamUpdateBody(BaseModel):
-    name: str
+    name: str | None = None
+    description: str | None = None
 
 
 class TeamOut(BaseModel):
@@ -52,6 +55,12 @@ class TeamOut(BaseModel):
     team_rating: int
 
 
+class TeamDetailOut(TeamOut):
+    description: str
+    owner_id: int | None
+    members: list[TeamMemberOut]
+
+
 class TeamStatsOut(BaseModel):
     team_id: int
     total_matches: int
@@ -59,6 +68,8 @@ class TeamStatsOut(BaseModel):
     losses: int
     draws: int
     win_rate: float
+    total_ptc: int
+    average_ptc: float
     rating: int
 
 

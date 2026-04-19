@@ -34,6 +34,11 @@ async def lifespan(_: FastAPI):
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio VARCHAR"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pts INTEGER DEFAULT 0"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS level VARCHAR DEFAULT 'beginner'"))
+        conn.execute(text("ALTER TABLE teams ADD COLUMN IF NOT EXISTS description VARCHAR DEFAULT ''"))
+        conn.execute(text("ALTER TABLE teams ADD COLUMN IF NOT EXISTS owner_id INTEGER"))
+        conn.execute(text("ALTER TABLE teams ADD COLUMN IF NOT EXISTS rating INTEGER DEFAULT 0"))
+        conn.execute(text("ALTER TABLE team_members ADD COLUMN IF NOT EXISTS role VARCHAR DEFAULT 'member'"))
+        conn.execute(text("ALTER TABLE team_match_history ADD COLUMN IF NOT EXISTS ptc_earned INTEGER DEFAULT 0"))
 
     db = SessionLocal()
     try:
