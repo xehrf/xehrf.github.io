@@ -95,8 +95,10 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
             .first()
         )
         if is_participant is None:
+            print(f"DEBUG 403: user_id={user.id} match_id={match_id}")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
+        print(f"DEBUG OK: user_id={user.id} match_id={match_id}")
  
         # Load all participants info
         participants_q = (
