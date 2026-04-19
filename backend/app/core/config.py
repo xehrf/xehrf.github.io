@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     api_url: str | None = None
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
-    cors_origin_regex: str = r"^https:\/\/.*\.vercel\.app$"
+    cors_origin_regex: str = ""
 
     default_pts: int = 0
     matchmaking_party_size: int = 4
