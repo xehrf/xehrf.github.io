@@ -38,6 +38,13 @@ async def lifespan(_: FastAPI):
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS technologies TEXT DEFAULT '[]'"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT FALSE"))
 
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE users 
+            SET onboarding_completed = FALSE 
+            WHERE onboarding_completed IS NULL OR role IS NULL
+        """))
+
     try:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE teams ADD COLUMN IF NOT EXISTS description VARCHAR DEFAULT ''"))
