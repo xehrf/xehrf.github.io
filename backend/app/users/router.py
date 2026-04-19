@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session, selectinload
 from app.auth.deps import get_current_user
 from app.db.models import User, UserSkill
 from app.db.session import get_db
-from app.users.schemas import ProfileOut, SkillIn, SkillOut
-from app.users.service import update_user_profile
+from app.users.schemas import ProfileOut, SkillIn, SkillOut, OnboardingIn
+from app.users.service import update_user_profile, complete_onboarding
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -60,3 +60,12 @@ def replace_skills(
     for row in rows:
         db.refresh(row)
     return rows
+
+
+@router.post("/me/onboarding", response_model=ProfileOut)
+def complete_user_onboarding(
+    data: OnboardingIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    return complete_onboarding(user, db, data.role, data.technologies)

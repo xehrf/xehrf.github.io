@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../api/client";
+import { OnboardingModal } from "../components/OnboardingModal.jsx";
 
 const AuthContext = createContext(null);
 
@@ -12,6 +13,7 @@ export function useAuth() {
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem("access_token"));
   const [user, setUser] = useState(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const refreshMe = useCallback(async (tokenOverride) => {
@@ -27,6 +29,10 @@ export function AuthProvider({ children }) {
         headers: { Authorization: `Bearer ${actualToken}` },
       });
       setUser(me);
+      // Check if onboarding is needed
+      if (me && !me.onboarding_completed) {
+        setShowOnboarding(true);
+      }
     } catch {
       localStorage.removeItem("access_token");
       setToken(null);
@@ -79,11 +85,21 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  const handleOnboardingComplete = useCallback(async () => {
+    setShowOnboarding(false);
+    await refreshMe(); // Refresh user data to get updated onboarding_completed
+  }, [refreshMe]);
+
   const value = useMemo(
     () => ({ token, user, loading, login, register, logout, refreshMe }),
     [token, user, loading, login, register, logout, refreshMe],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      {showOnboarding && <OnboardingModal onComplete={handleOnboardingComplete} />}
+    </AuthContext.Provider>
+  );
 }
 

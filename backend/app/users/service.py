@@ -37,3 +37,14 @@ def update_user_profile(
     db.commit()
     db.refresh(user)
     return user
+
+
+def complete_onboarding(user: User, db: Session, role: str, technologies: list[str]) -> User:
+    """Complete user onboarding by setting role, technologies, and marking as completed."""
+    user.role = role
+    user.technologies = technologies
+    user.onboarding_completed = True
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user

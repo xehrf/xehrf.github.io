@@ -25,4 +25,12 @@ class ProfileOut(BaseModel):
     bio: str | None
     pts: int
     level: str
+    role: str | None
+    technologies: list[str]
+    onboarding_completed: bool
     skills: list[SkillOut]
+
+
+class OnboardingIn(BaseModel):
+    role: str
+    technologies: list[str]

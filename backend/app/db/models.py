@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    ARRAY,
     Boolean,
     DateTime,
     Enum,
@@ -87,6 +88,9 @@ class User(Base):
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     pts: Mapped[int] = mapped_column(Integer, default=0)
     level: Mapped[UserLevel] = mapped_column(Enum(UserLevel), default=UserLevel.beginner)
+    role: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    technologies: Mapped[list[str]] = mapped_column(ARRAY(String(100)), nullable=False, server_default="{}")
+    onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
