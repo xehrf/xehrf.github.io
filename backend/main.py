@@ -19,6 +19,7 @@ from app.submissions.router import router as submissions_router
 from app.team_matchmaking.router import router as team_matchmaking_router, team_router
 from app.tasks.router import router as tasks_router
 from app.users.router import router as users_router
+from app.matchmaking.match_ws import match_ws_router
 
 
 @asynccontextmanager
@@ -67,6 +68,7 @@ app.include_router(submissions_router)
 app.include_router(rating_router)
 app.include_router(payments_router)
 app.include_router(freelance_router)
+app.include_router(match_ws_router)
 
 
 @app.get("/health")

@@ -50,10 +50,11 @@ async def join_queue(user: User = Depends(get_current_user), db: Session = Depen
 
     if match is None:
         await manager.send_event(
-            user.id,
-            "queue_update",
-            {"queue_size": q_size, "queue_position": q_pos, "status": "queued"},
+    user.id,
+    "queue_update",
+    {"queue_size": q_size, "queue_position": q_pos, "status": "queued", "total": 2},
         )
+
         return MatchmakingJoinResponse(
             status="queued",
             queue_size=q_size,
@@ -116,7 +117,7 @@ async def leave_queue(user: User = Depends(get_current_user)) -> dict:
         q_size = mm_service.queue_size(r)
     finally:
         r.close()
-    await manager.send_event(user.id, "queue_update", {"queue_size": q_size, "queue_position": None, "status": "left"})
+    await manager.send_event(user.id, "queue_update", {"queue_size": q_size, "queue_position": None, "status": "left", "total": 2})
     return {"status": "left"}
 
 
@@ -160,6 +161,7 @@ async def matchmaking_socket(websocket: WebSocket, db: Session = Depends(get_db)
                         "queue_size": mm_service.queue_size(r),
                         "queue_position": mm_service.queue_position(r, user.id),
                         "status": "queued" if mm_service.is_user_in_queue(r, user.id) else "idle",
+                        "total": 2,
                     },
                 )
             finally:
