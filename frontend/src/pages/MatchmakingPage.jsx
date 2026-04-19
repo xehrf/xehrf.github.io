@@ -88,7 +88,7 @@ function MiniProfile({ userId, onClose }) {
           className="h-20 w-full relative"
           style={{
             background: profile?.banner_url
-              ? `url(${API_URL}${profile.banner_url}) center/cover`
+              ? `url(${profile.banner_url}) center/cover`
               : "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
           }}
         />
@@ -98,7 +98,7 @@ function MiniProfile({ userId, onClose }) {
           <div className="relative -mt-8 mb-3">
             {profile?.avatar_url ? (
               <img
-                src={`${API_URL}${profile.avatar_url}`}
+                src={profile.avatar_url}
                 alt="avatar"
                 className="w-16 h-16 rounded-full border-4 border-canvas object-cover"
               />
