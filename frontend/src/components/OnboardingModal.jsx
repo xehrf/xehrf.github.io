@@ -31,6 +31,7 @@ export function OnboardingModal({ onComplete }) {
   const [selectedTechnologies, setSelectedTechnologies] = useState([]);
   const [customTech, setCustomTech] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleRoleSelect = (role) => {
     setSelectedRole(role);
@@ -59,6 +60,7 @@ export function OnboardingModal({ onComplete }) {
     if (!selectedRole || selectedTechnologies.length === 0) return;
 
     setLoading(true);
+    setError("");
     try {
       await apiFetch("/users/me/onboarding", {
         method: "POST",
@@ -67,11 +69,12 @@ export function OnboardingModal({ onComplete }) {
           technologies: selectedTechnologies,
         },
       });
+      setLoading(false);
       onComplete();
     } catch (error) {
-      console.error("Onboarding failed:", error);
-    } finally {
+      setError(error.message || "Ошибка при сохранении. Попробуйте ещё раз.");
       setLoading(false);
+      console.error("Onboarding failed:", error);
     }
   };
 
@@ -89,6 +92,12 @@ export function OnboardingModal({ onComplete }) {
           </p>
         </div>
 
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+            {error}
+          </div>
+        )}
+
         {step === 1 && (
           <div className="space-y-3">
             {ROLES.map((role) => (
@@ -97,7 +106,7 @@ export function OnboardingModal({ onComplete }) {
                 onClick={() => handleRoleSelect(role)}
                 className={`w-full rounded-lg border p-3 text-left transition-all duration-200 ${
                   selectedRole === role
-                    ? "border-yellow-500 bg-yellow-500/10 text-yellow-400"
+                    ? "border-yellow-500 bg-yellow-500/10 text-gray-300"
                     : "border-white/10 bg-slate-800 text-white hover:border-yellow-500/50 hover:text-yellow-400"
                 }`}
               >
@@ -116,7 +125,7 @@ export function OnboardingModal({ onComplete }) {
                   onClick={() => handleTechToggle(tech)}
                   className={`rounded-lg border p-2 text-sm transition-all duration-200 ${
                     selectedTechnologies.includes(tech)
-                      ? "border-yellow-500 bg-yellow-500/10 text-yellow-400"
+                      ? "border-yellow-500 bg-yellow-500/10 text-gray-300"
                       : "border-white/10 bg-slate-800 text-white hover:border-yellow-500/50 hover:text-yellow-400"
                   }`}
                 >
