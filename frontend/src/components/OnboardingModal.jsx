@@ -62,6 +62,7 @@ export function OnboardingModal({ onComplete }) {
     setLoading(true);
     setError("");
     try {
+      console.log("Saving onboarding:", { role: selectedRole, technologies: selectedTechnologies });
       await apiFetch("/users/me/onboarding", {
         method: "POST",
         body: {
@@ -69,12 +70,13 @@ export function OnboardingModal({ onComplete }) {
           technologies: selectedTechnologies,
         },
       });
+      console.log("Onboarding saved successfully");
       setLoading(false);
       onComplete();
     } catch (error) {
+      console.error("Onboarding failed:", error);
       setError(error.message || "Ошибка при сохранении. Попробуйте ещё раз.");
       setLoading(false);
-      console.error("Onboarding failed:", error);
     }
   };
 

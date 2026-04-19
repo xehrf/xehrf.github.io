@@ -32,6 +32,8 @@ export function AuthProvider({ children }) {
       // Check if onboarding is needed
       if (me && !me.onboarding_completed) {
         setShowOnboarding(true);
+      } else if (me && me.onboarding_completed) {
+        setShowOnboarding(false);
       }
     } catch {
       localStorage.removeItem("access_token");
@@ -87,7 +89,9 @@ export function AuthProvider({ children }) {
 
   const handleOnboardingComplete = useCallback(async () => {
     setShowOnboarding(false);
-    await refreshMe(); // Refresh user data to get updated onboarding_completed
+    // Дайте серверу время на сохранение, потом обновите профиль
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await refreshMe();
   }, [refreshMe]);
 
   const value = useMemo(
