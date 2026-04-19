@@ -36,42 +36,151 @@ function levelColor(level) {
   return map[level] ?? "#94a3b8";
 }
 
-// ─── MiniProfile (Discord-style hover card) ───────────────────────────────────
+// ─── MiniProfile (Discord-style modal card) ───────────────────────────────────
 
-function MiniProfile({ participant, online }) {
+const API_URL = import.meta.env.VITE_API_URL ?? "";
+
+function MiniProfile({ userId, onClose }) {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) return;
+    setLoading(true);
+    apiFetch(`/users/${userId}/profile`)
+      .then(setProfile)
+      .finally(() => setLoading(false));
+  }, [userId]);
+
+  if (!userId) return null;
+
+  const initials = profile
+    ? (profile.nickname || profile.display_name || "?").slice(0, 2).toUpperCase()
+    : "..";
+
+  const levelColors = {
+    beginner: "#6366f1",
+    junior: "#22c55e",
+    strong_junior: "#f59e0b",
+    middle: "#ef4444",
+  };
+
+  const levelLabels = {
+    beginner: "Beginner",
+    junior: "Junior",
+    strong_junior: "Strong Junior",
+    middle: "Middle",
+  };
+
   return (
-    <div className="absolute right-full mr-3 top-0 z-50 w-56 rounded-xl border shadow-2xl p-4 pointer-events-none"
-      style={{ background: "#1a1a1a", borderColor: "#FFD600" }}>
-      <div className="flex items-center gap-3 mb-3">
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full sm:w-80 rounded-t-2xl sm:rounded-2xl overflow-hidden border border-border"
+        style={{ background: "var(--color-canvas, #1a1a2e)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Баннер */}
         <div
-          className="relative h-12 w-12 rounded-full flex items-center justify-center text-lg font-bold shrink-0 text-black"
-          style={{ background: `linear-gradient(135deg, ${levelColor(participant.level)}, #333)` }}
-        >
-          {participant.avatar_url ? (
-            <img src={participant.avatar_url} alt="" className="h-12 w-12 rounded-full object-cover" />
+          className="h-20 w-full relative"
+          style={{
+            background: profile?.banner_url
+              ? `url(${API_URL}${profile.banner_url}) center/cover`
+              : "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+          }}
+        />
+
+        {/* Аватар */}
+        <div className="px-4 pb-4">
+          <div className="relative -mt-8 mb-3">
+            {profile?.avatar_url ? (
+              <img
+                src={`${API_URL}${profile.avatar_url}`}
+                alt="avatar"
+                className="w-16 h-16 rounded-full border-4 border-canvas object-cover"
+              />
+            ) : (
+              <div
+                className="w-16 h-16 rounded-full border-4 border-canvas flex items-center justify-center text-xl font-bold"
+                style={{ background: "#6366f1", color: "white" }}
+              >
+                {initials}
+              </div>
+            )}
+          </div>
+
+          {loading ? (
+            <div className="text-sm text-muted py-4 text-center">Загрузка...</div>
+          ) : profile ? (
+            <>
+              {/* Имя и уровень */}
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-bold text-foreground text-base">
+                  {profile.nickname || profile.display_name}
+                </span>
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full font-medium"
+                  style={{
+                    background: `${levelColors[profile.level]}22`,
+                    color: levelColors[profile.level],
+                  }}
+                >
+                  {levelLabels[profile.level] || profile.level}
+                </span>
+              </div>
+
+              {/* PTS */}
+              <div className="text-sm text-muted mb-3">PTS {profile.pts}</div>
+
+              {/* Bio */}
+              {profile.bio && (
+                <div className="text-sm text-foreground mb-3 border-t border-border pt-3">
+                  {profile.bio}
+                </div>
+              )}
+
+              {/* Навыки */}
+              {profile.skills?.length > 0 && (
+                <div className="border-t border-border pt-3">
+                  <p className="text-xs text-muted uppercase tracking-wider mb-2">Навыки</p>
+                  <div className="flex flex-wrap gap-2">
+                    {profile.skills.map((skill) => (
+                      <div key={skill.skill_name} className="flex items-center gap-1">
+                        <span className="text-xs px-2 py-1 rounded-lg border border-border text-foreground">
+                          {skill.skill_name}
+                        </span>
+                        <span className="flex gap-0.5">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <span
+                              key={i}
+                              className="w-1.5 h-1.5 rounded-full"
+                              style={{
+                                background: i < skill.proficiency ? "#6366f1" : "#334155",
+                              }}
+                            />
+                          ))}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
-            (participant.display_name || participant.nickname || "?")[0].toUpperCase()
+            <div className="text-sm text-muted">Профиль не найден</div>
           )}
-          <span
-            className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2"
-            style={{ background: online ? "#4ade80" : "#6b7280", borderColor: "#1a1a1a" }}
-          />
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-4 w-full rounded-xl border border-border py-2 text-sm text-muted"
+          >
+            Закрыть
+          </button>
         </div>
-        <div className="min-w-0">
-          <p className="font-semibold text-white text-sm truncate">
-            {participant.display_name || participant.nickname}
-          </p>
-          <p className="text-xs truncate" style={{ color: "#888" }}>@{participant.nickname}</p>
-        </div>
-      </div>
-      <div className="flex items-center justify-between text-xs">
-        <span
-          className="rounded-full px-2 py-0.5 font-semibold"
-          style={{ background: levelColor(participant.level) + "22", color: levelColor(participant.level) }}
-        >
-          {participant.level}
-        </span>
-        <span className="font-mono font-bold" style={{ color: "#FFD600" }}>{participant.pts} PTS</span>
       </div>
     </div>
   );
@@ -79,15 +188,11 @@ function MiniProfile({ participant, online }) {
 
 // ─── ParticipantRow ───────────────────────────────────────────────────────────
 
-function ParticipantRow({ participant, online, isMe }) {
-  const [hovered, setHovered] = useState(false);
-
+function ParticipantRow({ participant, online, isMe, onClick }) {
   return (
     <div
-      className="relative flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-default transition-colors"
-      style={{ background: hovered ? "rgba(255,214,0,0.05)" : "transparent" }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-yellow-500/5"
+      onClick={() => onClick(participant.user_id)}
     >
       <div
         className="relative h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 text-black"
@@ -113,8 +218,6 @@ function ParticipantRow({ participant, online, isMe }) {
       </div>
 
       <span className="text-xs font-mono font-bold" style={{ color: "#FFD600" }}>{participant.pts}</span>
-
-      {hovered && <MiniProfile participant={participant} online={online} />}
     </div>
   );
 }
@@ -224,7 +327,7 @@ function ChatPanel({ messages, myUserId, onSend }) {
 
 // ─── MatchArena ───────────────────────────────────────────────────────────────
 
-function MatchArena({ activeMatch, myUserId, onNavigateTask, onReset }) {
+function MatchArena({ activeMatch, myUserId, onNavigateTask, onReset, onSelectUser }) {
   const [messages, setMessages] = useState([]);
   const [participants, setParticipants] = useState([]);
   const [onlineIds, setOnlineIds] = useState([]);
@@ -315,6 +418,7 @@ function MatchArena({ activeMatch, myUserId, onNavigateTask, onReset }) {
                 participant={p}
                 online={onlineIds.includes(p.user_id)}
                 isMe={p.user_id === myUserId}
+                onClick={onSelectUser}
               />
             ))}
             {participants.length === 0 && (
@@ -336,6 +440,7 @@ export function MatchmakingPage() {
   const [searching, setSearching] = useState(false);
   const [statusNote, setStatusNote] = useState("Нажмите кнопку, чтобы встать в очередь.");
   const [error, setError] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState(null);
   const isMobile = useMediaQuery("(max-width: 767px)");
 
   const myUserId = useMemo(() => {
@@ -450,6 +555,7 @@ export function MatchmakingPage() {
               myUserId={myUserId}
               onNavigateTask={(taskId) => navigate(`/tasks/${taskId}/solve`)}
               onReset={handleReset}
+              onSelectUser={setSelectedUserId}
             />
           </div>
         )}
@@ -527,6 +633,8 @@ export function MatchmakingPage() {
           </div>
         )}
       </div>
+
+      <MiniProfile userId={selectedUserId} onClose={() => setSelectedUserId(null)} />
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
