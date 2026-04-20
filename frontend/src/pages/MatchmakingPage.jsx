@@ -1,348 +1,342 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
-import { Button } from "../components/ui/Button.jsx";
-import { Card } from "../components/ui/Card.jsx";
-import { apiFetch } from "../api/client";
+import { apiFetch, getWebSocketBaseUrl } from "../api/client";
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+const PARTY_SIZE = 2;
 
 function getMatchmakingSocketUrl(token) {
-  const origin = import.meta.env.VITE_API_URL ?? window.location.origin;
-  const wsOrigin = origin.replace(/^http/, "ws").replace(/\/+$/, "");
+  const wsOrigin = getWebSocketBaseUrl();
   return `${wsOrigin}/matchmaking/ws?token=${encodeURIComponent(token)}`;
 }
 
 function getMatchRoomSocketUrl(matchId, token) {
-  const origin = import.meta.env.VITE_API_URL ?? window.location.origin;
-  const wsOrigin = origin.replace(/^http/, "ws").replace(/\/+$/, "");
+  const wsOrigin = getWebSocketBaseUrl();
   return `${wsOrigin}/matchmaking/match/${matchId}/ws?token=${encodeURIComponent(token)}`;
 }
 
 function formatCountdown(totalSeconds) {
-  if (totalSeconds == null || totalSeconds < 0) return "—";
+  if (totalSeconds == null || totalSeconds < 0) return "--:--";
   const m = Math.floor(totalSeconds / 60);
   const s = totalSeconds % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function levelColor(level) {
-  const map = {
-    beginner: "#6ee7b7",
-    intermediate: "#60a5fa",
-    advanced: "#f472b6",
-    expert: "#FFD600",
-  };
-  return map[level] ?? "#94a3b8";
+function getMyUserIdFromToken() {
+  try {
+    const token = localStorage.getItem("access_token");
+    if (!token) return null;
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.sub_id ?? payload.user_id ?? null;
+  } catch {
+    return null;
+  }
 }
 
-// ─── MiniProfile (Discord-style modal card) ───────────────────────────────────
+function getOpponentFromParticipants(participants, myUserId) {
+  if (!Array.isArray(participants)) return null;
+  return participants.find((item) => item.user_id !== myUserId) ?? null;
+}
 
-const API_URL = import.meta.env.VITE_API_URL ?? "";
-
-function MiniProfile({ userId, onClose }) {
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!userId) return;
-    setLoading(true);
-    apiFetch(`/users/${userId}/profile`)
-      .then(setProfile)
-      .finally(() => setLoading(false));
-  }, [userId]);
-
-  if (!userId) return null;
-
-  const initials = profile
-    ? (profile.nickname || profile.display_name || "?").slice(0, 2).toUpperCase()
-    : "..";
-
-  const levelColors = {
-    beginner: "#6366f1",
-    junior: "#22c55e",
-    strong_junior: "#f59e0b",
-    middle: "#ef4444",
-  };
-
-  const levelLabels = {
-    beginner: "Beginner",
-    junior: "Junior",
-    strong_junior: "Strong Junior",
-    middle: "Middle",
-  };
-
+function QueueSlot({ label, active, complete }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.5)" }}
-      onClick={onClose}
+      className="rounded-2xl border px-4 py-4 transition-colors"
+      style={{
+        borderColor: complete ? "#FFD600" : active ? "rgba(255,214,0,0.45)" : "rgba(255,214,0,0.15)",
+        background: complete ? "rgba(255,214,0,0.15)" : active ? "rgba(255,214,0,0.08)" : "rgba(255,255,255,0.02)",
+      }}
     >
-      <div
-        className="w-full sm:w-80 rounded-t-2xl sm:rounded-2xl overflow-hidden border border-border"
-        style={{ background: "var(--color-canvas, #1a1a2e)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Баннер */}
-        <div
-          className="h-20 w-full relative"
+      <div className="flex items-center gap-3">
+        <span
+          className="h-3 w-3 rounded-full"
           style={{
-            background: profile?.banner_url
-              ? `url(${profile.banner_url}) center/cover`
-              : "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+            background: complete ? "#FFD600" : active ? "#f5c400" : "rgba(255,255,255,0.25)",
+            boxShadow: complete || active ? "0 0 12px rgba(255,214,0,0.7)" : "none",
           }}
         />
+        <span className="text-sm font-medium text-white">{label}</span>
+      </div>
+    </div>
+  );
+}
 
-        {/* Аватар */}
-        <div className="px-4 pb-4">
-          <div className="relative -mt-8 mb-3">
-            {profile?.avatar_url ? (
-              <img
-                src={profile.avatar_url}
-                alt="avatar"
-                className="w-16 h-16 rounded-full border-4 border-canvas object-cover"
-              />
+function QueueFill({ queueSize, queuePosition }) {
+  const clamped = Math.max(0, Math.min(queueSize, PARTY_SIZE));
+  const pct = Math.round((clamped / PARTY_SIZE) * 100);
+
+  return (
+    <div className="w-full space-y-3">
+      <div className="flex items-center justify-between text-xs text-white/65">
+        <span>Queue progress</span>
+        <span>
+          {clamped}/{PARTY_SIZE}
+        </span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+        <div
+          className="h-full rounded-full transition-all duration-700"
+          style={{
+            width: `${pct}%`,
+            background: "linear-gradient(90deg, #b79000 0%, #FFD600 100%)",
+          }}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <QueueSlot label="You are in queue" active complete={clamped >= 1} />
+        <QueueSlot label="Opponent connecting" active={clamped === 1} complete={clamped >= 2} />
+      </div>
+      <p className="text-xs text-white/55">
+        Queue position: <span className="text-[#FFD600]">{queuePosition ?? "--"}</span>
+      </p>
+    </div>
+  );
+}
+
+function OpponentIntelPanel({ opponentUserId, online }) {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!opponentUserId) {
+      setProfile(null);
+      return;
+    }
+    let mounted = true;
+    setLoading(true);
+    apiFetch(`/users/${opponentUserId}/profile`)
+      .then((data) => {
+        if (mounted) setProfile(data);
+      })
+      .catch(() => {
+        if (mounted) setProfile(null);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [opponentUserId]);
+
+  return (
+    <aside
+      className="h-full rounded-2xl border p-4"
+      style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold uppercase tracking-widest text-[#FFD600]">Opponent Intel</h3>
+        <span
+          className="text-[11px] font-medium"
+          style={{ color: online ? "#4ade80" : "rgba(255,255,255,0.45)" }}
+        >
+          {online ? "online" : "offline"}
+        </span>
+      </div>
+
+      {!opponentUserId ? (
+        <p className="text-sm text-white/50">Waiting for opponent profile...</p>
+      ) : loading ? (
+        <p className="text-sm text-white/50">Loading profile...</p>
+      ) : !profile ? (
+        <p className="text-sm text-white/50">Profile unavailable.</p>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            {profile.avatar_url ? (
+              <img src={profile.avatar_url} alt="opponent avatar" className="h-14 w-14 rounded-full object-cover" />
             ) : (
-              <div
-                className="w-16 h-16 rounded-full border-4 border-canvas flex items-center justify-center text-xl font-bold"
-                style={{ background: "#6366f1", color: "white" }}
-              >
-                {initials}
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-lg font-bold text-[#FFD600]">
+                {(profile.nickname || profile.display_name || "?")[0]?.toUpperCase() || "?"}
               </div>
+            )}
+            <div>
+              <p className="text-sm font-semibold text-white">{profile.nickname || profile.display_name}</p>
+              <p className="text-xs text-white/60">@{profile.nickname || profile.display_name}</p>
+              <p className="mt-1 text-xs text-white/70">PTS {profile.pts}</p>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-1 text-[11px] uppercase tracking-wider text-white/50">Role</p>
+            <p className="text-sm text-white">{profile.role || "Not selected"}</p>
+          </div>
+
+          <div>
+            <p className="mb-2 text-[11px] uppercase tracking-wider text-white/50">Technologies</p>
+            <div className="flex flex-wrap gap-2">
+              {(profile.technologies || []).length > 0 ? (
+                profile.technologies.map((tech) => (
+                  <span
+                    key={tech}
+                    className="rounded-full border px-2.5 py-1 text-xs text-[#FFD600]"
+                    style={{ borderColor: "rgba(255,214,0,0.35)", background: "rgba(255,214,0,0.08)" }}
+                  >
+                    {tech}
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-white/50">No technologies set</span>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-[11px] uppercase tracking-wider text-white/50">Skills</p>
+            {(profile.skills || []).length > 0 ? (
+              <div className="space-y-2">
+                {profile.skills.map((skill) => (
+                  <div key={skill.skill_name}>
+                    <div className="mb-1 flex items-center justify-between text-xs text-white/80">
+                      <span>{skill.skill_name}</span>
+                      <span>{skill.proficiency}/5</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${Math.min(100, skill.proficiency * 20)}%`, background: "#FFD600" }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="text-xs text-white/50">No skills yet</span>
             )}
           </div>
 
-          {loading ? (
-            <div className="text-sm text-muted py-4 text-center">Загрузка...</div>
-          ) : profile ? (
-            <>
-              {/* Имя и уровень */}
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-bold text-foreground text-base">
-                  {profile.nickname || profile.display_name}
-                </span>
-                <span
-                  className="text-xs px-2 py-0.5 rounded-full font-medium"
-                  style={{
-                    background: `${levelColors[profile.level]}22`,
-                    color: levelColors[profile.level],
-                  }}
-                >
-                  {levelLabels[profile.level] || profile.level}
-                </span>
-              </div>
-
-              {/* PTS */}
-              <div className="text-sm text-muted mb-3">PTS {profile.pts}</div>
-
-              {/* Bio */}
-              {profile.bio && (
-                <div className="text-sm text-foreground mb-3 border-t border-border pt-3">
-                  {profile.bio}
-                </div>
-              )}
-
-              {/* Навыки */}
-              {profile.skills?.length > 0 && (
-                <div className="border-t border-border pt-3">
-                  <p className="text-xs text-muted uppercase tracking-wider mb-2">Навыки</p>
-                  <div className="flex flex-wrap gap-2">
-                    {profile.skills.map((skill) => (
-                      <div key={skill.skill_name} className="flex items-center gap-1">
-                        <span className="text-xs px-2 py-1 rounded-lg border border-border text-foreground">
-                          {skill.skill_name}
-                        </span>
-                        <span className="flex gap-0.5">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <span
-                              key={i}
-                              className="w-1.5 h-1.5 rounded-full"
-                              style={{
-                                background: i < skill.proficiency ? "#6366f1" : "#334155",
-                              }}
-                            />
-                          ))}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-sm text-muted">Профиль не найден</div>
-          )}
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="mt-4 w-full rounded-xl border border-border py-2 text-sm text-muted"
-          >
-            Закрыть
-          </button>
+          {profile.bio ? (
+            <div>
+              <p className="mb-1 text-[11px] uppercase tracking-wider text-white/50">What they can do</p>
+              <p className="text-sm text-white/75">{profile.bio}</p>
+            </div>
+          ) : null}
         </div>
-      </div>
-    </div>
+      )}
+    </aside>
   );
 }
 
-// ─── ParticipantRow ───────────────────────────────────────────────────────────
-
-function ParticipantRow({ participant, online, isMe, onClick }) {
+function ParticipantsList({ participants, myUserId, onlineIds }) {
   return (
-    <div
-      className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-yellow-500/5"
-      onClick={() => onClick(participant.user_id)}
-    >
-      <div
-        className="relative h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 text-black"
-        style={{ background: `linear-gradient(135deg, ${levelColor(participant.level)}, #333)` }}
-      >
-        {participant.avatar_url ? (
-          <img src={participant.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" />
-        ) : (
-          (participant.display_name || participant.nickname || "?")[0].toUpperCase()
-        )}
-        <span
-          className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2"
-          style={{ background: online ? "#4ade80" : "#6b7280", borderColor: "#111" }}
-        />
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold text-white truncate">
-          {participant.display_name || participant.nickname}
-          {isMe && <span className="ml-1" style={{ color: "#555" }}>(вы)</span>}
-        </p>
-        <p className="text-[10px] truncate" style={{ color: "#555" }}>@{participant.nickname}</p>
-      </div>
-
-      <span className="text-xs font-mono font-bold" style={{ color: "#FFD600" }}>{participant.pts}</span>
-    </div>
-  );
-}
-
-// ─── QueueProgress ────────────────────────────────────────────────────────────
-
-function QueueProgress({ current, total }) {
-  const pct = total > 0 ? Math.round((current / total) * 100) : 0;
-  return (
-    <div className="w-full">
-      <div className="flex justify-between text-xs mb-1.5" style={{ color: "#888" }}>
-        <span>Игроков в очереди</span>
-        <span className="font-mono font-bold text-white">{current}/{total}</span>
-      </div>
-      <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
-        <div
-          className="h-full rounded-full transition-all duration-700 ease-out"
-          style={{ width: `${pct}%`, background: pct >= 100 ? "#4ade80" : "#FFD600" }}
-        />
-      </div>
-      <div className="flex gap-1.5 mt-2 justify-center">
-        {Array.from({ length: total }).map((_, i) => (
-          <div
-            key={i}
-            className="h-1.5 w-6 rounded-full transition-all duration-500"
-            style={{
-              background: i < current
-                ? (pct >= 100 ? "#4ade80" : "#FFD600")
-                : "rgba(255,255,255,0.08)",
-            }}
-          />
-        ))}
+    <div className="rounded-2xl border p-3" style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}>
+      <p className="mb-2 text-[11px] uppercase tracking-wider text-[#FFD600]">Arena participants</p>
+      <div className="space-y-2">
+        {participants.map((p) => {
+          const isMe = p.user_id === myUserId;
+          return (
+            <div
+              key={p.user_id}
+              className="flex items-center justify-between rounded-xl border px-3 py-2"
+              style={{ borderColor: "rgba(255,214,0,0.13)", background: "rgba(255,255,255,0.01)" }}
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm text-white">
+                  {p.display_name || p.nickname}
+                  {isMe ? " (you)" : ""}
+                </p>
+                <p className="truncate text-xs text-white/55">@{p.nickname}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-white/60">{p.pts}</span>
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ background: onlineIds.includes(p.user_id) ? "#4ade80" : "#6b7280" }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
-
-// ─── ChatPanel ────────────────────────────────────────────────────────────────
 
 function ChatPanel({ messages, myUserId, onSend }) {
   const [text, setText] = useState("");
   const bottomRef = useRef(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
-  function submit(e) {
-    e.preventDefault();
-    const t = text.trim();
-    if (!t) return;
-    onSend(t);
+  function submit(event) {
+    event.preventDefault();
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    onSend(trimmed);
     setText("");
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-3 py-2 border-b text-xs font-semibold uppercase tracking-widest"
-        style={{ borderColor: "rgba(255,214,0,0.15)", color: "#FFD600" }}>
-        Чат
+    <div className="flex h-full flex-col rounded-2xl border" style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}>
+      <div className="border-b px-4 py-3" style={{ borderColor: "rgba(255,214,0,0.12)" }}>
+        <p className="text-xs font-semibold uppercase tracking-widest text-[#FFD600]">Live chat</p>
       </div>
-      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2 min-h-0">
-        {messages.length === 0 && (
-          <p className="text-xs text-center pt-4" style={{ color: "#444" }}>Пока тихо…</p>
-        )}
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex flex-col ${msg.user_id === myUserId ? "items-end" : "items-start"}`}>
-            <span className="text-[10px] mb-0.5" style={{ color: "#555" }}>
-              {msg.user_id === myUserId ? "вы" : msg.display_name || msg.nickname}
-            </span>
-            <div
-              className="rounded-xl px-3 py-1.5 text-xs max-w-[85%] break-words"
-              style={{
-                background: msg.user_id === myUserId ? "#FFD600" : "rgba(255,255,255,0.06)",
-                color: msg.user_id === myUserId ? "#000" : "#e2e8f0",
-              }}
-            >
-              {msg.text}
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3">
+        {messages.length === 0 ? <p className="text-sm text-white/45">No messages yet.</p> : null}
+        {messages.map((msg, idx) => {
+          const mine = msg.user_id === myUserId;
+          return (
+            <div key={`${msg.user_id}-${idx}-${msg.text}`} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+              <div
+                className="max-w-[82%] rounded-xl px-3 py-2 text-xs"
+                style={{
+                  background: mine ? "#FFD600" : "rgba(255,255,255,0.06)",
+                  color: mine ? "#111" : "#f8fafc",
+                }}
+              >
+                <p className="mb-1 text-[10px] font-semibold opacity-80">{mine ? "you" : msg.display_name || msg.nickname}</p>
+                <p>{msg.text}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div ref={bottomRef} />
       </div>
-      <form onSubmit={submit} className="flex gap-2 px-3 py-2 border-t"
-        style={{ borderColor: "rgba(255,214,0,0.1)" }}>
+      <form onSubmit={submit} className="flex gap-2 border-t px-3 py-3" style={{ borderColor: "rgba(255,214,0,0.1)" }}>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Написать…"
           maxLength={500}
-          className="flex-1 rounded-lg px-3 py-1.5 text-xs text-white outline-none"
-          style={{ background: "rgba(255,255,255,0.05)" }}
-          onFocus={e => e.target.style.outline = "1px solid #FFD600"}
-          onBlur={e => e.target.style.outline = "none"}
+          placeholder="Type message..."
+          className="h-10 flex-1 rounded-xl bg-black px-3 text-sm text-white placeholder:text-white/35 focus:outline-none"
+          style={{ border: "1px solid rgba(255,214,0,0.2)" }}
         />
         <button
           type="submit"
-          className="rounded-lg px-3 py-1.5 text-xs font-bold transition-opacity hover:opacity-80"
-          style={{ background: "#FFD600", color: "#000" }}
+          className="h-10 rounded-xl px-4 text-sm font-semibold transition-opacity hover:opacity-85"
+          style={{ background: "#FFD600", color: "#111" }}
         >
-          ↑
+          Send
         </button>
       </form>
     </div>
   );
 }
 
-// ─── MatchArena ───────────────────────────────────────────────────────────────
-
-function MatchArena({ activeMatch, myUserId, onNavigateTask, onReset, onSelectUser }) {
+function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender }) {
   const [messages, setMessages] = useState([]);
   const [participants, setParticipants] = useState([]);
   const [onlineIds, setOnlineIds] = useState([]);
+  const [secondsRemaining, setSecondsRemaining] = useState(activeMatch?.seconds_remaining ?? null);
   const wsRef = useRef(null);
-  const [secondsRemaining, setSecondsRemaining] = useState(null);
 
   useEffect(() => {
-    if (!activeMatch?.ends_at) return;
+    if (activeMatch?.seconds_remaining != null) {
+      setSecondsRemaining(activeMatch.seconds_remaining);
+      return;
+    }
+    if (!activeMatch?.ends_at) {
+      setSecondsRemaining(null);
+      return;
+    }
     const deadline = new Date(activeMatch.ends_at).getTime();
-    setSecondsRemaining(Math.max(0, Math.floor((deadline - Date.now()) / 1000)));
-    const id = setInterval(() => {
-      setSecondsRemaining(Math.max(0, Math.floor((deadline - Date.now()) / 1000)));
-    }, 1000);
-    return () => clearInterval(id);
-  }, [activeMatch?.ends_at]);
+    const tick = () => setSecondsRemaining(Math.max(0, Math.floor((deadline - Date.now()) / 1000)));
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [activeMatch?.ends_at, activeMatch?.seconds_remaining]);
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
@@ -351,109 +345,96 @@ function MatchArena({ activeMatch, myUserId, onNavigateTask, onReset, onSelectUs
     const ws = new WebSocket(getMatchRoomSocketUrl(activeMatch.match_id, token));
     wsRef.current = ws;
 
-    ws.addEventListener("message", (e) => {
-      const payload = JSON.parse(e.data);
+    ws.addEventListener("message", (event) => {
+      const payload = JSON.parse(event.data);
       const data = payload.data ?? {};
       if (payload.event === "room_state") {
         setParticipants(data.participants ?? []);
         setOnlineIds(data.online ?? []);
       }
-      if (payload.event === "user_joined") setOnlineIds(data.online ?? []);
-      if (payload.event === "user_left") setOnlineIds(data.online ?? []);
-      if (payload.event === "chat") setMessages((prev) => [...prev, data]);
+      if (payload.event === "user_joined" || payload.event === "user_left") {
+        setOnlineIds(data.online ?? []);
+      }
+      if (payload.event === "chat") {
+        const text = String(data.text ?? "").trim();
+        if (!text) return;
+        setMessages((prev) => [...prev, { ...data, text }]);
+      }
     });
 
-    return () => ws.close();
+    return () => {
+      ws.close();
+      wsRef.current = null;
+    };
   }, [activeMatch?.match_id]);
 
-  function sendChat(text) {
-    wsRef.current?.send(JSON.stringify({ event: "chat", text }));
-    setMessages((prev) => [...prev, { user_id: myUserId, text, display_name: "вы", nickname: "вы" }]);
+  const opponentFromParticipants = useMemo(
+    () => getOpponentFromParticipants(participants, myUserId),
+    [participants, myUserId],
+  );
+  const opponent = opponentFromParticipants ?? activeMatch?.opponent ?? null;
+  const opponentOnline = opponent ? onlineIds.includes(opponent.user_id) : false;
+
+  function sendChatMessage(text) {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ event: "chat", text }));
   }
 
   return (
-    <div className="flex gap-4 h-full min-h-0">
-      <div className="flex-1 flex flex-col gap-4 min-w-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-white">Матч найден</h2>
-            <p className="text-xs" style={{ color: "#888" }}>
-              До конца: <span className="font-mono font-bold" style={{ color: "#FFD600" }}>{formatCountdown(secondsRemaining)}</span>
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => onNavigateTask(activeMatch.task_id)}
-              className="rounded-lg px-4 py-2 text-sm font-bold transition-opacity hover:opacity-80"
-              style={{ background: "#FFD600", color: "#000" }}
-            >
-              Открыть задачу →
-            </button>
-            <button
-              onClick={onReset}
-              className="rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
-              style={{ background: "rgba(255,255,255,0.05)", color: "#888" }}
-            >
-              Выйти
-            </button>
+    <div className="grid h-[560px] grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="flex min-h-0 flex-col gap-4">
+        <div className="rounded-2xl border p-4" style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-black text-[#FFD600]">PVP Duel 1v1</h2>
+              <p className="text-sm text-white/65">
+                Time left: <span className="font-mono text-white">{formatCountdown(secondsRemaining)}</span>
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => onNavigateTask(activeMatch.task_id)}
+                className="rounded-xl px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-85"
+                style={{ background: "#FFD600", color: "#111" }}
+              >
+                Open task
+              </button>
+              <button
+                type="button"
+                onClick={onSurrender}
+                className="rounded-xl border px-4 py-2 text-sm text-white/70 transition-colors hover:text-white"
+                style={{ borderColor: "rgba(255,214,0,0.2)", background: "transparent" }}
+              >
+                Сдаться
+              </button>
+            </div>
           </div>
         </div>
-
-        <div className="flex-1 rounded-xl border min-h-0"
-          style={{ height: "360px", borderColor: "rgba(255,214,0,0.15)", background: "#111" }}>
-          <ChatPanel messages={messages} myUserId={myUserId} onSend={sendChat} />
+        <div className="min-h-0 flex-1">
+          <ChatPanel messages={messages} myUserId={myUserId} onSend={sendChatMessage} />
         </div>
       </div>
 
-      <div className="w-52 shrink-0">
-        <div className="rounded-xl border overflow-hidden" style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}>
-          <div className="px-3 py-2 border-b text-[10px] font-semibold uppercase tracking-widest"
-            style={{ borderColor: "rgba(255,214,0,0.1)", color: "#FFD600" }}>
-            Участники — {participants.length}
-          </div>
-          <div className="py-1">
-            {participants.map((p) => (
-              <ParticipantRow
-                key={p.user_id}
-                participant={p}
-                online={onlineIds.includes(p.user_id)}
-                isMe={p.user_id === myUserId}
-                onClick={onSelectUser}
-              />
-            ))}
-            {participants.length === 0 && (
-              <p className="text-xs px-3 py-3" style={{ color: "#444" }}>Загрузка…</p>
-            )}
-          </div>
-        </div>
+      <div className="flex min-h-0 flex-col gap-4">
+        <OpponentIntelPanel opponentUserId={opponent?.user_id ?? null} online={opponentOnline} />
+        <ParticipantsList participants={participants} myUserId={myUserId} onlineIds={onlineIds} />
       </div>
     </div>
   );
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
-
 export function MatchmakingPage() {
   const navigate = useNavigate();
-  const [activeMatch, setActiveMatch] = useState(null);
-  const [queueInfo, setQueueInfo] = useState({ queue_size: 0, queue_position: null, total: 2 });
-  const [searching, setSearching] = useState(false);
-  const [statusNote, setStatusNote] = useState("Нажмите кнопку, чтобы встать в очередь.");
-  const [error, setError] = useState("");
-  const [selectedUserId, setSelectedUserId] = useState(null);
-  const [teamCurrent, setTeamCurrent] = useState(null);
   const isMobile = useMediaQuery("(max-width: 767px)");
 
-  const myUserId = useMemo(() => {
-    try {
-      const token = localStorage.getItem("access_token");
-      if (!token) return null;
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      return payload.sub_id ?? payload.user_id ?? null;
-    } catch {
-      return null;
-    }
-  }, []);
+  const myUserId = useMemo(() => getMyUserIdFromToken(), []);
+  const [activeMatch, setActiveMatch] = useState(null);
+  const [queueInfo, setQueueInfo] = useState({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
+  const [searching, setSearching] = useState(false);
+  const [statusNote, setStatusNote] = useState("Press find match to start PVP queue.");
+  const [error, setError] = useState("");
+  const [teamCurrent, setTeamCurrent] = useState(null);
 
   const state = useMemo(() => {
     if (activeMatch) return "matched";
@@ -461,55 +442,25 @@ export function MatchmakingPage() {
     return "idle";
   }, [activeMatch, searching]);
 
-  function handleFindMatch() {
-    if (state === "searching") return;
-    setError("");
-    setSearching(true);
-    setStatusNote("Ищем соперника с близким PTS…");
-
-    (async () => {
-      try {
-        const res = await apiFetch("/matchmaking/queue", { method: "POST" });
-        if (res.status === "matched") { setActiveMatch(res); setSearching(false); return; }
-        if (res.status === "already_in_match") { setActiveMatch(res); setSearching(false); return; }
-        if (res.status === "queued") {
-          setQueueInfo({ queue_size: res.queue_size ?? 1, queue_position: res.queue_position ?? null, total: 2 });
-          setStatusNote("Вы в очереди. Ожидаем соперника…");
-          return;
-        }
-        setError(res.message || "Ошибка матчмейкинга");
-        setSearching(false);
-      } catch (e) {
-        setError(e?.message || "Ошибка матчмейкинга");
-        setSearching(false);
-      }
-    })();
-  }
-
-  function handleReset() {
-    setError("");
-    (async () => {
-      try { await apiFetch("/matchmaking/queue", { method: "DELETE" }); } catch {}
-      finally {
-        setActiveMatch(null);
-        setSearching(false);
-        setQueueInfo({ queue_size: 0, queue_position: null, total: 2 });
-        setStatusNote("Поиск отменён.");
-      }
-    })();
-  }
-
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         const current = await apiFetch("/matchmaking/active");
         if (!mounted) return;
-        if (current) { setActiveMatch(current); setSearching(false); }
-      } catch {}
+        if (current) {
+          setActiveMatch(current);
+          setSearching(false);
+          setStatusNote("Active duel restored.");
+        }
+      } catch {
+        // ignore
+      }
     })();
-    return () => { mounted = false; };
-  }, []);
+    return () => {
+      mounted = false;
+    };
+  }, [myUserId]);
 
   useEffect(() => {
     let mounted = true;
@@ -522,158 +473,194 @@ export function MatchmakingPage() {
         setTeamCurrent(null);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
-    if (!token) return;
-    const ws = new WebSocket(getMatchmakingSocketUrl(token));
+    if (!token) return undefined;
 
+    const ws = new WebSocket(getMatchmakingSocketUrl(token));
     ws.addEventListener("message", (event) => {
       const payload = JSON.parse(event.data);
+      const data = payload.data ?? {};
+
       if (payload.event === "queue_update") {
-        const data = payload.data ?? {};
-        setQueueInfo({ queue_size: data.queue_size ?? 0, queue_position: data.queue_position ?? null, total: data.total ?? 2 });
+        setQueueInfo({
+          queue_size: data.queue_size ?? 0,
+          queue_position: data.queue_position ?? null,
+          total: data.total ?? PARTY_SIZE,
+        });
         setSearching(data.status === "queued");
+        if (data.status === "queued") {
+          setStatusNote("Searching for an opponent with close PTS...");
+        }
       }
-      if (payload.event === "active_match" || payload.event === "match_found") {
-        const data = payload.data ?? {};
+
+      if (payload.event === "match_found" || payload.event === "active_match") {
         setActiveMatch((prev) => ({ ...(prev ?? {}), ...data }));
         setSearching(false);
-        setStatusNote("Соперник найден!");
+        setStatusNote("Opponent connected. Entering duel room.");
+        apiFetch("/matchmaking/active")
+          .then((current) => {
+            if (current) setActiveMatch(current);
+          })
+          .catch(() => {});
+      }
+
+      if (payload.event === "match_finished") {
+        setActiveMatch(null);
+        setSearching(false);
+        setQueueInfo({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
+        if (data.reason === "surrender") {
+          if (data.winner_user_id === myUserId) {
+            setStatusNote("Соперник сдался. Победа! Вы получили PTS.");
+          } else {
+            setStatusNote("Матч завершён сдачей. Вы потеряли PTS.");
+          }
+        } else {
+          setStatusNote("Матч завершён.");
+        }
       }
     });
 
-    return () => ws.close();
+    return () => {
+      ws.close();
+    };
   }, []);
+
+  async function handleFindMatch() {
+    if (state === "searching") return;
+    setError("");
+    setSearching(true);
+    setStatusNote("Joining PVP queue...");
+    try {
+      const res = await apiFetch("/matchmaking/queue", { method: "POST" });
+      if (res.status === "matched" || res.status === "already_in_match") {
+        setActiveMatch(res);
+        setSearching(false);
+        setStatusNote("Match found.");
+        return;
+      }
+      if (res.status === "queued") {
+        setQueueInfo({
+          queue_size: res.queue_size ?? 1,
+          queue_position: res.queue_position ?? null,
+          total: PARTY_SIZE,
+        });
+        setStatusNote("You are in queue. Waiting for opponent...");
+        return;
+      }
+      setError(res.message || "Matchmaking error.");
+      setSearching(false);
+    } catch (e) {
+      setError(e?.message || "Matchmaking error.");
+      setSearching(false);
+    }
+  }
+
+  async function handleLeaveQueue() {
+    setError("");
+    try {
+      await apiFetch("/matchmaking/queue", { method: "DELETE" });
+    } catch {
+      // ignore
+    }
+    setActiveMatch(null);
+    setSearching(false);
+    setQueueInfo({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
+    setStatusNote("Queue cancelled.");
+  }
+
+  async function handleSurrender() {
+    if (!activeMatch) return;
+    const confirmed = window.confirm("Вы точно уверены, вы потеряете PTS!");
+    if (!confirmed) return;
+    setError("");
+    try {
+      await apiFetch("/matchmaking/surrender", { method: "POST" });
+      setActiveMatch(null);
+      setSearching(false);
+      setQueueInfo({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
+      setStatusNote("Вы сдались в матче. PTS были уменьшены.");
+    } catch (e) {
+      setError(e?.message || "Не удалось сдаться в матче.");
+    }
+  }
 
   if (isMobile) return <Navigate to="/dashboard" replace />;
 
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-black tracking-tight" style={{ color: "#FFD600" }}>
-            PvP матчмейкинг
-          </h1>
-          <p className="mt-2 text-sm" style={{ color: "#666" }}>
-            Система подберёт соперника с близким PTS и запустит таймер матча
-          </p>
+    <div className="min-h-screen bg-canvas">
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+        <div className="mb-7 text-center">
+          <h1 className="text-3xl font-black tracking-tight text-[#FFD600]">PVP Matchmaking 1v1</h1>
+          <p className="mt-2 text-sm text-white/55">Queue, connect to rival, fight on dedicated duel tasks.</p>
         </div>
 
         {teamCurrent ? (
           <div className="mb-6 rounded-2xl border border-yellow-500/20 bg-slate-950 p-5 text-sm text-white">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-wider text-yellow-300">Текущая команда</p>
+                <p className="text-xs uppercase tracking-wider text-yellow-300">Current team</p>
                 <h2 className="mt-2 text-xl font-semibold">{teamCurrent.name}</h2>
-                <p className="mt-1 text-sm text-slate-400">Участников: {teamCurrent.members.length}</p>
+                <p className="mt-1 text-sm text-slate-400">Members: {teamCurrent.members.length}</p>
               </div>
               <button
                 type="button"
                 onClick={() => navigate("/team")}
                 className="rounded-2xl bg-yellow-400 px-4 py-2 text-sm font-semibold text-slate-950"
               >
-                Перейти в команду
+                Open team
               </button>
             </div>
           </div>
         ) : null}
 
-        {state === "matched" && (
-          <div style={{ height: "520px" }}>
-            <MatchArena
-              activeMatch={activeMatch}
-              myUserId={myUserId}
-              onNavigateTask={(taskId) => navigate(`/tasks/${taskId}/solve`)}
-              onReset={handleReset}
-              onSelectUser={setSelectedUserId}
-            />
-          </div>
-        )}
-
-        {state !== "matched" && (
-          <div
-            className="rounded-2xl border p-8 sm:p-12 flex flex-col items-center gap-8"
-            style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}
-          >
-            <div
-              className="flex h-28 w-28 items-center justify-center rounded-full border-2 transition-all duration-500"
-              style={{
-                borderColor: state === "searching" ? "#FFD600" : "rgba(255,214,0,0.2)",
-                background: state === "searching" ? "rgba(255,214,0,0.05)" : "rgba(255,255,255,0.02)",
-                animation: state === "searching" ? "pulse 2s cubic-bezier(0.4,0,0.6,1) infinite" : "none",
-              }}
-            >
-              {state === "searching" && (
-                <span
-                  className="h-10 w-10 rounded-full border-2"
-                  style={{ borderColor: "#FFD600 transparent transparent transparent", animation: "spin 1s linear infinite" }}
-                />
-              )}
-              {state === "idle" && <span className="text-3xl">⚔️</span>}
+        {state === "matched" ? (
+          <MatchArena
+            activeMatch={activeMatch}
+            myUserId={myUserId}
+            onNavigateTask={(taskId) => navigate(`/tasks/${taskId}/solve`)}
+            onSurrender={handleSurrender}
+          />
+        ) : (
+          <div className="mx-auto max-w-xl rounded-3xl border p-8" style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}>
+            <div className="mb-6 text-center">
+              <p className="text-xl font-semibold text-white">{state === "searching" ? "Searching duel..." : "Ready for PVP?"}</p>
+              <p className="mt-2 text-sm text-white/55">{statusNote}</p>
             </div>
 
-            <div className="text-center w-full max-w-xs">
-              {state === "idle" && (
-                <>
-                  <p className="text-lg font-semibold text-white">Готов к бою?</p>
-                  <p className="mt-1 text-sm" style={{ color: "#666" }}>Нажми и встань в очередь</p>
-                </>
-              )}
-              {state === "searching" && (
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-base font-semibold" style={{ color: "#FFD600" }}>Поиск соперника…</p>
-                    <p className="text-xs mt-1" style={{ color: "#666" }}>
-                      Позиция в очереди: {queueInfo.queue_position ?? "—"}
-                    </p>
-                  </div>
-                  <QueueProgress
-                    current={Math.min(queueInfo.queue_size, queueInfo.total)}
-                    total={queueInfo.total}
-                  />
-                </div>
-              )}
-            </div>
+            <QueueFill queueSize={queueInfo.queue_size} queuePosition={queueInfo.queue_position} />
 
-            <div className="flex w-full max-w-xs flex-col gap-3">
-              {state === "idle" && (
+            <div className="mt-6 flex flex-col gap-3">
+              {state === "idle" ? (
                 <button
                   type="button"
                   onClick={handleFindMatch}
-                  className="w-full rounded-xl py-3.5 text-sm font-bold transition-opacity hover:opacity-80"
-                  style={{ background: "#FFD600", color: "#000" }}
+                  className="h-12 rounded-xl text-sm font-semibold transition-opacity hover:opacity-85"
+                  style={{ background: "#FFD600", color: "#111" }}
                 >
-                  Найти матч
+                  Find 1v1 match
                 </button>
-              )}
-              {state === "searching" && (
+              ) : (
                 <button
                   type="button"
-                  onClick={handleReset}
-                  className="w-full rounded-xl py-3.5 text-sm font-semibold transition-colors"
-                  style={{ background: "rgba(255,255,255,0.05)", color: "#888" }}
+                  onClick={handleLeaveQueue}
+                  className="h-12 rounded-xl border text-sm font-medium text-white/80 transition-colors hover:text-white"
+                  style={{ borderColor: "rgba(255,214,0,0.2)", background: "transparent" }}
                 >
-                  Отменить поиск
+                  Cancel queue
                 </button>
               )}
             </div>
 
-            <p className="text-xs" style={{ color: "#444" }}>{statusNote}</p>
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : null}
           </div>
         )}
       </div>
-
-      <MiniProfile userId={selectedUserId} onClose={() => setSelectedUserId(null)} />
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
-      `}</style>
     </div>
   );
 }

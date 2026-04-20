@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SkillIn(BaseModel):
@@ -32,5 +32,42 @@ class ProfileOut(BaseModel):
 
 
 class OnboardingIn(BaseModel):
-    role: str
-    technologies: list[str]
+    role: str = Field(min_length=2, max_length=100)
+    technologies: list[str] = Field(min_length=1, max_length=20)
+
+    @field_validator("role")
+    @classmethod
+    def clean_role(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Role is required")
+        return cleaned
+
+    @field_validator("technologies", mode="before")
+    @classmethod
+    def ensure_technologies_list(cls, value: object) -> object:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [value]
+        return value
+
+    @field_validator("technologies")
+    @classmethod
+    def clean_technologies(cls, value: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for item in value:
+            tech = item.strip()
+            if not tech:
+                continue
+            if len(tech) > 100:
+                raise ValueError("Technology names must be 100 chars or shorter")
+            key = tech.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            cleaned.append(tech)
+        if not cleaned:
+            raise ValueError("Choose at least one technology")
+        return cleaned

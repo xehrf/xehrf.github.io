@@ -5,7 +5,7 @@ from app.auth.deps import get_current_user
 from app.db.models import User, UserSkill
 from app.db.session import get_db
 from app.users.schemas import ProfileOut, SkillIn, SkillOut, OnboardingIn
-from app.users.service import update_user_profile, complete_onboarding
+from app.users.service import complete_onboarding, normalize_role, normalize_technologies, update_user_profile
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -14,6 +14,10 @@ def _get_profile(user_id: int, db: Session) -> User:
     u = db.query(User).options(selectinload(User.skills)).filter(User.id == user_id).first()
     if u is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    u.role = normalize_role(u.role)
+    u.technologies = normalize_technologies(u.technologies)
+    if u.onboarding_completed and (u.role is None or not u.technologies):
+        u.onboarding_completed = False
     return u
 
 

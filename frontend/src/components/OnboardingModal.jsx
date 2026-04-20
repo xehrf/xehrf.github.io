@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { Button } from "../components/ui/Button.jsx";
+import { useMemo, useState } from "react";
 import { apiFetch } from "../api/client";
+import { Button } from "./ui/Button.jsx";
 
 const ROLES = [
   "Back-end",
@@ -25,194 +25,204 @@ const TECHNOLOGIES = [
   "Node.js",
 ];
 
+function normalizeText(value) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function toggleValue(values, candidate) {
+  return values.includes(candidate) ? values.filter((item) => item !== candidate) : [...values, candidate];
+}
+
 export function OnboardingModal({ onComplete }) {
   const [step, setStep] = useState(1);
   const [selectedRole, setSelectedRole] = useState("");
   const [selectedTechnologies, setSelectedTechnologies] = useState([]);
-  const [customTech, setCustomTech] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [otherTechnology, setOtherTechnology] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const handleRoleSelect = (role) => {
-    setSelectedRole(role);
-  };
+  const canGoNext = step === 1 ? Boolean(selectedRole) : selectedTechnologies.length > 0;
 
-  const handleTechToggle = (tech) => {
-    setSelectedTechnologies((prev) =>
-      prev.includes(tech) ? prev.filter((t) => t !== tech) : [...prev, tech]
-    );
-  };
-
-  const handleAddCustomTech = () => {
-    if (customTech.trim() && !selectedTechnologies.includes(customTech.trim())) {
-      setSelectedTechnologies((prev) => [...prev, customTech.trim()]);
-      setCustomTech("");
+  const finalTechnologies = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const tech of selectedTechnologies) {
+      const clean = normalizeText(tech);
+      if (!clean) continue;
+      const key = clean.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(clean);
     }
+    return out;
+  }, [selectedTechnologies]);
+
+  const addOtherTechnology = () => {
+    const clean = normalizeText(otherTechnology);
+    if (!clean) return;
+    setSelectedTechnologies((prev) => {
+      const exists = prev.some((item) => item.toLowerCase() === clean.toLowerCase());
+      return exists ? prev : [...prev, clean];
+    });
+    setOtherTechnology("");
   };
 
-  const handleNext = () => {
-    if (step === 1 && selectedRole) {
-      setStep(2);
-    }
-  };
-
-  const handleComplete = async () => {
-    if (!selectedRole || selectedTechnologies.length === 0) return;
-
-    setLoading(true);
+  const submitOnboarding = async () => {
+    if (!selectedRole || finalTechnologies.length === 0 || submitting) return;
+    setSubmitting(true);
     setError("");
     try {
       await apiFetch("/users/me/onboarding", {
         method: "POST",
         body: {
           role: selectedRole,
-          technologies: selectedTechnologies,
+          technologies: finalTechnologies,
         },
       });
-      setLoading(false);
-      onComplete();
-    } catch (error) {
-      setError(error.message || "Ошибка при сохранении. Попробуйте ещё раз.");
-      setLoading(false);
+      await onComplete();
+    } catch (e) {
+      setError(e?.message || "Failed to save onboarding. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-      <div className="w-full max-w-md rounded-2xl border border-yellow-500/20 bg-gray-900 p-6 text-white">
-        
-        {/* Header */}
-        <div className="mb-6 text-center">
-          <h2 className="text-xl font-bold text-yellow-400">
-            {step === 1 ? "Выберите вашу роль" : "Выберите технологии"}
-          </h2>
-          <p className="mt-2 text-sm text-gray-400">
-            {step === 1
-              ? "Расскажите, чем вы занимаетесь"
-              : "Какие технологии вы используете?"}
-          </p>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 px-4 py-8">
+      <div
+        className="w-full max-w-xl rounded-2xl p-6 sm:p-7"
+        style={{ background: "#111", border: "1px solid rgba(255,214,0,0.15)" }}
+      >
+        <div className="mb-6">
+          <p className="text-xs uppercase tracking-[0.2em] text-[#FFD600]/80">Welcome to CodeArena</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">Finish your onboarding</h2>
+          <p className="mt-2 text-sm text-white/70">Step {step} of 2</p>
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+        {error ? (
+          <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
             {error}
           </div>
-        )}
+        ) : null}
 
-        {/* Step 1 */}
-        {step === 1 && (
-          <div className="space-y-3">
-            {ROLES.map((role) => (
-              <button
-                key={role}
-                onClick={() => handleRoleSelect(role)}
-                className={`w-full rounded-lg border p-3 text-left transition-all duration-200 ${
-                  selectedRole === role
-                    ? "border-yellow-500 bg-yellow-500/10 text-gray-300"
-                    : "border-white/10 bg-gray-700 text-white hover:border-yellow-500/50 hover:text-yellow-400"
-                }`}
-              >
-                {role}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Step 2 */}
-        {step === 2 && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-2">
-              {TECHNOLOGIES.map((tech) => (
+        {step === 1 ? (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {ROLES.map((role) => {
+              const active = selectedRole === role;
+              return (
                 <button
-                  key={tech}
-                  onClick={() => handleTechToggle(tech)}
-                  className={`rounded-lg border p-2 text-sm transition-all duration-200 ${
-                    selectedTechnologies.includes(tech)
-                      ? "border-yellow-500 bg-yellow-500/10 text-gray-300"
-                      : "border-white/10 bg-gray-700 text-white hover:border-yellow-500/50 hover:text-yellow-400"
-                  }`}
+                  key={role}
+                  type="button"
+                  onClick={() => setSelectedRole(role)}
+                  className="rounded-xl px-4 py-3 text-left text-sm transition-colors"
+                  style={{
+                    border: `1px solid ${active ? "#FFD600" : "rgba(255,214,0,0.15)"}`,
+                    background: active ? "rgba(255,214,0,0.14)" : "transparent",
+                    color: active ? "#FFD600" : "white",
+                  }}
                 >
-                  {tech}
+                  {role}
                 </button>
-              ))}
+              );
+            })}
+          </div>
+        ) : (
+          <div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {TECHNOLOGIES.map((tech) => {
+                const active = selectedTechnologies.includes(tech);
+                return (
+                  <button
+                    key={tech}
+                    type="button"
+                    onClick={() => setSelectedTechnologies((prev) => toggleValue(prev, tech))}
+                    className="rounded-xl px-3 py-2 text-sm transition-colors"
+                    style={{
+                      border: `1px solid ${active ? "#FFD600" : "rgba(255,214,0,0.15)"}`,
+                      background: active ? "rgba(255,214,0,0.14)" : "transparent",
+                      color: active ? "#FFD600" : "white",
+                    }}
+                  >
+                    {tech}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Custom tech */}
-            <div className="flex gap-2">
+            <div className="mt-4 flex gap-2">
               <input
                 type="text"
-                value={customTech}
-                onChange={(e) => setCustomTech(e.target.value)}
-                placeholder="Другое..."
-                className="flex-1 rounded-lg border border-white/10 bg-gray-700 px-3 py-2 text-sm text-white placeholder-gray-400 focus:border-yellow-500 focus:outline-none"
-                onKeyDown={(e) => e.key === "Enter" && handleAddCustomTech()}
+                value={otherTechnology}
+                onChange={(e) => setOtherTechnology(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addOtherTechnology();
+                  }
+                }}
+                placeholder="Other technology"
+                className="h-11 flex-1 rounded-xl bg-black px-3 text-sm text-white placeholder:text-white/40 focus:outline-none"
+                style={{ border: "1px solid rgba(255,214,0,0.15)" }}
               />
               <Button
-                onClick={handleAddCustomTech}
-                className="rounded-lg bg-yellow-500 px-3 py-2 text-sm font-medium text-black hover:bg-yellow-400"
-                disabled={!customTech.trim()}
+                type="button"
+                onClick={addOtherTechnology}
+                disabled={!normalizeText(otherTechnology)}
+                className="h-11 rounded-xl px-4"
+                style={{ background: "#FFD600", color: "#111" }}
               >
-                +
+                Add
               </Button>
             </div>
 
-            {/* Selected tech */}
-            {selectedTechnologies.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {selectedTechnologies.map((tech) => (
+            {finalTechnologies.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {finalTechnologies.map((tech) => (
                   <span
                     key={tech}
-                    className="rounded bg-yellow-500/20 px-2 py-1 text-xs text-yellow-400"
+                    className="rounded-full px-3 py-1 text-xs"
+                    style={{ background: "rgba(255,214,0,0.18)", color: "#FFD600" }}
                   >
                     {tech}
                   </span>
                 ))}
               </div>
-            )}
+            ) : null}
           </div>
         )}
 
-        {/* Footer buttons */}
-        <div className="mt-6 flex justify-between">
-          {step === 2 && (
+        <div className="mt-6 flex items-center justify-between">
+          <Button
+            type="button"
+            onClick={() => setStep((prev) => (prev === 1 ? 1 : prev - 1))}
+            disabled={step === 1 || submitting}
+            className="h-11 rounded-xl px-5"
+            style={{ border: "1px solid rgba(255,214,0,0.15)", background: "transparent", color: "white" }}
+          >
+            Back
+          </Button>
+
+          {step === 1 ? (
             <Button
-              onClick={() => setStep(1)}
-              variant="secondary"
-              className="rounded-lg border border-white/10 bg-gray-700 px-4 py-2 text-white hover:bg-gray-600"
+              type="button"
+              onClick={() => setStep(2)}
+              disabled={!canGoNext || submitting}
+              className="h-11 rounded-xl px-5"
+              style={{ background: "#FFD600", color: "#111" }}
             >
-              Назад
+              Next
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              onClick={submitOnboarding}
+              disabled={!canGoNext || submitting}
+              className="h-11 rounded-xl px-5"
+              style={{ background: "#FFD600", color: "#111" }}
+            >
+              {submitting ? "Saving..." : "Finish"}
             </Button>
           )}
-
-          <div className="ml-auto flex gap-2">
-            {/* Skip */}
-            <Button
-              onClick={onComplete}
-              variant="secondary"
-              className="rounded-lg border border-white/10 bg-transparent px-4 py-2 text-gray-400 hover:text-white"
-            >
-              Пропустить
-            </Button>
-
-            {step === 1 ? (
-              <Button
-                onClick={handleNext}
-                className="rounded-lg bg-yellow-500 px-4 py-2 font-medium text-black hover:bg-yellow-400"
-                disabled={!selectedRole}
-              >
-                Далее
-              </Button>
-            ) : (
-              <Button
-                onClick={handleComplete}
-                className="rounded-lg bg-yellow-500 px-4 py-2 font-medium text-black hover:bg-yellow-400"
-                disabled={selectedTechnologies.length === 0 || loading}
-              >
-                {loading ? "Сохранение..." : "Завершить"}
-              </Button>
-            )}
-          </div>
         </div>
       </div>
     </div>

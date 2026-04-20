@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Card } from "../components/ui/Card.jsx";
-import { apiFetch } from "../api/client";
+import { apiFetch, getWebSocketBaseUrl } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
 
 function getWebSocketUrl(teamId) {
-  const origin = import.meta.env.VITE_API_URL ?? window.location.origin;
-  const wsOrigin = origin.replace(/^http/, "ws").replace(/\/+$/, "");
+  const wsOrigin = getWebSocketBaseUrl();
   const token = localStorage.getItem("access_token") ?? "";
   return `${wsOrigin}/teams/ws/${teamId}?token=${encodeURIComponent(token)}`;
 }

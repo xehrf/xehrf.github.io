@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import redis
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
 from app.db.models import Match, MatchParticipant, MatchStatus, Task, TaskType, User
@@ -64,7 +64,7 @@ def _select_match_task(db: Session) -> Task | None:
     return (
         db.query(Task)
         .filter(and_(Task.task_type == TaskType.match, Task.is_published.is_(True)))
-        .order_by(Task.id)
+        .order_by(func.random())
         .first()
     )
 

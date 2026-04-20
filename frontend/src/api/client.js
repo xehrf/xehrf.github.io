@@ -36,32 +36,42 @@ function stringifyDetail(detail) {
   return String(detail ?? "");
 }
 
-// Пустой BASE_URL → запросы на тот же origin при локальной разработке.
-// В продакшене frontend и backend хостятся отдельно.
-// Обязательно задайте именно домен backend без /api, например:
-// VITE_API_URL=https://your-render-backend.onrender.com
-const rawBaseUrl = import.meta.env.VITE_API_URL ?? "";
-const BASE_URL = rawBaseUrl.replace(/\/+$/, "");
+function normalizeBaseUrl(rawValue) {
+  const trimmed = (rawValue ?? "").trim();
+  if (!trimmed) {
+    return "";
+  }
 
-if (BASE_URL.includes("/api")) {
-  throw new Error(
-    "VITE_API_URL не должен содержать '/api'. Укажите только домен backend без префикса /api, например https://your-backend.onrender.com."
-  );
+  const withoutTrailingSlash = trimmed.replace(/\/+$/, "");
+  const withoutApiSuffix = withoutTrailingSlash.replace(/\/api$/i, "");
+
+  if (withoutTrailingSlash !== withoutApiSuffix) {
+    console.warn("VITE_API_URL ended with /api. It was normalized automatically.");
+  }
+
+  return withoutApiSuffix;
 }
 
-if (!BASE_URL && !import.meta.env.DEV) {
-  throw new Error(
-    "VITE_API_URL не задан. Установите переменную окружения VITE_API_URL на URL backend-сервера."
-  );
+const API_BASE_URL = normalizeBaseUrl(import.meta.env.VITE_API_URL);
+
+if (!API_BASE_URL && !import.meta.env.DEV) {
+  console.error("VITE_API_URL is empty in production. Requests will use the frontend origin.");
 }
 
 if (
   !import.meta.env.DEV &&
-  (BASE_URL.includes("localhost") || BASE_URL.includes("127.0.0.1"))
+  (API_BASE_URL.includes("localhost") || API_BASE_URL.includes("127.0.0.1"))
 ) {
-  throw new Error(
-    "VITE_API_URL указывает на localhost в продакшене. Для Vercel укажите публичный URL backend на Render."
-  );
+  console.error("VITE_API_URL points to localhost in production. Use a public backend URL.");
+}
+
+export function getApiBaseUrl() {
+  return API_BASE_URL;
+}
+
+export function getWebSocketBaseUrl() {
+  const origin = API_BASE_URL || window.location.origin;
+  return origin.replace(/^http/i, "ws").replace(/\/+$/, "");
 }
 
 export function resolveAssetUrl(url) {
@@ -70,7 +80,7 @@ export function resolveAssetUrl(url) {
     return url;
   }
   if (url.startsWith("/")) {
-    return `${BASE_URL}${url}`;
+    return `${API_BASE_URL}${url}`;
   }
   return url;
 }
@@ -90,9 +100,11 @@ export async function apiFetch(
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
+  const requestPath = path.startsWith("/") ? path : `/${path}`;
+
   let res;
   try {
-    res = await fetch(`${BASE_URL}${path}`, {
+    res = await fetch(`${API_BASE_URL}${requestPath}`, {
       method,
       headers,
       body: body !== undefined ? (body instanceof FormData ? body : JSON.stringify(body)) : undefined,
@@ -100,12 +112,9 @@ export async function apiFetch(
     });
   } catch (err) {
     if (err?.name === "AbortError") {
-      throw new ApiError(
-        0,
-        "Сервер не отвечает (таймаут). Если вы загружаете файл, попробуйте уменьшить размер или подождать дольше."
-      );
+      throw new ApiError(0, "Server timeout. Please try again.");
     }
-    throw new ApiError(0, "Не удалось подключиться к серверу.");
+    throw new ApiError(0, "Could not connect to server.");
   } finally {
     window.clearTimeout(timeoutId);
   }
@@ -115,7 +124,7 @@ export async function apiFetch(
   if (!res.ok) {
     const errJson = safeJson(text);
     if (res.status === 404) {
-      throw new ApiError(404, `Endpoint not found: ${method} ${BASE_URL}${path}`, errJson);
+      throw new ApiError(404, `Endpoint not found: ${method} ${API_BASE_URL}${requestPath}`, errJson);
     }
     const message =
       (errJson && stringifyDetail(errJson.detail ?? errJson.message)) || text || `Request failed: ${res.status}`;
@@ -126,7 +135,5 @@ export async function apiFetch(
   if (trimmed === "") {
     return null;
   }
-  // Важно: JSON `null` должен остаться null (например GET /tasks/{id}/attempt без активной попытки).
   return safeJson(trimmed);
 }
-

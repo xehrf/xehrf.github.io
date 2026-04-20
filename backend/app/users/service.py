@@ -1,3 +1,5 @@
+import json
+
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
@@ -39,10 +41,64 @@ def update_user_profile(
     return user
 
 
+def normalize_role(raw_role: str | None) -> str | None:
+    if raw_role is None:
+        return None
+    cleaned = raw_role.strip()
+    return cleaned or None
+
+
+def normalize_technologies(raw_value: object) -> list[str]:
+    values: list[str] = []
+
+    if raw_value is None:
+        return values
+
+    if isinstance(raw_value, (list, tuple, set)):
+        source = list(raw_value)
+    elif isinstance(raw_value, str):
+        stripped = raw_value.strip()
+        if not stripped or stripped in {"[]", "{}"}:
+            return values
+        if stripped.startswith("[") and stripped.endswith("]"):
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                parsed = []
+            source = parsed if isinstance(parsed, list) else []
+        elif stripped.startswith("{") and stripped.endswith("}"):
+            # PostgreSQL text-like array fallback: {"Python","React"}
+            content = stripped[1:-1].strip()
+            source = [] if not content else [part.strip().strip('"') for part in content.split(",")]
+        else:
+            source = [stripped]
+    else:
+        source = [str(raw_value)]
+
+    seen: set[str] = set()
+    for item in source:
+        tech = str(item).strip()
+        if not tech:
+            continue
+        key = tech.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        values.append(tech)
+    return values
+
+
 def complete_onboarding(user: User, db: Session, role: str, technologies: list[str]) -> User:
     """Complete user onboarding by setting role, technologies, and marking as completed."""
-    user.role = role
-    user.technologies = technologies
+    clean_role = normalize_role(role)
+    clean_technologies = normalize_technologies(technologies)
+    if not clean_role:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role is required.")
+    if not clean_technologies:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="At least one technology is required.")
+
+    user.role = clean_role
+    user.technologies = clean_technologies
     user.onboarding_completed = True
     db.add(user)
     db.commit()

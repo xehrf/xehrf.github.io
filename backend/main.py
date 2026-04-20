@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import re
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -67,22 +68,17 @@ settings = get_settings()
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
-from fastapi import Request
-from fastapi.responses import Response
+def _normalize_origin(value: str) -> str:
+    return value.strip().rstrip("/")
 
-@app.options("/{rest_of_path:path}")
-async def preflight_handler(request: Request, rest_of_path: str) -> Response:
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
-            "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Allow-Credentials": "true",
-        },
-    )
 
-cors_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
+cors_origins = [
+    normalized
+    for raw in re.split(r"[,\s]+", settings.cors_origins)
+    if raw.strip()
+    for normalized in [_normalize_origin(raw)]
+    if normalized
+]
 
 app.add_middleware(
     CORSMiddleware,

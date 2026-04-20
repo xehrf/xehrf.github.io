@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,6 +25,27 @@ class Settings(BaseSettings):
     default_pts: int = 0
     matchmaking_party_size: int = 4
     match_default_duration_minutes: int = 120
+
+    @field_validator("debug", mode="before")
+    @classmethod
+    def normalize_debug(cls, value: object) -> object:
+        """Support common non-boolean DEBUG values used in deployment panels."""
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            truthy = {"1", "true", "t", "yes", "y", "on", "dev", "development", "debug"}
+            falsy = {"0", "false", "f", "no", "n", "off", "prod", "production", "release"}
+            if normalized in truthy:
+                return True
+            if normalized in falsy:
+                return False
+        return value
+
+    @field_validator("database_url", "redis_url", "cors_origins", "cors_origin_regex", "api_url", mode="before")
+    @classmethod
+    def strip_string_settings(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
 
 @lru_cache

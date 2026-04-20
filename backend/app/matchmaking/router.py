@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user
@@ -119,6 +119,33 @@ async def leave_queue(user: User = Depends(get_current_user)) -> dict:
         r.close()
     await manager.send_event(user.id, "queue_update", {"queue_size": q_size, "queue_position": None, "status": "left", "total": 2})
     return {"status": "left"}
+
+
+@router.post("/surrender")
+async def surrender_match(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    active = mm_service.get_active_match_for_user(db, user.id)
+    if active is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active match to surrender.")
+
+    opponent = mm_service.get_match_opponent(db, active.id, user.id)
+    if opponent is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot surrender without opponent.")
+
+    participant_ids = [p.user_id for p in active.participants]
+    ok = mm_service.complete_match_with_winner(db, active, opponent.id)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to complete match.")
+
+    payload = {
+        "match_id": active.id,
+        "status": "completed",
+        "reason": "surrender",
+        "winner_user_id": opponent.id,
+        "loser_user_id": user.id,
+    }
+    for uid in participant_ids:
+        await manager.send_event(uid, "match_finished", payload)
+    return payload
 
 
 @router.websocket("/ws")

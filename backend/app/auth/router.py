@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user
-from app.auth.schemas import TokenResponse, UserLogin, UserRegister
+from app.auth.schemas import AuthMeResponse, TokenResponse, UserLogin, UserRegister
 from app.auth.security import create_access_token, hash_password, verify_password
 from app.core.config import get_settings
 from app.db.models import User, UserLevel
 from app.db.session import get_db
+from app.users.service import normalize_role, normalize_technologies
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -23,6 +24,8 @@ def register(body: UserRegister, db: Session = Depends(get_db)) -> TokenResponse
         nickname=body.display_name,
         pts=settings.default_pts,
         level=UserLevel.beginner,
+        role=None,
+        onboarding_completed=False,
     )
     db.add(user)
     db.commit()
@@ -38,8 +41,11 @@ def login(body: UserLogin, db: Session = Depends(get_db)) -> TokenResponse:
     return TokenResponse(access_token=create_access_token(user.email))
 
 
-@router.get("/me")
+@router.get("/me", response_model=AuthMeResponse)
 def me(user: User = Depends(get_current_user)) -> dict:
+    role = normalize_role(user.role)
+    technologies = normalize_technologies(user.technologies)
+    onboarding_completed = bool(user.onboarding_completed and role and technologies)
     return {
         "id": user.id,
         "email": user.email,
@@ -47,4 +53,7 @@ def me(user: User = Depends(get_current_user)) -> dict:
         "avatar_url": user.avatar_url,
         "pts": user.pts,
         "level": user.level.value,
+        "role": role,
+        "technologies": technologies,
+        "onboarding_completed": onboarding_completed,
     }
