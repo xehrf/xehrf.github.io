@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { apiFetch } from "../api/client";
 
@@ -30,9 +30,12 @@ export function TeamsPage() {
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground">Поиск команд</h1>
-        <Link to="/team/create" className="rounded-2xl bg-accent px-4 py-2 text-sm font-semibold text-white">
+        <LinkButton
+          to="/team/create"
+          className="h-12 justify-center rounded-[12px] px-5 py-3 md:h-auto md:rounded-btn md:py-2.5"
+        >
           Создать команду
-        </Link>
+        </LinkButton>
       </div>
       <Card className="mb-5 p-4">
         <div className="flex flex-col gap-3 sm:flex-row">
