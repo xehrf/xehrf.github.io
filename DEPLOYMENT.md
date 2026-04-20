@@ -1,5 +1,20 @@
 # Deployment Guide
 
+## Backend (Render)
+
+1. Create a **Web Service** and set the root directory to `backend` (or keep root and use the root `Procfile`).
+2. Use this start command:
+   ```bash
+   uvicorn main:app --host 0.0.0.0 --port $PORT
+   ```
+3. Make sure environment variables are set:
+   - `DATABASE_URL`
+   - `SECRET_KEY`
+   - `REDIS_URL`
+4. Verify after deploy:
+   - `GET /health` returns `{"status":"ok"}`
+   - `GET /matchmaking/quests` returns `401` (without token) or `200` (with token), not `404`
+
 ## Backend (Railway)
 
 1. Connect the GitHub repository to Railway.

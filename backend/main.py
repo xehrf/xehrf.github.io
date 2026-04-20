@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import os
 import re
 
 from fastapi import FastAPI
@@ -107,3 +108,21 @@ app.include_router(match_ws_router)
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/")
+def root() -> dict:
+    return {"status": "ok", "service": settings.app_name}
+
+
+def _resolve_port(default: int = 8000) -> int:
+    raw = os.getenv("PORT", "").strip()
+    if raw.isdigit():
+        return int(raw)
+    return default
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("main:app", host="0.0.0.0", port=_resolve_port())
