@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { apiFetch, getWebSocketBaseUrl, resolveAssetUrl } from "../api/client";
@@ -36,55 +36,6 @@ function getMyUserIdFromToken() {
 function getOpponentFromParticipants(participants, myUserId) {
   if (!Array.isArray(participants)) return null;
   return participants.find((item) => item.user_id !== myUserId) ?? null;
-}
-
-function normalizeStringList(rawValue) {
-  if (rawValue == null) return [];
-
-  let source;
-  if (Array.isArray(rawValue)) {
-    source = rawValue;
-  } else if (typeof rawValue === "string") {
-    const stripped = rawValue.trim();
-    if (!stripped || stripped === "[]" || stripped === "{}") return [];
-
-    if (stripped.startsWith("[") && stripped.endsWith("]")) {
-      try {
-        const parsed = JSON.parse(stripped);
-        source = Array.isArray(parsed) ? parsed : [];
-      } catch {
-        source = stripped
-          .slice(1, -1)
-          .split(",")
-          .map((item) => item.trim());
-      }
-    } else if (stripped.startsWith("{") && stripped.endsWith("}")) {
-      source = stripped
-        .slice(1, -1)
-        .split(",")
-        .map((item) => item.trim().replace(/^"+|"+$/g, ""));
-    } else if (stripped.includes(",")) {
-      source = stripped.split(",").map((item) => item.trim());
-    } else {
-      source = [stripped];
-    }
-  } else {
-    source = [String(rawValue)];
-  }
-
-  const seen = new Set();
-  const out = [];
-  for (const item of source) {
-    const clean = String(item ?? "")
-      .trim()
-      .replace(/^['"]+|['"]+$/g, "");
-    if (!clean) continue;
-    const key = clean.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(clean);
-  }
-  return out;
 }
 
 const ROLE_BADGE_PALETTES = {
@@ -151,20 +102,6 @@ const DEFAULT_ROLE_BADGE = {
   shadow: "rgba(255,214,0,0.28)",
 };
 
-const TECH_BADGE = {
-  border: "rgba(134,239,172,0.45)",
-  bg: "rgba(34,197,94,0.16)",
-  text: "#bbf7d0",
-  shadow: "rgba(34,197,94,0.26)",
-};
-
-const SKILL_BADGE = {
-  border: "rgba(125,211,252,0.45)",
-  bg: "rgba(56,189,248,0.16)",
-  text: "#bae6fd",
-  shadow: "rgba(56,189,248,0.26)",
-};
-
 function getRolePalette(roleLabel) {
   const key = String(roleLabel ?? "")
     .trim()
@@ -174,13 +111,7 @@ function getRolePalette(roleLabel) {
 }
 
 function getBadgePresentation(badge) {
-  if (badge.tone === "role") {
-    return { icon: "R", ...getRolePalette(badge.label) };
-  }
-  if (badge.tone === "skill") {
-    return { icon: "S", ...SKILL_BADGE };
-  }
-  return { icon: "T", ...TECH_BADGE };
+  return { icon: "R", ...getRolePalette(badge.label) };
 }
 
 function QueueSlot({ label, active, complete }) {
@@ -238,6 +169,70 @@ function QueueFill({ queueSize, queuePosition }) {
   );
 }
 
+function QuestPanel({ quests, onClaim, claimingQuestKey }) {
+  if (!quests) return null;
+
+  const sections = [
+    { id: "daily", title: "Ежедневные PvP-квесты", data: quests.daily },
+    { id: "weekly", title: "Недельные PvP-квесты", data: quests.weekly },
+  ];
+
+  return (
+    <div className="mt-6 space-y-4">
+      {sections.map((section) => (
+        <div
+          key={section.id}
+          className="rounded-2xl border px-4 py-3"
+          style={{ borderColor: "rgba(255,214,0,0.15)", background: "rgba(255,255,255,0.01)" }}
+        >
+          <p className="text-[11px] uppercase tracking-wider text-[#FFD600]">{section.title}</p>
+          <div className="mt-3 space-y-2.5">
+            {(section.data?.quests || []).map((quest) => {
+              const target = Math.max(1, Number(quest.target ?? 1));
+              const progress = Math.max(0, Number(quest.progress ?? 0));
+              const pct = Math.max(0, Math.min(100, Math.round((progress / target) * 100)));
+              const rowKey = `${section.id}:${quest.id}`;
+              return (
+                <div key={rowKey} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-white">{quest.title}</p>
+                      <p className="mt-0.5 text-xs text-white/60">
+                        {progress}/{target} • +{quest.reward_pts} PTS
+                      </p>
+                    </div>
+                    {quest.completed && !quest.claimed ? (
+                      <button
+                        type="button"
+                        onClick={() => onClaim(section.id, quest.id)}
+                        disabled={claimingQuestKey === rowKey}
+                        className="rounded-lg px-2.5 py-1 text-xs font-semibold transition-opacity hover:opacity-85 disabled:opacity-50"
+                        style={{ background: "#FFD600", color: "#111" }}
+                      >
+                        {claimingQuestKey === rowKey ? "..." : "Забрать"}
+                      </button>
+                    ) : (
+                      <span className="text-[11px] text-white/50">
+                        {quest.claimed ? "Получено" : quest.completed ? "Готово" : "В прогрессе"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${pct}%`, background: "linear-gradient(90deg, #b79000 0%, #FFD600 100%)" }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function OpponentIntelPanel({ opponentUserId, online }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -264,38 +259,10 @@ function OpponentIntelPanel({ opponentUserId, online }) {
     };
   }, [opponentUserId]);
 
-  const technologies = useMemo(() => normalizeStringList(profile?.technologies), [profile?.technologies]);
-  const skills = useMemo(() => (Array.isArray(profile?.skills) ? profile.skills : []), [profile?.skills]);
   const badges = useMemo(() => {
-    const rows = [];
-    if (profile?.role) {
-      rows.push({ label: String(profile.role).trim(), tone: "role" });
-    }
-
-    for (const tech of technologies) {
-      rows.push({ label: tech, tone: "tech" });
-    }
-
-    for (const skill of skills) {
-      const name = String(skill?.skill_name ?? "").trim();
-      if (!name) continue;
-      const proficiency = Number(skill?.proficiency);
-      rows.push({
-        label: Number.isFinite(proficiency) ? `${name} ${proficiency}/5` : name,
-        tone: "skill",
-      });
-    }
-
-    const seen = new Set();
-    const out = [];
-    for (const row of rows) {
-      const key = row.label.toLowerCase();
-      if (!row.label || seen.has(key)) continue;
-      seen.add(key);
-      out.push(row);
-    }
-    return out;
-  }, [profile?.role, skills, technologies]);
+    const role = String(profile?.role ?? "").trim();
+    return role ? [{ label: role, tone: "role" }] : [];
+  }, [profile?.role]);
 
   const bannerUrl = resolveAssetUrl(profile?.banner_url || "");
   const avatarUrl = resolveAssetUrl(profile?.avatar_url || "");
@@ -378,7 +345,7 @@ function OpponentIntelPanel({ opponentUserId, online }) {
           </div>
 
           <div>
-            <p className="mb-2 text-[11px] uppercase tracking-wider text-white/50">Роли и навыки</p>
+            <p className="mb-2 text-[11px] uppercase tracking-wider text-white/50">Роль</p>
             <div className="flex flex-wrap gap-2">
               {badges.length > 0 ? (
                 badges.map((badge, idx) => {
@@ -409,7 +376,7 @@ function OpponentIntelPanel({ opponentUserId, online }) {
                   );
                 })
               ) : (
-                <span className="text-xs text-white/50">Роли и навыки не добавлены</span>
+                <span className="text-xs text-white/50">Роль не указана</span>
               )}
             </div>
           </div>
@@ -640,12 +607,25 @@ export function MatchmakingPage() {
   const [statusNote, setStatusNote] = useState("Нажмите «Найти матч», чтобы встать в PvP-очередь.");
   const [error, setError] = useState("");
   const [teamCurrent, setTeamCurrent] = useState(null);
+  const [quests, setQuests] = useState(null);
+  const [claimingQuestKey, setClaimingQuestKey] = useState("");
+  const [lastMatchResult, setLastMatchResult] = useState(null);
+  const [rematchLoading, setRematchLoading] = useState(false);
 
   const state = useMemo(() => {
     if (activeMatch) return "matched";
     if (searching) return "searching";
     return "idle";
   }, [activeMatch, searching]);
+
+  const loadQuests = useCallback(async () => {
+    try {
+      const payload = await apiFetch("/matchmaking/quests");
+      setQuests(payload);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -684,6 +664,10 @@ export function MatchmakingPage() {
   }, []);
 
   useEffect(() => {
+    loadQuests();
+  }, [loadQuests]);
+
+  useEffect(() => {
     const token = localStorage.getItem("access_token");
     if (!token) return undefined;
 
@@ -706,6 +690,7 @@ export function MatchmakingPage() {
 
       if (payload.event === "match_found" || payload.event === "active_match") {
         setActiveMatch((prev) => ({ ...(prev ?? {}), ...data }));
+        setLastMatchResult(null);
         setSearching(false);
         setStatusNote("Соперник найден. Переходим в дуэль.");
         apiFetch("/matchmaking/active")
@@ -716,25 +701,39 @@ export function MatchmakingPage() {
       }
 
       if (payload.event === "match_finished") {
+        setLastMatchResult(data);
         setActiveMatch(null);
         setSearching(false);
+        setRematchLoading(false);
         setQueueInfo({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
-        if (data.reason === "surrender") {
-          if (data.winner_user_id === myUserId) {
-            setStatusNote("Соперник сдался. Победа! Вы получили PTS.");
+
+        const iWon = data.winner_user_id === myUserId;
+        if (iWon) {
+          const streak = Number(data.winner_streak ?? 0);
+          const bonus = Number(data.winner_streak_bonus ?? 0);
+          const streakNote = streak >= 2 ? ` Серия побед: ${streak} (+${bonus} бонус PTS).` : "";
+          if (data.reason === "surrender") {
+            setStatusNote(`Соперник сдался. Победа!${streakNote}`);
           } else {
-            setStatusNote("Матч завершен сдачей. Вы потеряли PTS.");
+            setStatusNote(`Победа в матче!${streakNote}`);
           }
         } else {
-          setStatusNote("Матч завершен.");
+          setStatusNote(data.reason === "surrender" ? "Вы сдались в матче." : "Матч завершен. Попробуйте реванш.");
         }
+
+        loadQuests();
+      }
+
+      if (payload.event === "rematch_offered") {
+        setLastMatchResult((prev) => ({ ...(prev ?? {}), match_id: data.match_id }));
+        setStatusNote("Соперник предлагает реванш. Нажмите кнопку «Реванш».");
       }
     });
 
     return () => {
       ws.close();
     };
-  }, [myUserId]);
+  }, [loadQuests, myUserId]);
 
   async function handleFindMatch() {
     if (state === "searching") return;
@@ -795,6 +794,49 @@ export function MatchmakingPage() {
     }
   }
 
+  async function handleClaimQuest(period, questId) {
+    const key = `${period}:${questId}`;
+    setClaimingQuestKey(key);
+    setError("");
+    try {
+      const reward = await apiFetch(`/matchmaking/quests/${period}/${questId}/claim`, { method: "POST" });
+      setStatusNote(`Квест завершен: +${reward.reward_pts ?? 0} PTS`);
+      await loadQuests();
+    } catch (e) {
+      setError(e?.message || "Не удалось забрать награду за квест.");
+    } finally {
+      setClaimingQuestKey("");
+    }
+  }
+
+  async function handleRematch() {
+    if (!lastMatchResult?.match_id || rematchLoading) return;
+    setRematchLoading(true);
+    setError("");
+    try {
+      const res = await apiFetch("/matchmaking/rematch", {
+        method: "POST",
+        body: { match_id: lastMatchResult.match_id },
+      });
+      if (res.status === "matched" || res.status === "already_in_match") {
+        setActiveMatch(res);
+        setSearching(false);
+        setLastMatchResult(null);
+        setStatusNote("Реванш начинается!");
+        return;
+      }
+      if (res.status === "waiting_rematch") {
+        setStatusNote("Реванш предложен. Ждем подтверждение соперника.");
+      } else {
+        setStatusNote(res.message || "Ожидаем подтверждение реванша.");
+      }
+    } catch (e) {
+      setError(e?.message || "Не удалось запустить реванш.");
+    } finally {
+      setRematchLoading(false);
+    }
+  }
+
   if (isMobile) return <Navigate to="/dashboard" replace />;
 
   return (
@@ -802,7 +844,7 @@ export function MatchmakingPage() {
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <div className="mb-7 text-center">
           <h1 className="text-4xl font-semibold tracking-tight text-white transition-all duration-300 hover:text-[#FFD600] hover:[text-shadow:0_0_14px_rgba(255,214,0,0.55)] sm:text-5xl">
-            PvP Matchmaking 1v1
+            PvP Подбор Соперника 1v1
           </h1>
           <p className="mt-2 text-sm text-white/55">Очередь, подключение соперника и дуэльные задания 1v1.</p>
         </div>
@@ -845,6 +887,20 @@ export function MatchmakingPage() {
 
             <QueueFill queueSize={queueInfo.queue_size} queuePosition={queueInfo.queue_position} />
 
+            {lastMatchResult?.match_id ? (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={handleRematch}
+                  disabled={rematchLoading}
+                  className="h-11 w-full rounded-xl border text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                  style={{ borderColor: "rgba(34,197,94,0.45)", background: "rgba(34,197,94,0.16)" }}
+                >
+                  {rematchLoading ? "Запускаем реванш..." : "Реванш (1 клик)"}
+                </button>
+              </div>
+            ) : null}
+
             <div className="mt-6 flex flex-col gap-3">
               {state === "idle" ? (
                 <button
@@ -866,6 +922,18 @@ export function MatchmakingPage() {
                 </button>
               )}
             </div>
+
+            {quests?.streak ? (
+              <div className="mt-4 rounded-2xl border px-4 py-3" style={{ borderColor: "rgba(255,214,0,0.15)" }}>
+                <p className="text-[11px] uppercase tracking-wider text-[#FFD600]">Win Streak</p>
+                <p className="mt-1 text-sm text-white">
+                  Текущая серия: <span className="font-semibold text-[#FFD600]">{quests.streak.current}</span> • Лучшая:{" "}
+                  <span className="font-semibold text-[#FFD600]">{quests.streak.best}</span>
+                </p>
+              </div>
+            ) : null}
+
+            <QuestPanel quests={quests} onClaim={handleClaimQuest} claimingQuestKey={claimingQuestKey} />
 
             {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : null}
           </div>

@@ -3,13 +3,54 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import redis
-from sqlalchemy import and_, func
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.models import Match, MatchParticipant, MatchStatus, Task, TaskType, User
 
 QUEUE_KEY = "mm:queue"
 USER_QUEUE_KEY = "mm:user_queue:{user_id}"
+REMATCH_OFFER_KEY = "mm:rematch_offer:{match_id}:{user_id}"
+REMATCH_LOCK_KEY = "mm:rematch_lock:{match_id}"
+
+PVP_QUESTS: dict[str, list[dict[str, object]]] = {
+    "daily": [
+        {
+            "id": "daily_play_3",
+            "title": "Play 3 PvP matches",
+            "description": "Complete three PvP duels today.",
+            "metric": "played",
+            "target": 3,
+            "reward_pts": 20,
+        },
+        {
+            "id": "daily_win_2",
+            "title": "Win 2 PvP matches",
+            "description": "Get two wins today.",
+            "metric": "wins",
+            "target": 2,
+            "reward_pts": 30,
+        },
+    ],
+    "weekly": [
+        {
+            "id": "weekly_play_12",
+            "title": "Play 12 PvP matches",
+            "description": "Complete twelve PvP duels this week.",
+            "metric": "played",
+            "target": 12,
+            "reward_pts": 70,
+        },
+        {
+            "id": "weekly_win_7",
+            "title": "Win 7 PvP matches",
+            "description": "Get seven wins this week.",
+            "metric": "wins",
+            "target": 7,
+            "reward_pts": 100,
+        },
+    ],
+}
 
 def _queue_key() -> str:
     return QUEUE_KEY
@@ -19,6 +60,169 @@ def _user_queue_key(user_id: int) -> str:
     return USER_QUEUE_KEY.format(user_id=user_id)
 
 
+def _rematch_offer_key(match_id: int, user_id: int) -> str:
+    return REMATCH_OFFER_KEY.format(match_id=match_id, user_id=user_id)
+
+
+def _rematch_lock_key(match_id: int) -> str:
+    return REMATCH_LOCK_KEY.format(match_id=match_id)
+
+
+def _streak_bonus_for_win(streak: int) -> int:
+    """Scale win-streak bonus: +5 per streak step from 2+, capped to +30."""
+    return max(0, min(30, (streak - 1) * 5))
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _period_start(period: str, now: datetime) -> datetime:
+    if period == "daily":
+        return datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    if period == "weekly":
+        start = now - timedelta(days=now.weekday())
+        return datetime(start.year, start.month, start.day, tzinfo=timezone.utc)
+    raise ValueError("Unsupported quest period")
+
+
+def _period_end(period: str, now: datetime) -> datetime:
+    start = _period_start(period, now)
+    if period == "daily":
+        return start + timedelta(days=1)
+    return start + timedelta(days=7)
+
+
+def _period_id(period: str, now: datetime) -> str:
+    if period == "daily":
+        return now.strftime("%Y-%m-%d")
+    if period == "weekly":
+        iso_year, iso_week, _ = now.isocalendar()
+        return f"{iso_year}-W{iso_week:02d}"
+    raise ValueError("Unsupported quest period")
+
+
+def _quest_claim_key(user_id: int, period: str, period_id: str, quest_id: str) -> str:
+    return f"mm:quest_claim:{user_id}:{period}:{period_id}:{quest_id}"
+
+
+def _quest_metrics(db: Session, user_id: int, since: datetime) -> dict[str, int]:
+    played = (
+        db.query(func.count(func.distinct(Match.id)))
+        .join(MatchParticipant, MatchParticipant.match_id == Match.id)
+        .filter(
+            MatchParticipant.user_id == user_id,
+            Match.status == MatchStatus.completed,
+            Match.created_at >= since,
+        )
+        .scalar()
+    )
+    wins = (
+        db.query(func.count(MatchParticipant.id))
+        .join(Match, Match.id == MatchParticipant.match_id)
+        .filter(
+            MatchParticipant.user_id == user_id,
+            MatchParticipant.placement == 1,
+            Match.status == MatchStatus.completed,
+            Match.created_at >= since,
+        )
+        .scalar()
+    )
+    return {
+        "played": int(played or 0),
+        "wins": int(wins or 0),
+    }
+
+
+def _quest_payload_for_period(db: Session, r: redis.Redis, user_id: int, period: str, now: datetime) -> dict[str, object]:
+    period_cfg = PVP_QUESTS.get(period)
+    if period_cfg is None:
+        raise ValueError("Unsupported quest period")
+
+    start = _period_start(period, now)
+    pid = _period_id(period, now)
+    metrics = _quest_metrics(db, user_id, start)
+    quests: list[dict[str, object]] = []
+
+    for quest in period_cfg:
+        metric = str(quest["metric"])
+        progress = int(metrics.get(metric, 0))
+        target = int(quest["target"])
+        claim_key = _quest_claim_key(user_id, period, pid, str(quest["id"]))
+        claimed = bool(r.exists(claim_key))
+        quests.append(
+            {
+                "id": str(quest["id"]),
+                "title": str(quest["title"]),
+                "description": str(quest["description"]),
+                "metric": metric,
+                "progress": progress,
+                "target": target,
+                "completed": progress >= target,
+                "claimed": claimed,
+                "reward_pts": int(quest["reward_pts"]),
+            }
+        )
+
+    return {
+        "period": period,
+        "period_id": pid,
+        "starts_at": start.isoformat(),
+        "ends_at": _period_end(period, now).isoformat(),
+        "quests": quests,
+    }
+
+
+def get_pvp_quests(db: Session, r: redis.Redis, user: User) -> dict[str, object]:
+    now = _now_utc()
+    return {
+        "streak": {
+            "current": int(user.pvp_win_streak or 0),
+            "best": int(user.pvp_best_win_streak or 0),
+        },
+        "daily": _quest_payload_for_period(db, r, user.id, "daily", now),
+        "weekly": _quest_payload_for_period(db, r, user.id, "weekly", now),
+    }
+
+
+def claim_pvp_quest(db: Session, r: redis.Redis, user: User, period: str, quest_id: str) -> dict[str, object]:
+    now = _now_utc()
+    period_cfg = PVP_QUESTS.get(period)
+    if period_cfg is None:
+        raise ValueError("Unsupported quest period")
+
+    quest = next((q for q in period_cfg if str(q["id"]) == quest_id), None)
+    if quest is None:
+        raise ValueError("Quest not found")
+
+    period_payload = _quest_payload_for_period(db, r, user.id, period, now)
+    quest_payload = next((q for q in period_payload["quests"] if q["id"] == quest_id), None)
+    if quest_payload is None:
+        raise ValueError("Quest not found")
+    if bool(quest_payload["claimed"]):
+        raise ValueError("Quest already claimed")
+    if not bool(quest_payload["completed"]):
+        raise ValueError("Quest is not completed yet")
+
+    claim_key = _quest_claim_key(user.id, period, str(period_payload["period_id"]), quest_id)
+    ttl = max(60, int((_period_end(period, now) - now).total_seconds()) + 86400)
+    claimed = r.set(claim_key, "1", ex=ttl, nx=True)
+    if not claimed:
+        raise ValueError("Quest already claimed")
+
+    reward_pts = int(quest["reward_pts"])
+    user.pts += reward_pts
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "status": "claimed",
+        "period": period,
+        "quest_id": quest_id,
+        "reward_pts": reward_pts,
+        "updated_pts": user.pts,
+    }
 def leave_queue_if_present(r: redis.Redis, user_id: int) -> None:
     """Remove user from matchmaking queue."""
     r.lrem(_queue_key(), 0, str(user_id))
@@ -60,13 +264,78 @@ def _select_party_users(db: Session, r: redis.Redis, anchor_user: User, size: in
     return selected if len(selected) == size else None
 
 
-def _select_match_task(db: Session) -> Task | None:
-    return (
-        db.query(Task)
-        .filter(and_(Task.task_type == TaskType.match, Task.is_published.is_(True)))
-        .order_by(func.random())
-        .first()
+def _difficulty_band_for_avg_pts(avg_pts: int) -> list[int]:
+    """Choose preferred task difficulties by average party rating."""
+    if avg_pts < 200:
+        return [1, 2]
+    if avg_pts < 500:
+        return [2, 3]
+    if avg_pts < 900:
+        return [3, 4]
+    return [4, 5]
+
+
+def _average_pts_for_users(db: Session, user_ids: list[int]) -> int:
+    if not user_ids:
+        return 0
+    avg_pts = db.query(func.avg(User.pts)).filter(User.id.in_(user_ids)).scalar()
+    return int(avg_pts or 0)
+
+
+def _recent_task_ids_for_users(db: Session, user_ids: list[int], *, limit: int = 20) -> list[int]:
+    if not user_ids:
+        return []
+
+    # Fetch enough rows to deduplicate task ids for both players while preserving recency.
+    raw_rows = (
+        db.query(Match.task_id)
+        .join(MatchParticipant, MatchParticipant.match_id == Match.id)
+        .filter(MatchParticipant.user_id.in_(user_ids))
+        .order_by(Match.id.desc())
+        .limit(limit * max(1, len(user_ids)) * 2)
+        .all()
     )
+
+    seen: set[int] = set()
+    out: list[int] = []
+    for (task_id,) in raw_rows:
+        if task_id is None or task_id in seen:
+            continue
+        seen.add(task_id)
+        out.append(task_id)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _select_match_task(db: Session, user_ids: list[int]) -> Task | None:
+    avg_pts = _average_pts_for_users(db, user_ids)
+    preferred_difficulties = _difficulty_band_for_avg_pts(avg_pts)
+    recent_task_ids = _recent_task_ids_for_users(db, user_ids)
+
+    base_q = db.query(Task).filter(Task.task_type == TaskType.match, Task.is_published.is_(True))
+
+    # 1) Prefer suitable difficulty and avoid recent repeats.
+    q = base_q.filter(Task.difficulty.in_(preferred_difficulties))
+    if recent_task_ids:
+        q = q.filter(~Task.id.in_(recent_task_ids))
+    task = q.order_by(func.random()).first()
+    if task is not None:
+        return task
+
+    # 2) Keep suitable difficulty even if recently played.
+    task = base_q.filter(Task.difficulty.in_(preferred_difficulties)).order_by(func.random()).first()
+    if task is not None:
+        return task
+
+    # 3) Any difficulty, but still try to avoid recent repeats.
+    if recent_task_ids:
+        task = base_q.filter(~Task.id.in_(recent_task_ids)).order_by(func.random()).first()
+        if task is not None:
+            return task
+
+    # 4) Hard fallback.
+    return base_q.order_by(func.random()).first()
 
 
 def _create_match(db: Session, user_ids: list[int], task: Task) -> Match:
@@ -109,7 +378,7 @@ def try_queue_match(db: Session, r: redis.Redis, user: User) -> Match | None:
     for uid in user_ids:
         r.lrem(key, 1, str(uid))
 
-    task = _select_match_task(db)
+    task = _select_match_task(db, user_ids)
     if task is None:
         for uid in user_ids:
             r.rpush(key, str(uid))
@@ -120,6 +389,53 @@ def try_queue_match(db: Session, r: redis.Redis, user: User) -> Match | None:
     for uid in user_ids:
         r.delete(_user_queue_key(uid))
     return _create_match(db, user_ids, task)
+
+
+def request_rematch(
+    db: Session,
+    r: redis.Redis,
+    *,
+    previous_match_id: int,
+    requester_user_id: int,
+    opponent_user_id: int,
+) -> tuple[str, Match | None]:
+    """Register rematch vote and create a new match once both players confirm."""
+    active_for_requester = get_active_match_for_user(db, requester_user_id)
+    if active_for_requester is not None:
+        return ("already_in_match", active_for_requester)
+
+    active_for_opponent = get_active_match_for_user(db, opponent_user_id)
+    if active_for_opponent is not None:
+        return ("opponent_busy", active_for_opponent)
+
+    requester_offer_key = _rematch_offer_key(previous_match_id, requester_user_id)
+    opponent_offer_key = _rematch_offer_key(previous_match_id, opponent_user_id)
+    lock_key = _rematch_lock_key(previous_match_id)
+
+    r.set(requester_offer_key, "1", ex=300)
+    if not r.exists(opponent_offer_key):
+        return ("waiting_rematch", None)
+
+    # Prevent double-creation when both users press at nearly the same time.
+    if not r.set(lock_key, "1", ex=15, nx=True):
+        return ("waiting_rematch", None)
+
+    try:
+        existing = get_active_match_for_user(db, requester_user_id)
+        if existing is not None:
+            return ("already_in_match", existing)
+
+        user_ids = [requester_user_id, opponent_user_id]
+        task = _select_match_task(db, user_ids)
+        if task is None:
+            return ("no_task", None)
+
+        new_match = _create_match(db, user_ids, task)
+        r.delete(requester_offer_key)
+        r.delete(opponent_offer_key)
+        return ("matched", new_match)
+    finally:
+        r.delete(lock_key)
 
 
 def get_active_match_for_user(db: Session, user_id: int) -> Match | None:
@@ -157,16 +473,21 @@ def finalize_match_if_ready(db: Session, match: Match) -> bool:
 
     match.status = MatchStatus.completed
     participants = list(match.participants)
+    users = db.query(User).filter(User.id.in_([p.user_id for p in participants])).all()
+    users_by_id = {u.id: u for u in users}
     for participant in participants:
         participant.placement = 1
         participant.pts_awarded = 0
+        user_row = users_by_id.get(participant.user_id)
+        if user_row is not None:
+            user_row.pvp_win_streak = 0
     db.commit()
     return True
 
 
-def complete_match_with_winner(db: Session, match: Match, winner_user_id: int) -> bool:
+def complete_match_with_winner(db: Session, match: Match, winner_user_id: int) -> dict[str, int] | None:
     if match.status not in (MatchStatus.active, MatchStatus.pending):
-        return False
+        return None
 
     participants = list(match.participants)
     user_ids = [p.user_id for p in participants]
@@ -174,23 +495,45 @@ def complete_match_with_winner(db: Session, match: Match, winner_user_id: int) -
     users_by_id = {u.id: u for u in users}
 
     winner_found = False
+    winner_pts_delta = 0
+    winner_streak = 0
+    winner_streak_bonus = 0
+    loser_user_id = 0
+    loser_pts_delta = -10
     for participant in participants:
         if participant.user_id == winner_user_id:
-            participant.placement = 1
-            participant.pts_awarded = 30
             winner_user = users_by_id.get(participant.user_id)
             if winner_user is not None:
-                winner_user.pts += 30
+                winner_user.pvp_win_streak = int(winner_user.pvp_win_streak or 0) + 1
+                winner_user.pvp_best_win_streak = max(
+                    int(winner_user.pvp_best_win_streak or 0),
+                    int(winner_user.pvp_win_streak or 0),
+                )
+                winner_streak = int(winner_user.pvp_win_streak or 0)
+                winner_streak_bonus = _streak_bonus_for_win(winner_streak)
+                winner_pts_delta = 30 + winner_streak_bonus
+                winner_user.pts += winner_pts_delta
+            participant.placement = 1
+            participant.pts_awarded = winner_pts_delta
             winner_found = True
         else:
             participant.placement = 2
-            participant.pts_awarded = -10
+            participant.pts_awarded = loser_pts_delta
             loser_user = users_by_id.get(participant.user_id)
             if loser_user is not None:
-                loser_user.pts = max(0, loser_user.pts - 10)
+                loser_user.pts = max(0, loser_user.pts + loser_pts_delta)
+                loser_user.pvp_win_streak = 0
+            loser_user_id = participant.user_id
     if not winner_found:
-        return False
+        return None
 
     match.status = MatchStatus.completed
     db.commit()
-    return True
+    return {
+        "winner_user_id": winner_user_id,
+        "loser_user_id": loser_user_id,
+        "winner_pts_delta": winner_pts_delta,
+        "loser_pts_delta": loser_pts_delta,
+        "winner_streak": winner_streak,
+        "winner_streak_bonus": winner_streak_bonus,
+    }

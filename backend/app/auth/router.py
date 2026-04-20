@@ -46,6 +46,8 @@ def me(user: User = Depends(get_current_user)) -> dict:
     role = normalize_role(user.role)
     technologies = normalize_technologies(user.technologies)
     onboarding_completed = bool(user.onboarding_completed and role and technologies)
+    current_streak = int(user.pvp_win_streak or 0)
+    best_streak = max(int(user.pvp_best_win_streak or 0), current_streak)
     return {
         "id": user.id,
         "email": user.email,
@@ -56,4 +58,6 @@ def me(user: User = Depends(get_current_user)) -> dict:
         "role": role,
         "technologies": technologies,
         "onboarding_completed": onboarding_completed,
+        "pvp_win_streak": current_streak,
+        "pvp_best_win_streak": best_streak,
     }

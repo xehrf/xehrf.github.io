@@ -9,7 +9,7 @@ from app.core.redis_client import get_redis
 from app.db.models import Match, MatchStatus, User
 from app.db.session import get_db
 from app.matchmaking import service as mm_service
-from app.matchmaking.schemas import ActiveMatchResponse, MatchmakingJoinResponse
+from app.matchmaking.schemas import ActiveMatchResponse, MatchmakingJoinResponse, RematchRequestIn
 from app.matchmaking.ws import manager
 
 router = APIRouter(prefix="/matchmaking", tags=["matchmaking"])
@@ -24,6 +24,14 @@ def _opponent_payload(db: Session, match: Match, user_id: int) -> dict | None:
         "display_name": opponent.display_name,
         "nickname": opponent.nickname,
         "pts": opponent.pts,
+    }
+
+
+def _match_found_payload(match: Match) -> dict[str, object]:
+    return {
+        "match_id": match.id,
+        "task_id": match.task_id,
+        "ends_at": match.ends_at.isoformat() if match.ends_at else None,
     }
 
 
@@ -65,15 +73,7 @@ async def join_queue(user: User = Depends(get_current_user), db: Session = Depen
     opponent = _opponent_payload(db, match, user.id)
     participant_ids = [p.user_id for p in match.participants]
     for uid in participant_ids:
-        await manager.send_event(
-            uid,
-            "match_found",
-            {
-                "match_id": match.id,
-                "task_id": match.task_id,
-                "ends_at": match.ends_at.isoformat() if match.ends_at else None,
-            },
-        )
+        await manager.send_event(uid, "match_found", _match_found_payload(match))
 
     return MatchmakingJoinResponse(
         status="matched",
@@ -121,6 +121,108 @@ async def leave_queue(user: User = Depends(get_current_user)) -> dict:
     return {"status": "left"}
 
 
+@router.get("/quests")
+def get_pvp_quests(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    r = get_redis()
+    try:
+        return mm_service.get_pvp_quests(db, r, user)
+    finally:
+        r.close()
+
+
+@router.post("/quests/{period}/{quest_id}/claim")
+def claim_pvp_quest(
+    period: str,
+    quest_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    r = get_redis()
+    try:
+        try:
+            result = mm_service.claim_pvp_quest(db, r, user, period, quest_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        return result
+    finally:
+        r.close()
+
+
+@router.post("/rematch", response_model=MatchmakingJoinResponse)
+async def request_rematch(
+    body: RematchRequestIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MatchmakingJoinResponse:
+    previous_match = db.query(Match).filter(Match.id == body.match_id).first()
+    if previous_match is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
+    if previous_match.status != MatchStatus.completed:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Match is not completed yet")
+
+    participant_ids = [p.user_id for p in previous_match.participants]
+    if user.id not in participant_ids:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a participant of this match")
+    if len(participant_ids) != 2:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Rematch supports only 1v1 matches")
+    opponent_id = next(uid for uid in participant_ids if uid != user.id)
+
+    r = get_redis()
+    try:
+        rematch_status, rematch_match = mm_service.request_rematch(
+            db,
+            r,
+            previous_match_id=body.match_id,
+            requester_user_id=user.id,
+            opponent_user_id=opponent_id,
+        )
+    finally:
+        r.close()
+
+    if rematch_status == "waiting_rematch":
+        await manager.send_event(
+            opponent_id,
+            "rematch_offered",
+            {
+                "match_id": body.match_id,
+                "from_user_id": user.id,
+            },
+        )
+        return MatchmakingJoinResponse(
+            status="waiting_rematch",
+            match_id=body.match_id,
+            message="Waiting for opponent to accept rematch.",
+        )
+
+    if rematch_status in {"already_in_match", "opponent_busy"} and rematch_match is not None:
+        return MatchmakingJoinResponse(
+            status="already_in_match",
+            match_id=rematch_match.id,
+            task_id=rematch_match.task_id,
+            ends_at=rematch_match.ends_at.isoformat() if rematch_match.ends_at else None,
+            opponent=_opponent_payload(db, rematch_match, user.id),
+            message="A match is already active.",
+        )
+
+    if rematch_status == "no_task":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No available match tasks for rematch")
+
+    if rematch_match is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to create rematch")
+
+    rematch_participants = [p.user_id for p in rematch_match.participants]
+    for uid in rematch_participants:
+        await manager.send_event(uid, "match_found", _match_found_payload(rematch_match))
+
+    return MatchmakingJoinResponse(
+        status="matched",
+        match_id=rematch_match.id,
+        task_id=rematch_match.task_id,
+        ends_at=rematch_match.ends_at.isoformat() if rematch_match.ends_at else None,
+        opponent=_opponent_payload(db, rematch_match, user.id),
+    )
+
+
 @router.post("/surrender")
 async def surrender_match(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     active = mm_service.get_active_match_for_user(db, user.id)
@@ -132,16 +234,15 @@ async def surrender_match(user: User = Depends(get_current_user), db: Session = 
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot surrender without opponent.")
 
     participant_ids = [p.user_id for p in active.participants]
-    ok = mm_service.complete_match_with_winner(db, active, opponent.id)
-    if not ok:
+    result = mm_service.complete_match_with_winner(db, active, opponent.id)
+    if result is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to complete match.")
 
     payload = {
         "match_id": active.id,
         "status": "completed",
         "reason": "surrender",
-        "winner_user_id": opponent.id,
-        "loser_user_id": user.id,
+        **result,
     }
     for uid in participant_ids:
         await manager.send_event(uid, "match_finished", payload)

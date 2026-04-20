@@ -27,3 +27,7 @@ class ActiveMatchResponse(BaseModel):
     ends_at: str | None
     seconds_remaining: int | None
     opponent: OpponentInfo | None = None
+
+
+class RematchRequestIn(BaseModel):
+    match_id: int

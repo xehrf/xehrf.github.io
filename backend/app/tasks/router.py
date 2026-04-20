@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -18,6 +19,7 @@ from app.db.models import (
 )
 from app.db.session import get_db
 from app.matchmaking import service as mm_service
+from app.matchmaking.ws import manager as matchmaking_manager
 from app.submissions import anti_cheat
 from app.submissions.evaluator import evaluate_python_function
 from app.tasks.schemas import (
@@ -69,6 +71,14 @@ def _expire_attempt_if_overdue(db: Session, attempt: TaskAttempt) -> None:
     if _now_utc() > attempt.deadline:
         attempt.status = AttemptStatus.failed
         attempt.score = 0
+
+
+def _emit_match_finished(participant_ids: list[int], payload: dict) -> None:
+    async def _send() -> None:
+        for uid in participant_ids:
+            await matchmaking_manager.send_event(uid, "match_finished", payload)
+
+    asyncio.run(_send())
 
 
 @router.post("", response_model=TaskOut)
@@ -295,7 +305,16 @@ def submit_task_solution(
     db.commit()
     if match is not None and verdict.passed:
         db.refresh(match)
-        mm_service.complete_match_with_winner(db, match, user.id)
+        result = mm_service.complete_match_with_winner(db, match, user.id)
+        if result is not None:
+            participant_ids = [p.user_id for p in match.participants]
+            payload = {
+                "match_id": match.id,
+                "status": "completed",
+                "reason": "solved",
+                **result,
+            }
+            _emit_match_finished(participant_ids, payload)
         db.refresh(user)
     db.refresh(sub)
     db.refresh(attempt)

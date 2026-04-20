@@ -91,6 +91,8 @@ class User(Base):
     role: Mapped[str | None] = mapped_column(String(100), nullable=True)
     technologies: Mapped[list[str]] = mapped_column(ARRAY(String(100)), nullable=False, server_default="{}")
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    pvp_win_streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    pvp_best_win_streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

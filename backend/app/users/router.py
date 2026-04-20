@@ -16,6 +16,8 @@ def _get_profile(user_id: int, db: Session) -> User:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     u.role = normalize_role(u.role)
     u.technologies = normalize_technologies(u.technologies)
+    u.pvp_win_streak = int(u.pvp_win_streak or 0)
+    u.pvp_best_win_streak = max(int(u.pvp_best_win_streak or 0), u.pvp_win_streak)
     if u.onboarding_completed and (u.role is None or not u.technologies):
         u.onboarding_completed = False
     return u

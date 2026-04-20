@@ -27,3 +27,5 @@ class AuthMeResponse(BaseModel):
     role: str | None
     technologies: list[str]
     onboarding_completed: bool
+    pvp_win_streak: int
+    pvp_best_win_streak: int
