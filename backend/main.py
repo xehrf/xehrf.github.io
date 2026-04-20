@@ -65,36 +65,34 @@ async def lifespan(_: FastAPI):
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
-# ====================== CORS MIDDLEWARE (САМЫЙ ПЕРВЫЙ!) ======================
+from fastapi import Request
+from fastapi.responses import Response
+
+@app.options("/{rest_of_path:path}")
+async def preflight_handler(request: Request, rest_of_path: str) -> Response:
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+            "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Credentials": "true",
+        },
+    )
+
 cors_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
-
-# Добавляем актуальный origin твоего фронтенда (Vercel)
-extra_origins = [
-    "https://xehrf-github-olhcltluo-xehrfs-projects.vercel.app",
-    "https://xehrf-github-io.vercel.app",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
-for origin in extra_origins:
-    if origin not in cors_origins:
-        cors_origins.append(origin)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_origin_regex=settings.cors_origin_regex if settings.cors_origin_regex else None,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=3600,
 )
 
-# ====================== СТАТИКА ======================
-app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
-
-# ====================== РОУТЕРЫ ======================
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(tasks_router)
