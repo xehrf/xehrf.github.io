@@ -68,7 +68,7 @@ function QueueFill({ queueSize, queuePosition }) {
   return (
     <div className="w-full space-y-3">
       <div className="flex items-center justify-between text-xs text-white/65">
-        <span>Queue progress</span>
+        <span>Прогресс очереди</span>
         <span>
           {clamped}/{PARTY_SIZE}
         </span>
@@ -83,11 +83,11 @@ function QueueFill({ queueSize, queuePosition }) {
         />
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <QueueSlot label="You are in queue" active complete={clamped >= 1} />
-        <QueueSlot label="Opponent connecting" active={clamped === 1} complete={clamped >= 2} />
+        <QueueSlot label="Вы в очереди" active complete={clamped >= 1} />
+        <QueueSlot label="Подключаем соперника" active={clamped === 1} complete={clamped >= 2} />
       </div>
       <p className="text-xs text-white/55">
-        Queue position: <span className="text-[#FFD600]">{queuePosition ?? "--"}</span>
+        Позиция в очереди: <span className="text-[#FFD600]">{queuePosition ?? "--"}</span>
       </p>
     </div>
   );
@@ -125,26 +125,26 @@ function OpponentIntelPanel({ opponentUserId, online }) {
       style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}
     >
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-widest text-[#FFD600]">Opponent Intel</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-widest text-[#FFD600]">Профиль соперника</h3>
         <span
           className="text-[11px] font-medium"
           style={{ color: online ? "#4ade80" : "rgba(255,255,255,0.45)" }}
         >
-          {online ? "online" : "offline"}
+          {online ? "онлайн" : "оффлайн"}
         </span>
       </div>
 
       {!opponentUserId ? (
-        <p className="text-sm text-white/50">Waiting for opponent profile...</p>
+        <p className="text-sm text-white/50">Ожидаем профиль соперника...</p>
       ) : loading ? (
-        <p className="text-sm text-white/50">Loading profile...</p>
+        <p className="text-sm text-white/50">Загружаем профиль...</p>
       ) : !profile ? (
-        <p className="text-sm text-white/50">Profile unavailable.</p>
+        <p className="text-sm text-white/50">Профиль недоступен.</p>
       ) : (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             {profile.avatar_url ? (
-              <img src={profile.avatar_url} alt="opponent avatar" className="h-14 w-14 rounded-full object-cover" />
+              <img src={profile.avatar_url} alt="Аватар соперника" className="h-14 w-14 rounded-full object-cover" />
             ) : (
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-lg font-bold text-[#FFD600]">
                 {(profile.nickname || profile.display_name || "?")[0]?.toUpperCase() || "?"}
@@ -158,12 +158,12 @@ function OpponentIntelPanel({ opponentUserId, online }) {
           </div>
 
           <div>
-            <p className="mb-1 text-[11px] uppercase tracking-wider text-white/50">Role</p>
-            <p className="text-sm text-white">{profile.role || "Not selected"}</p>
+            <p className="mb-1 text-[11px] uppercase tracking-wider text-white/50">Роль</p>
+            <p className="text-sm text-white">{profile.role || "Не указано"}</p>
           </div>
 
           <div>
-            <p className="mb-2 text-[11px] uppercase tracking-wider text-white/50">Technologies</p>
+            <p className="mb-2 text-[11px] uppercase tracking-wider text-white/50">Технологии</p>
             <div className="flex flex-wrap gap-2">
               {(profile.technologies || []).length > 0 ? (
                 profile.technologies.map((tech) => (
@@ -176,13 +176,13 @@ function OpponentIntelPanel({ opponentUserId, online }) {
                   </span>
                 ))
               ) : (
-                <span className="text-xs text-white/50">No technologies set</span>
+                <span className="text-xs text-white/50">Технологии не указаны</span>
               )}
             </div>
           </div>
 
           <div>
-            <p className="mb-2 text-[11px] uppercase tracking-wider text-white/50">Skills</p>
+            <p className="mb-2 text-[11px] uppercase tracking-wider text-white/50">Навыки</p>
             {(profile.skills || []).length > 0 ? (
               <div className="space-y-2">
                 {profile.skills.map((skill) => (
@@ -201,13 +201,13 @@ function OpponentIntelPanel({ opponentUserId, online }) {
                 ))}
               </div>
             ) : (
-              <span className="text-xs text-white/50">No skills yet</span>
+              <span className="text-xs text-white/50">Навыки не добавлены</span>
             )}
           </div>
 
           {profile.bio ? (
             <div>
-              <p className="mb-1 text-[11px] uppercase tracking-wider text-white/50">What they can do</p>
+              <p className="mb-1 text-[11px] uppercase tracking-wider text-white/50">Что умеет</p>
               <p className="text-sm text-white/75">{profile.bio}</p>
             </div>
           ) : null}
@@ -220,7 +220,7 @@ function OpponentIntelPanel({ opponentUserId, online }) {
 function ParticipantsList({ participants, myUserId, onlineIds }) {
   return (
     <div className="rounded-2xl border p-3" style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}>
-      <p className="mb-2 text-[11px] uppercase tracking-wider text-[#FFD600]">Arena participants</p>
+      <p className="mb-2 text-[11px] uppercase tracking-wider text-[#FFD600]">Участники арены</p>
       <div className="space-y-2">
         {participants.map((p) => {
           const isMe = p.user_id === myUserId;
@@ -233,7 +233,7 @@ function ParticipantsList({ participants, myUserId, onlineIds }) {
               <div className="min-w-0">
                 <p className="truncate text-sm text-white">
                   {p.display_name || p.nickname}
-                  {isMe ? " (you)" : ""}
+                  {isMe ? " (вы)" : ""}
                 </p>
                 <p className="truncate text-xs text-white/55">@{p.nickname}</p>
               </div>
@@ -269,12 +269,15 @@ function ChatPanel({ messages, myUserId, onSend }) {
   }
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border" style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}>
+    <div
+      className="flex h-full flex-col rounded-2xl border"
+      style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}
+    >
       <div className="border-b px-4 py-3" style={{ borderColor: "rgba(255,214,0,0.12)" }}>
-        <p className="text-xs font-semibold uppercase tracking-widest text-[#FFD600]">Live chat</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-[#FFD600]">Чат</p>
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3">
-        {messages.length === 0 ? <p className="text-sm text-white/45">No messages yet.</p> : null}
+        {messages.length === 0 ? <p className="text-sm text-white/45">Сообщений пока нет.</p> : null}
         {messages.map((msg, idx) => {
           const mine = msg.user_id === myUserId;
           return (
@@ -286,7 +289,7 @@ function ChatPanel({ messages, myUserId, onSend }) {
                   color: mine ? "#111" : "#f8fafc",
                 }}
               >
-                <p className="mb-1 text-[10px] font-semibold opacity-80">{mine ? "you" : msg.display_name || msg.nickname}</p>
+                <p className="mb-1 text-[10px] font-semibold opacity-80">{mine ? "вы" : msg.display_name || msg.nickname}</p>
                 <p>{msg.text}</p>
               </div>
             </div>
@@ -299,7 +302,7 @@ function ChatPanel({ messages, myUserId, onSend }) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           maxLength={500}
-          placeholder="Type message..."
+          placeholder="Написать сообщение..."
           className="h-10 flex-1 rounded-xl bg-black px-3 text-sm text-white placeholder:text-white/35 focus:outline-none"
           style={{ border: "1px solid rgba(255,214,0,0.2)" }}
         />
@@ -308,7 +311,7 @@ function ChatPanel({ messages, myUserId, onSend }) {
           className="h-10 rounded-xl px-4 text-sm font-semibold transition-opacity hover:opacity-85"
           style={{ background: "#FFD600", color: "#111" }}
         >
-          Send
+          Отправить
         </button>
       </form>
     </div>
@@ -386,9 +389,9 @@ function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender }) {
         <div className="rounded-2xl border p-4" style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-black text-[#FFD600]">PVP Duel 1v1</h2>
+              <h2 className="text-xl font-black text-[#FFD600]">PvP Дуэль 1v1</h2>
               <p className="text-sm text-white/65">
-                Time left: <span className="font-mono text-white">{formatCountdown(secondsRemaining)}</span>
+                До конца: <span className="font-mono text-white">{formatCountdown(secondsRemaining)}</span>
               </p>
             </div>
             <div className="flex gap-2">
@@ -398,7 +401,7 @@ function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender }) {
                 className="rounded-xl px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-85"
                 style={{ background: "#FFD600", color: "#111" }}
               >
-                Open task
+                Открыть задачу
               </button>
               <button
                 type="button"
@@ -432,7 +435,7 @@ export function MatchmakingPage() {
   const [activeMatch, setActiveMatch] = useState(null);
   const [queueInfo, setQueueInfo] = useState({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
   const [searching, setSearching] = useState(false);
-  const [statusNote, setStatusNote] = useState("Press find match to start PVP queue.");
+  const [statusNote, setStatusNote] = useState("Нажмите «Найти матч», чтобы встать в PvP-очередь.");
   const [error, setError] = useState("");
   const [teamCurrent, setTeamCurrent] = useState(null);
 
@@ -451,7 +454,7 @@ export function MatchmakingPage() {
         if (current) {
           setActiveMatch(current);
           setSearching(false);
-          setStatusNote("Active duel restored.");
+          setStatusNote("Активная дуэль восстановлена.");
         }
       } catch {
         // ignore
@@ -495,14 +498,14 @@ export function MatchmakingPage() {
         });
         setSearching(data.status === "queued");
         if (data.status === "queued") {
-          setStatusNote("Searching for an opponent with close PTS...");
+          setStatusNote("Ищем соперника с близким PTS...");
         }
       }
 
       if (payload.event === "match_found" || payload.event === "active_match") {
         setActiveMatch((prev) => ({ ...(prev ?? {}), ...data }));
         setSearching(false);
-        setStatusNote("Opponent connected. Entering duel room.");
+        setStatusNote("Соперник найден. Переходим в дуэль.");
         apiFetch("/matchmaking/active")
           .then((current) => {
             if (current) setActiveMatch(current);
@@ -518,10 +521,10 @@ export function MatchmakingPage() {
           if (data.winner_user_id === myUserId) {
             setStatusNote("Соперник сдался. Победа! Вы получили PTS.");
           } else {
-            setStatusNote("Матч завершён сдачей. Вы потеряли PTS.");
+            setStatusNote("Матч завершен сдачей. Вы потеряли PTS.");
           }
         } else {
-          setStatusNote("Матч завершён.");
+          setStatusNote("Матч завершен.");
         }
       }
     });
@@ -529,19 +532,19 @@ export function MatchmakingPage() {
     return () => {
       ws.close();
     };
-  }, []);
+  }, [myUserId]);
 
   async function handleFindMatch() {
     if (state === "searching") return;
     setError("");
     setSearching(true);
-    setStatusNote("Joining PVP queue...");
+    setStatusNote("Подключаем к PvP-очереди...");
     try {
       const res = await apiFetch("/matchmaking/queue", { method: "POST" });
       if (res.status === "matched" || res.status === "already_in_match") {
         setActiveMatch(res);
         setSearching(false);
-        setStatusNote("Match found.");
+        setStatusNote("Матч найден.");
         return;
       }
       if (res.status === "queued") {
@@ -550,13 +553,13 @@ export function MatchmakingPage() {
           queue_position: res.queue_position ?? null,
           total: PARTY_SIZE,
         });
-        setStatusNote("You are in queue. Waiting for opponent...");
+        setStatusNote("Вы в очереди. Ожидаем соперника...");
         return;
       }
-      setError(res.message || "Matchmaking error.");
+      setError(res.message || "Ошибка матчмейкинга.");
       setSearching(false);
     } catch (e) {
-      setError(e?.message || "Matchmaking error.");
+      setError(e?.message || "Ошибка матчмейкинга.");
       setSearching(false);
     }
   }
@@ -571,12 +574,12 @@ export function MatchmakingPage() {
     setActiveMatch(null);
     setSearching(false);
     setQueueInfo({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
-    setStatusNote("Queue cancelled.");
+    setStatusNote("Поиск отменен.");
   }
 
   async function handleSurrender() {
     if (!activeMatch) return;
-    const confirmed = window.confirm("Вы точно уверены, вы потеряете PTS!");
+    const confirmed = window.confirm("Вы точно уверены? Вы потеряете PTS!");
     if (!confirmed) return;
     setError("");
     try {
@@ -596,24 +599,26 @@ export function MatchmakingPage() {
     <div className="min-h-screen bg-canvas">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <div className="mb-7 text-center">
-          <h1 className="text-3xl font-black tracking-tight text-[#FFD600]">PVP Matchmaking 1v1</h1>
-          <p className="mt-2 text-sm text-white/55">Queue, connect to rival, fight on dedicated duel tasks.</p>
+          <h1 className="text-4xl font-semibold tracking-tight text-white transition-all duration-300 hover:text-[#FFD600] hover:[text-shadow:0_0_14px_rgba(255,214,0,0.55)] sm:text-5xl">
+            PvP Matchmaking 1v1
+          </h1>
+          <p className="mt-2 text-sm text-white/55">Очередь, подключение соперника и дуэльные задания 1v1.</p>
         </div>
 
         {teamCurrent ? (
           <div className="mb-6 rounded-2xl border border-yellow-500/20 bg-slate-950 p-5 text-sm text-white">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-wider text-yellow-300">Current team</p>
+                <p className="text-xs uppercase tracking-wider text-yellow-300">Текущая команда</p>
                 <h2 className="mt-2 text-xl font-semibold">{teamCurrent.name}</h2>
-                <p className="mt-1 text-sm text-slate-400">Members: {teamCurrent.members.length}</p>
+                <p className="mt-1 text-sm text-slate-400">Участников: {teamCurrent.members.length}</p>
               </div>
               <button
                 type="button"
                 onClick={() => navigate("/team")}
                 className="rounded-2xl bg-yellow-400 px-4 py-2 text-sm font-semibold text-slate-950"
               >
-                Open team
+                Открыть команду
               </button>
             </div>
           </div>
@@ -627,9 +632,12 @@ export function MatchmakingPage() {
             onSurrender={handleSurrender}
           />
         ) : (
-          <div className="mx-auto max-w-xl rounded-3xl border p-8" style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}>
+          <div
+            className="mx-auto max-w-xl rounded-3xl border p-8"
+            style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}
+          >
             <div className="mb-6 text-center">
-              <p className="text-xl font-semibold text-white">{state === "searching" ? "Searching duel..." : "Ready for PVP?"}</p>
+              <p className="text-xl font-semibold text-white">{state === "searching" ? "Ищем дуэль..." : "Готовы к PvP?"}</p>
               <p className="mt-2 text-sm text-white/55">{statusNote}</p>
             </div>
 
@@ -643,7 +651,7 @@ export function MatchmakingPage() {
                   className="h-12 rounded-xl text-sm font-semibold transition-opacity hover:opacity-85"
                   style={{ background: "#FFD600", color: "#111" }}
                 >
-                  Find 1v1 match
+                  Найти матч 1v1
                 </button>
               ) : (
                 <button
@@ -652,7 +660,7 @@ export function MatchmakingPage() {
                   className="h-12 rounded-xl border text-sm font-medium text-white/80 transition-colors hover:text-white"
                   style={{ borderColor: "rgba(255,214,0,0.2)", background: "transparent" }}
                 >
-                  Cancel queue
+                  Отменить поиск
                 </button>
               )}
             </div>
