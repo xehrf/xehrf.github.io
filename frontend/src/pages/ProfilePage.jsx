@@ -81,6 +81,22 @@ export function ProfilePage() {
   const avatarUrl = resolveAssetUrl(u.avatar_url || "");
   const showBanner = bannerUrl && !bannerLoadError;
   const showAvatar = avatarUrl && !avatarLoadError;
+  const skills = Array.isArray(u.skills) ? u.skills : [];
+  const selectedRole = typeof u.role === "string" ? u.role.trim() : "";
+  const roleAlreadyInSkills = selectedRole
+    ? skills.some((s) => String(s?.skill_name || "").toLowerCase() === selectedRole.toLowerCase())
+    : false;
+  const skillChips = [
+    ...(selectedRole && !roleAlreadyInSkills
+      ? [{ key: `role:${selectedRole}`, label: selectedRole, type: "role" }]
+      : []),
+    ...skills.map((s) => ({
+      key: `skill:${s.id ?? s.skill_name}`,
+      label: s.skill_name,
+      proficiency: s.proficiency,
+      type: "skill",
+    })),
+  ];
 
   return (
     <div className="mx-auto w-full max-w-[900px] px-4 py-6 md:px-6 md:py-8">
@@ -167,16 +183,28 @@ export function ProfilePage() {
         <Card className="lg:col-span-1">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Навыки</h2>
           <ul className="mt-4 flex flex-wrap gap-2">
-            {u.skills.map((s) => (
-              <li
-                key={s.skill_name}
-                className="rounded-full border border-border bg-canvas px-3 py-1.5 text-sm text-foreground transition hover:border-accent/40"
-              >
-                <span className="font-medium">{s.skill_name}</span>
-                <span className="ml-2 text-muted">·</span>
-                <span className="ml-2 text-accent">{s.proficiency}/5</span>
+            {skillChips.length === 0 ? (
+              <li className="rounded-full border border-dashed border-border bg-elevated/50 px-3 py-1.5 text-sm text-muted">
+                Навыки пока не добавлены
               </li>
-            ))}
+            ) : (
+              skillChips.map((s) => (
+                <li
+                  key={s.key}
+                  className="rounded-full border border-border bg-canvas px-3 py-1.5 text-sm text-foreground transition hover:border-accent/40"
+                >
+                  <span className="font-medium">{s.label}</span>
+                  {s.type === "skill" ? (
+                    <>
+                      <span className="ml-2 text-muted">·</span>
+                      <span className="ml-2 text-accent">{s.proficiency}/5</span>
+                    </>
+                  ) : (
+                    <span className="ml-2 text-xs uppercase tracking-wider text-accent/90">роль</span>
+                  )}
+                </li>
+              ))
+            )}
           </ul>
         </Card>
 

@@ -94,9 +94,9 @@ export function OnboardingModal({ onComplete }) {
         style={{ background: "#111", border: "1px solid rgba(255,214,0,0.15)" }}
       >
         <div className="mb-6">
-          <p className="text-xs uppercase tracking-[0.2em] text-[#FFD600]/80">Welcome to CodeArena</p>
-          <h2 className="mt-2 text-2xl font-semibold text-white">Finish your onboarding</h2>
-          <p className="mt-2 text-sm text-white/70">Step {step} of 2</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-[#FFD600]/80">Добро пожаловать в CodeArena</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">Завершите онбординг</h2>
+          <p className="mt-2 text-sm text-white/70">Шаг {step} из 2</p>
         </div>
 
         {error ? (
@@ -171,7 +171,7 @@ export function OnboardingModal({ onComplete }) {
                 className="h-11 rounded-xl px-4"
                 style={{ background: "#FFD600", color: "#111" }}
               >
-                Add
+                Добавить
               </Button>
             </div>
 
@@ -199,7 +199,7 @@ export function OnboardingModal({ onComplete }) {
             className="h-11 rounded-xl px-5"
             style={{ border: "1px solid rgba(255,214,0,0.15)", background: "transparent", color: "white" }}
           >
-            Back
+            Назад
           </Button>
 
           {step === 1 ? (
@@ -210,7 +210,7 @@ export function OnboardingModal({ onComplete }) {
               className="h-11 rounded-xl px-5"
               style={{ background: "#FFD600", color: "#111" }}
             >
-              Next
+              Далее
             </Button>
           ) : (
             <Button
@@ -220,7 +220,7 @@ export function OnboardingModal({ onComplete }) {
               className="h-11 rounded-xl px-5"
               style={{ background: "#FFD600", color: "#111" }}
             >
-              {submitting ? "Saving..." : "Finish"}
+              {submitting ? "Saving..." : "Завершить"}
             </Button>
           )}
         </div>

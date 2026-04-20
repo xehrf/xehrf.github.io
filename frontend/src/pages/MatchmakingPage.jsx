@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
-import { apiFetch, getWebSocketBaseUrl } from "../api/client";
+import { apiFetch, getWebSocketBaseUrl, resolveAssetUrl } from "../api/client";
 
 const PARTY_SIZE = 2;
 
@@ -36,6 +36,151 @@ function getMyUserIdFromToken() {
 function getOpponentFromParticipants(participants, myUserId) {
   if (!Array.isArray(participants)) return null;
   return participants.find((item) => item.user_id !== myUserId) ?? null;
+}
+
+function normalizeStringList(rawValue) {
+  if (rawValue == null) return [];
+
+  let source;
+  if (Array.isArray(rawValue)) {
+    source = rawValue;
+  } else if (typeof rawValue === "string") {
+    const stripped = rawValue.trim();
+    if (!stripped || stripped === "[]" || stripped === "{}") return [];
+
+    if (stripped.startsWith("[") && stripped.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(stripped);
+        source = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        source = stripped
+          .slice(1, -1)
+          .split(",")
+          .map((item) => item.trim());
+      }
+    } else if (stripped.startsWith("{") && stripped.endsWith("}")) {
+      source = stripped
+        .slice(1, -1)
+        .split(",")
+        .map((item) => item.trim().replace(/^"+|"+$/g, ""));
+    } else if (stripped.includes(",")) {
+      source = stripped.split(",").map((item) => item.trim());
+    } else {
+      source = [stripped];
+    }
+  } else {
+    source = [String(rawValue)];
+  }
+
+  const seen = new Set();
+  const out = [];
+  for (const item of source) {
+    const clean = String(item ?? "")
+      .trim()
+      .replace(/^['"]+|['"]+$/g, "");
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(clean);
+  }
+  return out;
+}
+
+const ROLE_BADGE_PALETTES = {
+  "back-end": {
+    border: "rgba(99,102,241,0.55)",
+    bg: "rgba(67,56,202,0.24)",
+    text: "#c7d2fe",
+    shadow: "rgba(99,102,241,0.35)",
+  },
+  "front-end": {
+    border: "rgba(6,182,212,0.55)",
+    bg: "rgba(8,145,178,0.24)",
+    text: "#a5f3fc",
+    shadow: "rgba(6,182,212,0.35)",
+  },
+  "full-stack": {
+    border: "rgba(34,197,94,0.55)",
+    bg: "rgba(22,163,74,0.24)",
+    text: "#bbf7d0",
+    shadow: "rgba(34,197,94,0.35)",
+  },
+  "project manager": {
+    border: "rgba(244,114,182,0.55)",
+    bg: "rgba(190,24,93,0.24)",
+    text: "#fbcfe8",
+    shadow: "rgba(244,114,182,0.35)",
+  },
+  "ui/ux": {
+    border: "rgba(168,85,247,0.55)",
+    bg: "rgba(126,34,206,0.24)",
+    text: "#e9d5ff",
+    shadow: "rgba(168,85,247,0.35)",
+  },
+  "ai/ml": {
+    border: "rgba(245,158,11,0.55)",
+    bg: "rgba(180,83,9,0.24)",
+    text: "#fde68a",
+    shadow: "rgba(245,158,11,0.35)",
+  },
+  devops: {
+    border: "rgba(148,163,184,0.55)",
+    bg: "rgba(71,85,105,0.26)",
+    text: "#e2e8f0",
+    shadow: "rgba(148,163,184,0.35)",
+  },
+  devop: {
+    border: "rgba(148,163,184,0.55)",
+    bg: "rgba(71,85,105,0.26)",
+    text: "#e2e8f0",
+    shadow: "rgba(148,163,184,0.35)",
+  },
+  qa: {
+    border: "rgba(45,212,191,0.55)",
+    bg: "rgba(15,118,110,0.24)",
+    text: "#99f6e4",
+    shadow: "rgba(45,212,191,0.35)",
+  },
+};
+
+const DEFAULT_ROLE_BADGE = {
+  border: "rgba(255,214,0,0.45)",
+  bg: "rgba(255,214,0,0.12)",
+  text: "#FFD600",
+  shadow: "rgba(255,214,0,0.28)",
+};
+
+const TECH_BADGE = {
+  border: "rgba(134,239,172,0.45)",
+  bg: "rgba(34,197,94,0.16)",
+  text: "#bbf7d0",
+  shadow: "rgba(34,197,94,0.26)",
+};
+
+const SKILL_BADGE = {
+  border: "rgba(125,211,252,0.45)",
+  bg: "rgba(56,189,248,0.16)",
+  text: "#bae6fd",
+  shadow: "rgba(56,189,248,0.26)",
+};
+
+function getRolePalette(roleLabel) {
+  const key = String(roleLabel ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+  return ROLE_BADGE_PALETTES[key] || DEFAULT_ROLE_BADGE;
+}
+
+function getBadgePresentation(badge) {
+  if (badge.tone === "role") {
+    return { icon: "R", ...getRolePalette(badge.label) };
+  }
+  if (badge.tone === "skill") {
+    return { icon: "S", ...SKILL_BADGE };
+  }
+  return { icon: "T", ...TECH_BADGE };
 }
 
 function QueueSlot({ label, active, complete }) {
@@ -119,6 +264,44 @@ function OpponentIntelPanel({ opponentUserId, online }) {
     };
   }, [opponentUserId]);
 
+  const technologies = useMemo(() => normalizeStringList(profile?.technologies), [profile?.technologies]);
+  const skills = useMemo(() => (Array.isArray(profile?.skills) ? profile.skills : []), [profile?.skills]);
+  const badges = useMemo(() => {
+    const rows = [];
+    if (profile?.role) {
+      rows.push({ label: String(profile.role).trim(), tone: "role" });
+    }
+
+    for (const tech of technologies) {
+      rows.push({ label: tech, tone: "tech" });
+    }
+
+    for (const skill of skills) {
+      const name = String(skill?.skill_name ?? "").trim();
+      if (!name) continue;
+      const proficiency = Number(skill?.proficiency);
+      rows.push({
+        label: Number.isFinite(proficiency) ? `${name} ${proficiency}/5` : name,
+        tone: "skill",
+      });
+    }
+
+    const seen = new Set();
+    const out = [];
+    for (const row of rows) {
+      const key = row.label.toLowerCase();
+      if (!row.label || seen.has(key)) continue;
+      seen.add(key);
+      out.push(row);
+    }
+    return out;
+  }, [profile?.role, skills, technologies]);
+
+  const bannerUrl = resolveAssetUrl(profile?.banner_url || "");
+  const avatarUrl = resolveAssetUrl(profile?.avatar_url || "");
+  const displayName = profile?.nickname || profile?.display_name || "Unknown";
+  const mentionName = profile?.nickname || profile?.display_name || "unknown";
+
   return (
     <aside
       className="h-full rounded-2xl border p-4"
@@ -142,75 +325,94 @@ function OpponentIntelPanel({ opponentUserId, online }) {
         <p className="text-sm text-white/50">Профиль недоступен.</p>
       ) : (
         <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            {profile.avatar_url ? (
-              <img src={profile.avatar_url} alt="Аватар соперника" className="h-14 w-14 rounded-full object-cover" />
-            ) : (
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-lg font-bold text-[#FFD600]">
-                {(profile.nickname || profile.display_name || "?")[0]?.toUpperCase() || "?"}
+          <div className="overflow-hidden rounded-2xl border" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+            <div className="relative h-24">
+              {bannerUrl ? (
+                <img src={bannerUrl} alt="Баннер соперника" className="h-full w-full object-cover" />
+              ) : (
+                <div
+                  className="h-full w-full"
+                  style={{ background: "linear-gradient(135deg, rgba(25,38,66,1) 0%, rgba(10,15,25,1) 100%)" }}
+                />
+              )}
+            </div>
+
+            <div className="px-4 pb-4">
+              <div className="-mt-7 flex items-end gap-3">
+                <div className="relative h-16 w-16 shrink-0 rounded-full border-[3px] border-[#111] bg-slate-800">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="Аватар соперника" className="h-full w-full rounded-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center rounded-full text-xl font-bold text-[#FFD600]">
+                      {displayName[0]?.toUpperCase() || "?"}
+                    </div>
+                  )}
+                  <span
+                    className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-[#111]"
+                    style={{
+                      background: online ? "#22c55e" : "#6b7280",
+                      boxShadow: online ? "0 0 10px rgba(34,197,94,0.8)" : "none",
+                    }}
+                  />
+                </div>
+
+                <div className="min-w-0 pb-1">
+                  <p className="truncate text-base font-semibold text-white">{displayName}</p>
+                  <p className="truncate text-xs text-white/60">@{mentionName}</p>
+                </div>
               </div>
-            )}
-            <div>
-              <p className="text-sm font-semibold text-white">{profile.nickname || profile.display_name}</p>
-              <p className="text-xs text-white/60">@{profile.nickname || profile.display_name}</p>
-              <p className="mt-1 text-xs text-white/70">PTS {profile.pts}</p>
+
+              <div className="mt-2 flex items-center justify-between text-xs text-white/70">
+                <span>PTS {profile.pts ?? 0}</span>
+                <span style={{ color: online ? "#4ade80" : "rgba(255,255,255,0.5)" }}>
+                  {online ? "онлайн" : "оффлайн"}
+                </span>
+              </div>
+
+              {profile.bio ? (
+                <p className="mt-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs leading-5 text-white/75">
+                  {profile.bio}
+                </p>
+              ) : null}
             </div>
           </div>
 
           <div>
-            <p className="mb-1 text-[11px] uppercase tracking-wider text-white/50">Роль</p>
-            <p className="text-sm text-white">{profile.role || "Не указано"}</p>
-          </div>
-
-          <div>
-            <p className="mb-2 text-[11px] uppercase tracking-wider text-white/50">Технологии</p>
+            <p className="mb-2 text-[11px] uppercase tracking-wider text-white/50">Роли и навыки</p>
             <div className="flex flex-wrap gap-2">
-              {(profile.technologies || []).length > 0 ? (
-                profile.technologies.map((tech) => (
-                  <span
-                    key={tech}
-                    className="rounded-full border px-2.5 py-1 text-xs text-[#FFD600]"
-                    style={{ borderColor: "rgba(255,214,0,0.35)", background: "rgba(255,214,0,0.08)" }}
-                  >
-                    {tech}
-                  </span>
-                ))
+              {badges.length > 0 ? (
+                badges.map((badge, idx) => {
+                  const view = getBadgePresentation(badge);
+                  return (
+                    <span
+                      key={`${badge.label}-${idx}`}
+                      className="inline-flex items-center rounded-full border px-2 py-1 text-xs font-medium backdrop-blur-sm"
+                      style={{
+                        borderColor: view.border,
+                        background: `linear-gradient(180deg, rgba(255,255,255,0.08) 0%, ${view.bg} 100%)`,
+                        color: view.text,
+                        boxShadow: `0 6px 14px ${view.shadow}`,
+                      }}
+                    >
+                      <span
+                        className="mr-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full border text-[10px] font-semibold"
+                        style={{
+                          borderColor: view.border,
+                          color: view.text,
+                          background: "rgba(0,0,0,0.28)",
+                        }}
+                      >
+                        {view.icon}
+                      </span>
+                      <span className="leading-none">{badge.label}</span>
+                    </span>
+                  );
+                })
               ) : (
-                <span className="text-xs text-white/50">Технологии не указаны</span>
+                <span className="text-xs text-white/50">Роли и навыки не добавлены</span>
               )}
             </div>
           </div>
-
-          <div>
-            <p className="mb-2 text-[11px] uppercase tracking-wider text-white/50">Навыки</p>
-            {(profile.skills || []).length > 0 ? (
-              <div className="space-y-2">
-                {profile.skills.map((skill) => (
-                  <div key={skill.skill_name}>
-                    <div className="mb-1 flex items-center justify-between text-xs text-white/80">
-                      <span>{skill.skill_name}</span>
-                      <span>{skill.proficiency}/5</span>
-                    </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${Math.min(100, skill.proficiency * 20)}%`, background: "#FFD600" }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <span className="text-xs text-white/50">Навыки не добавлены</span>
-            )}
-          </div>
-
-          {profile.bio ? (
-            <div>
-              <p className="mb-1 text-[11px] uppercase tracking-wider text-white/50">Что умеет</p>
-              <p className="text-sm text-white/75">{profile.bio}</p>
-            </div>
-          ) : null}
         </div>
       )}
     </aside>
