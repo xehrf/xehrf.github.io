@@ -62,7 +62,6 @@ export function OnboardingModal({ onComplete }) {
     setLoading(true);
     setError("");
     try {
-      console.log("Saving onboarding:", { role: selectedRole, technologies: selectedTechnologies });
       await apiFetch("/users/me/onboarding", {
         method: "POST",
         body: {
@@ -70,11 +69,9 @@ export function OnboardingModal({ onComplete }) {
           technologies: selectedTechnologies,
         },
       });
-      console.log("Onboarding saved successfully");
       setLoading(false);
       onComplete();
     } catch (error) {
-      console.error("Onboarding failed:", error);
       setError(error.message || "Ошибка при сохранении. Попробуйте ещё раз.");
       setLoading(false);
     }
@@ -83,6 +80,8 @@ export function OnboardingModal({ onComplete }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
       <div className="w-full max-w-md rounded-2xl border border-yellow-500/20 bg-gray-900 p-6 text-white">
+        
+        {/* Header */}
         <div className="mb-6 text-center">
           <h2 className="text-xl font-bold text-yellow-400">
             {step === 1 ? "Выберите вашу роль" : "Выберите технологии"}
@@ -94,12 +93,14 @@ export function OnboardingModal({ onComplete }) {
           </p>
         </div>
 
+        {/* Error */}
         {error && (
           <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
             {error}
           </div>
         )}
 
+        {/* Step 1 */}
         {step === 1 && (
           <div className="space-y-3">
             {ROLES.map((role) => (
@@ -118,6 +119,7 @@ export function OnboardingModal({ onComplete }) {
           </div>
         )}
 
+        {/* Step 2 */}
         {step === 2 && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-2">
@@ -136,6 +138,7 @@ export function OnboardingModal({ onComplete }) {
               ))}
             </div>
 
+            {/* Custom tech */}
             <div className="flex gap-2">
               <input
                 type="text"
@@ -143,7 +146,7 @@ export function OnboardingModal({ onComplete }) {
                 onChange={(e) => setCustomTech(e.target.value)}
                 placeholder="Другое..."
                 className="flex-1 rounded-lg border border-white/10 bg-gray-700 px-3 py-2 text-sm text-white placeholder-gray-400 focus:border-yellow-500 focus:outline-none"
-                onKeyPress={(e) => e.key === "Enter" && handleAddCustomTech()}
+                onKeyDown={(e) => e.key === "Enter" && handleAddCustomTech()}
               />
               <Button
                 onClick={handleAddCustomTech}
@@ -154,6 +157,7 @@ export function OnboardingModal({ onComplete }) {
               </Button>
             </div>
 
+            {/* Selected tech */}
             {selectedTechnologies.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {selectedTechnologies.map((tech) => (
@@ -169,6 +173,7 @@ export function OnboardingModal({ onComplete }) {
           </div>
         )}
 
+        {/* Footer buttons */}
         <div className="mt-6 flex justify-between">
           {step === 2 && (
             <Button
@@ -179,7 +184,17 @@ export function OnboardingModal({ onComplete }) {
               Назад
             </Button>
           )}
-          <div className="ml-auto">
+
+          <div className="ml-auto flex gap-2">
+            {/* Skip */}
+            <Button
+              onClick={onComplete}
+              variant="secondary"
+              className="rounded-lg border border-white/10 bg-transparent px-4 py-2 text-gray-400 hover:text-white"
+            >
+              Пропустить
+            </Button>
+
             {step === 1 ? (
               <Button
                 onClick={handleNext}
