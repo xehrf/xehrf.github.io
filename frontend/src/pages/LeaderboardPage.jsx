@@ -482,7 +482,13 @@ export function LeaderboardContent({ embedded = false }) {
                         <th className="py-2 pr-4">Серия</th>
                       </tr>
                     </thead>
-                    <tbody onMouseLeave={() => { setHoveredUserId(null); setAnchorRect(null); }}>
+                    <tbody onMouseLeave={() => {
+                      // Small delay so user can move mouse to the floating popup
+                      setTimeout(() => {
+                        setHoveredUserId(null);
+                        setAnchorRect(null);
+                      }, 300);
+                    }}>
                       {leaderboard.items.map((row) => {
                         const rowId = Number(row.user_id);
                         const isActive = Number(activePreviewUserId) === rowId;
@@ -582,8 +588,11 @@ export function LeaderboardContent({ embedded = false }) {
 
           <div ref={compareSectionRef}>
             <Card className="p-5">
-              <h2 className="text-lg font-semibold text-foreground">Сравнение с другим игроком</h2>
-              <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(220px,320px)_1fr] sm:items-start">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Сравнение игроков</h2>
+                  <p className="mt-0.5 text-xs text-muted">Выберите соперника для сравнения PTS</p>
+                </div>
                 <select
                   value={compareUserId}
                   onChange={(e) => {
@@ -594,39 +603,99 @@ export function LeaderboardContent({ embedded = false }) {
                   }}
                   className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
                 >
-                  <option value="">Выберите игрока из таблицы</option>
+                  <option value="">Выберите игрока...</option>
                   {compareCandidates.map((item) => (
                     <option key={item.user_id} value={item.user_id}>
                       {item.display_name} (#{item.rank})
                     </option>
                   ))}
                 </select>
+              </div>
 
-                {compareError ? <p className="text-sm text-accent">{compareError}</p> : null}
+              {compareError ? <p className="mt-3 text-sm text-accent">{compareError}</p> : null}
 
-                {compareData ? (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="rounded-btn border border-border bg-canvas p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted">{compareData.left.display_name}</p>
-                      <p className="mt-1 text-sm text-foreground">Общий: {formatNumber(compareData.left.pts_total)}</p>
-                      <p className="text-sm text-foreground">Период: {formatNumber(compareData.left.pts_period)}</p>
-                      <p className="text-sm text-muted">Место: {compareData.left.rank ?? "-"}</p>
+              {compareData ? (() => {
+                const leftPts = Number(compareData.left.pts_total) || 0;
+                const rightPts = Number(compareData.right.pts_total) || 0;
+                const total = leftPts + rightPts || 1;
+                const leftPct = Math.round((leftPts / total) * 100);
+                const rightPct = 100 - leftPct;
+                const diff = Number(compareData.pts_total_diff) || 0;
+                const diffPeriod = Number(compareData.pts_period_diff) || 0;
+                const leftWins = leftPts >= rightPts;
+
+                return (
+                  <div className="mt-5">
+                    {/* Player headers */}
+                    <div className="grid grid-cols-[1fr_48px_1fr] items-center gap-2">
+                      <div className={`rounded-2xl border p-4 ${leftWins ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-canvas"}`}>
+                        <p className="text-[11px] uppercase tracking-wider text-muted">Вы</p>
+                        <p className="mt-1 truncate text-base font-bold text-foreground">{compareData.left.display_name}</p>
+                        <p className="mt-1 text-2xl font-bold text-foreground">{formatNumber(leftPts)}</p>
+                        <p className="text-xs text-muted">PTS общий</p>
+                        {leftWins && <p className="mt-2 text-xs font-semibold text-yellow-400">👑 Лидер</p>}
+                      </div>
+
+                      <div className="flex items-center justify-center">
+                        <span className="rounded-full bg-elevated px-2 py-1 text-xs font-bold text-muted">VS</span>
+                      </div>
+
+                      <div className={`rounded-2xl border p-4 ${!leftWins ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-canvas"}`}>
+                        <p className="text-[11px] uppercase tracking-wider text-muted">Соперник</p>
+                        <p className="mt-1 truncate text-base font-bold text-foreground">{compareData.right.display_name}</p>
+                        <p className="mt-1 text-2xl font-bold text-foreground">{formatNumber(rightPts)}</p>
+                        <p className="text-xs text-muted">PTS общий</p>
+                        {!leftWins && <p className="mt-2 text-xs font-semibold text-yellow-400">👑 Лидер</p>}
+                      </div>
                     </div>
-                    <div className="rounded-btn border border-border bg-canvas p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted">{compareData.right.display_name}</p>
-                      <p className="mt-1 text-sm text-foreground">Общий: {formatNumber(compareData.right.pts_total)}</p>
-                      <p className="text-sm text-foreground">Период: {formatNumber(compareData.right.pts_period)}</p>
-                      <p className="text-sm text-muted">Место: {compareData.right.rank ?? "-"}</p>
+
+                    {/* Progress bar */}
+                    <div className="mt-4">
+                      <div className="flex overflow-hidden rounded-full" style={{ height: 8 }}>
+                        <div
+                          className="bg-yellow-400 transition-all duration-500"
+                          style={{ width: `${leftPct}%` }}
+                        />
+                        <div
+                          className="bg-slate-600 transition-all duration-500"
+                          style={{ width: `${rightPct}%` }}
+                        />
+                      </div>
+                      <div className="mt-1 flex justify-between text-[11px] text-muted">
+                        <span>{leftPct}%</span>
+                        <span>{rightPct}%</span>
+                      </div>
                     </div>
-                    <div className="rounded-btn border border-border bg-canvas p-3 sm:col-span-2">
-                      <p className="text-xs uppercase tracking-wide text-muted">Разница (вы - соперник)</p>
-                      <p className="mt-1 text-sm text-foreground">
-                        Общий: {formatNumber(compareData.pts_total_diff)} | Период: {formatNumber(compareData.pts_period_diff)}
-                      </p>
+
+                    {/* Stats row */}
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <div className="rounded-2xl border border-border bg-canvas p-3 text-center">
+                        <p className="text-[11px] uppercase tracking-wider text-muted">Место</p>
+                        <p className="mt-1 text-lg font-bold text-foreground">#{compareData.left.rank ?? "-"}</p>
+                        <p className="text-xs text-muted">vs #{compareData.right.rank ?? "-"}</p>
+                      </div>
+                      <div className="rounded-2xl border border-border bg-canvas p-3 text-center">
+                        <p className="text-[11px] uppercase tracking-wider text-muted">Разница</p>
+                        <p className={`mt-1 text-lg font-bold ${diff >= 0 ? "text-green-400" : "text-red-400"}`}>
+                          {diff >= 0 ? "+" : ""}{formatNumber(diff)}
+                        </p>
+                        <p className="text-xs text-muted">PTS общий</p>
+                      </div>
+                      <div className="rounded-2xl border border-border bg-canvas p-3 text-center">
+                        <p className="text-[11px] uppercase tracking-wider text-muted">Период</p>
+                        <p className={`mt-1 text-lg font-bold ${diffPeriod >= 0 ? "text-green-400" : "text-red-400"}`}>
+                          {diffPeriod >= 0 ? "+" : ""}{formatNumber(diffPeriod)}
+                        </p>
+                        <p className="text-xs text-muted">Разница</p>
+                      </div>
                     </div>
                   </div>
-                ) : null}
-              </div>
+                );
+              })() : (
+                <div className="mt-4 flex items-center justify-center rounded-2xl border border-dashed border-border bg-elevated/30 py-8 text-sm text-muted">
+                  Выберите игрока для сравнения
+                </div>
+              )}
             </Card>
           </div>
         </>
