@@ -466,7 +466,7 @@ export function LeaderboardContent({ embedded = false }) {
               <p className="mt-1 text-2xl font-semibold text-foreground">{formatPercent(position?.percentile || 0)}</p>
             </Card>
             <Card className="p-4">
-              <p className="text-xs uppercase tracking-wide text-muted">Дельта периода</p>
+              <p className="text-xs uppercase tracking-wide text-muted">PTS за период</p>
               <p className="mt-1 text-2xl font-semibold text-foreground">{formatNumber(position?.pts_period || 0)}</p>
             </Card>
           </div>
