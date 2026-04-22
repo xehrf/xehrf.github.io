@@ -262,12 +262,12 @@ export function LeaderboardContent({ embedded = false }) {
 
   const compareSectionRef = useRef(null);
 
-  // Close popup on click outside the table
+  // Close pinned popup on click outside the table
   useEffect(() => {
     function handleClickOutside(e) {
       if (tableRef.current && !tableRef.current.contains(e.target)) {
-        setHoveredUserId(null);
         setPinnedUserId(null);
+        setHoveredUserId(null);
         setAnchorRect(null);
       }
     }
@@ -409,18 +409,26 @@ export function LeaderboardContent({ embedded = false }) {
   }
 
   function handleLeaderboardRowHover(row, rect) {
-    setHoveredUserId(row.user_id);
-    if (rect) setAnchorRect(rect);
-    ensureProfileLoaded(row.user_id);
+    // Only show hover preview if nothing is pinned
+    if (pinnedUserId == null) {
+      setHoveredUserId(row.user_id);
+      if (rect) setAnchorRect(rect);
+      ensureProfileLoaded(row.user_id);
+    }
   }
 
   function handleLeaderboardRowClick(row, rect) {
     const rowId = Number(row.user_id);
-    const alreadyActive = Number(hoveredUserId) === rowId;
-    if (alreadyActive) {
+    const alreadyPinned = Number(pinnedUserId) === rowId;
+
+    if (alreadyPinned) {
+      // Unpin on second click
+      setPinnedUserId(null);
       setHoveredUserId(null);
       setAnchorRect(null);
     } else {
+      // Pin this row
+      setPinnedUserId(rowId);
       setHoveredUserId(rowId);
       if (rect) setAnchorRect(rect);
       ensureProfileLoaded(rowId);
@@ -483,11 +491,11 @@ export function LeaderboardContent({ embedded = false }) {
                       </tr>
                     </thead>
                     <tbody onMouseLeave={() => {
-                      // Small delay so user can move mouse to the floating popup
-                      setTimeout(() => {
+                      // Only clear hover preview, pinned stays
+                      if (pinnedUserId == null) {
                         setHoveredUserId(null);
                         setAnchorRect(null);
-                      }, 300);
+                      }
                     }}>
                       {leaderboard.items.map((row) => {
                         const rowId = Number(row.user_id);
@@ -522,8 +530,10 @@ export function LeaderboardContent({ embedded = false }) {
                             aria-label={`Игрок ${row.display_name}`}
                           >
                             <td className="py-2 pl-3 pr-4 font-semibold">
-                              <span>#{row.rank}</span>
-                              {isPinned ? <span className="ml-2 text-[10px] uppercase tracking-wide text-accent">pin</span> : null}
+                              <div className="flex items-center gap-2">
+                                <span>#{row.rank}</span>
+                                {isPinned ? <span className="h-2 w-2 rounded-full bg-accent" title="Закреплён" /> : null}
+                              </div>
                             </td>
 
                             <td className="py-2 pr-4">
