@@ -156,10 +156,7 @@ function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onT
         ) : (
           <div className="h-full w-full bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900" />
         )}
-      </div>
-
-      <div className="p-4">
-        <div className="-mt-10 flex items-end gap-3">
+        <div className="absolute bottom-0 left-4 translate-y-1/2">
           <div className="h-16 w-16 overflow-hidden rounded-full border-[3px] border-canvas bg-elevated">
             {avatarUrl ? (
               <img src={avatarUrl} alt={`Аватар ${displayName}`} className="h-full w-full object-cover" />
@@ -169,7 +166,12 @@ function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onT
               </div>
             )}
           </div>
-          <div className="min-w-0 pb-1">
+        </div>
+      </div>
+
+      <div className="p-4 pt-12">
+        <div className="flex items-end gap-3">
+          <div className="min-w-0">
             <p className="truncate text-base font-semibold text-foreground">{displayName}</p>
             <p className="truncate text-xs text-muted">@{nickname}</p>
           </div>
@@ -214,15 +216,12 @@ function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onT
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <Button onClick={onTogglePin} variant={pinned ? "secondary" : "primary"} className="h-10 rounded-[10px] px-3">
-            {pinned ? "Открепить" : "Закрепить"}
-          </Button>
+        <div className="mt-4">
           <Button
             onClick={onCompare}
             variant="secondary"
             disabled={isSelf}
-            className="h-10 rounded-[10px] px-3"
+            className="h-10 w-full rounded-[10px] px-3"
             title={isSelf ? "Сравнение с самим собой не требуется" : "Сравнить этого игрока"}
           >
             Сравнить
@@ -259,8 +258,22 @@ export function LeaderboardContent({ embedded = false }) {
   const [profileByUserId, setProfileByUserId] = useState({});
   const [profileLoadingByUserId, setProfileLoadingByUserId] = useState({});
   const [anchorRect, setAnchorRect] = useState(null);
+  const tableRef = useRef(null);
 
   const compareSectionRef = useRef(null);
+
+  // Close popup on click outside the table
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (tableRef.current && !tableRef.current.contains(e.target)) {
+        setHoveredUserId(null);
+        setPinnedUserId(null);
+        setAnchorRect(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const compareCandidates = useMemo(() => {
     return (leaderboard.items || []).filter((item) => Number(item.user_id) !== Number(user?.id));
@@ -401,16 +414,17 @@ export function LeaderboardContent({ embedded = false }) {
     ensureProfileLoaded(row.user_id);
   }
 
-  function handleLeaderboardRowClick(row) {
+  function handleLeaderboardRowClick(row, rect) {
     const rowId = Number(row.user_id);
-    const alreadyPinned = Number(pinnedUserId) === rowId;
-
-    setPinnedUserId(alreadyPinned ? null : rowId);
-    setHoveredUserId(rowId);
-    ensureProfileLoaded(rowId);
-
-    if (!alreadyPinned) {
-      selectUserForCompare(rowId, { scroll: true });
+    const alreadyActive = Number(hoveredUserId) === rowId;
+    if (alreadyActive) {
+      setHoveredUserId(null);
+      setAnchorRect(null);
+    } else {
+      setHoveredUserId(rowId);
+      if (rect) setAnchorRect(rect);
+      ensureProfileLoaded(rowId);
+      selectUserForCompare(rowId, { scroll: false });
     }
   }
 
@@ -457,7 +471,7 @@ export function LeaderboardContent({ embedded = false }) {
             {(leaderboard.items || []).length === 0 ? (
               <p className="mt-3 text-sm text-muted">По этим фильтрам нет игроков.</p>
             ) : (
-              <div className="mt-3 overflow-x-auto rounded-btn border border-border/70">
+              <div ref={tableRef} className="mt-3 overflow-x-auto rounded-btn border border-border/70">
                   <table className="min-w-full text-left text-sm">
                     <thead>
                       <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
@@ -487,7 +501,11 @@ export function LeaderboardContent({ embedded = false }) {
                               const rect = avatarEl ? avatarEl.getBoundingClientRect() : e.currentTarget.getBoundingClientRect();
                               handleLeaderboardRowHover(row, rect);
                             }}
-                            onClick={() => handleLeaderboardRowClick(row)}
+                            onClick={(e) => {
+                              const avatarEl = e.currentTarget.querySelector(".avatar-anchor");
+                              const rect = avatarEl ? avatarEl.getBoundingClientRect() : e.currentTarget.getBoundingClientRect();
+                              handleLeaderboardRowClick(row, rect);
+                            }}
                             onKeyDown={(event) => {
                               if (event.key === "Enter" || event.key === " ") {
                                 event.preventDefault();
