@@ -75,7 +75,7 @@ function StatBox({ label, value, sub }) {
 }
 
 export function TeamPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [team, setTeam] = useState(null);
   const [teamStats, setTeamStats] = useState(null);
   const [teamHistory, setTeamHistory] = useState([]);
@@ -163,7 +163,7 @@ export function TeamPage() {
   };
 
   const currentUserId = user?.id ?? 0;
-  const isCaptain = team?.captain_user_id === currentUserId;
+  const isCaptain = currentUserId !== 0 && team?.captain_user_id === currentUserId;
   const myReady = Boolean(readyVotes[currentUserId]);
   const readyCount = Object.values(readyVotes).filter(Boolean).length;
   const totalMembers = team?.members?.length ?? 0;
@@ -255,7 +255,7 @@ export function TeamPage() {
     }
   }
 
-  if (loading) return (
+  if (loading || authLoading) return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
       <div className="h-48 animate-pulse rounded-3xl border border-border bg-canvas" />
     </div>
