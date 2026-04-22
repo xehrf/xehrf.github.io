@@ -20,6 +20,8 @@ from app.db.models import (
 from app.db.session import get_db
 from app.matchmaking import service as mm_service
 from app.matchmaking.ws import manager as matchmaking_manager
+from app.rating.pts import level_from_pts, pts_for_solo_task
+from app.rating.service import add_rating_history
 from app.submissions import anti_cheat
 from app.submissions.evaluator import evaluate_python_function
 from app.tasks.schemas import (
@@ -38,13 +40,7 @@ def _now_utc() -> datetime:
 
 
 def _pts_for_difficulty(difficulty: int) -> int:
-    """easy 1–2 → 10, medium 3 → 25, hard 4–5 → 50."""
-    if difficulty <= 2:
-        return 10
-    if difficulty == 3:
-        return 25
-    return 50
-
+    return pts_for_solo_task(difficulty)
 
 def _attempt_to_out(attempt: TaskAttempt) -> TaskAttemptOut:
     now = _now_utc()
@@ -296,6 +292,15 @@ def submit_task_solution(
         attempt.score = pts_delta
         attempt_status = AttemptStatus.completed
         user.pts = user.pts + pts_delta
+        user.level = level_from_pts(user.pts)
+        add_rating_history(
+            db,
+            user_id=user.id,
+            pts_delta=pts_delta,
+            reason="task_solved",
+            match_id=body.match_id,
+            task=task,
+        )
     else:
         attempt.status = AttemptStatus.failed
         attempt.score = 0

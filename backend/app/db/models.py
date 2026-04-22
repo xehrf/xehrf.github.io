@@ -75,6 +75,14 @@ class ContractStatus(str, enum.Enum):
     completed = "completed"
 
 
+class ContractEventType(str, enum.Enum):
+    contract_started = "contract_started"
+    result_submitted = "result_submitted"
+    revision_requested = "revision_requested"
+    contract_completed = "contract_completed"
+    message_sent = "message_sent"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -335,6 +343,9 @@ class RatingHistory(Base):
     task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"), nullable=True)
     pts_delta: Mapped[int] = mapped_column(Integer, default=0)
     reason: Mapped[str] = mapped_column(String(64))
+    season_code: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    language_key: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    topic_key: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -401,6 +412,8 @@ class Contract(Base):
     client: Mapped["User"] = relationship(foreign_keys=[client_id])
     developer: Mapped["User"] = relationship(foreign_keys=[developer_id])
     reviews: Mapped[list["Review"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
+    messages: Mapped[list["ContractMessage"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
+    events: Mapped[list["ContractEvent"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
 
 
 class Review(Base):
@@ -413,3 +426,30 @@ class Review(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     contract: Mapped["Contract"] = relationship(back_populates="reviews")
+
+
+class ContractMessage(Base):
+    __tablename__ = "contract_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id", ondelete="CASCADE"), index=True)
+    sender_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    message: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    contract: Mapped["Contract"] = relationship(back_populates="messages")
+    sender: Mapped["User"] = relationship(foreign_keys=[sender_id])
+
+
+class ContractEvent(Base):
+    __tablename__ = "contract_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id", ondelete="CASCADE"), index=True)
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True)
+    event_type: Mapped[ContractEventType] = mapped_column(Enum(ContractEventType), index=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    contract: Mapped["Contract"] = relationship(back_populates="events")
+    actor: Mapped["User | None"] = relationship(foreign_keys=[actor_id])

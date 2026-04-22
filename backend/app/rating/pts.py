@@ -33,3 +33,28 @@ def pts_for_placement(rank: int, party_size: int, base: int = 25) -> int:
         return 0
     tiers = [base * (party_size - r + 1) // party_size for r in range(1, party_size + 1)]
     return tiers[rank - 1]
+
+
+def pts_for_solo_task(difficulty: int) -> int:
+    """PTS reward for successful solo task submission."""
+    if difficulty <= 2:
+        return 10
+    if difficulty == 3:
+        return 25
+    return 50
+
+
+def pts_for_match_win(streak: int = 1, base_win: int = 30) -> int:
+    """PTS reward for PvP win with streak bonus."""
+    bonus = max(0, min(30, (streak - 1) * 5))
+    return base_win + bonus
+
+
+def pts_for_match_loss(current_pts: int, base_loss: int = 10) -> int:
+    """PTS penalty for PvP loss."""
+    return -min(max(0, current_pts), max(0, base_loss))
+
+
+def apply_pts_delta(current_pts: int, delta: int) -> int:
+    """Apply PTS delta with lower bound at zero."""
+    return max(0, int(current_pts) + int(delta))

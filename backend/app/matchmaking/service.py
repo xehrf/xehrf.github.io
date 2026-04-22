@@ -7,6 +7,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.models import Match, MatchParticipant, MatchStatus, Task, TaskType, User
+from app.rating.pts import apply_pts_delta, level_from_pts, pts_for_match_loss, pts_for_match_win
+from app.rating.service import add_rating_history
 
 QUEUE_KEY = "mm:queue"
 USER_QUEUE_KEY = "mm:user_queue:{user_id}"
@@ -212,6 +214,15 @@ def claim_pvp_quest(db: Session, r: redis.Redis, user: User, period: str, quest_
 
     reward_pts = int(quest["reward_pts"])
     user.pts += reward_pts
+    user.level = level_from_pts(user.pts)
+    add_rating_history(
+        db,
+        user_id=user.id,
+        pts_delta=reward_pts,
+        reason="pvp_quest_claimed",
+        topic_key="pvp_quest",
+        language_key=None,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -511,18 +522,37 @@ def complete_match_with_winner(db: Session, match: Match, winner_user_id: int) -
                 )
                 winner_streak = int(winner_user.pvp_win_streak or 0)
                 winner_streak_bonus = _streak_bonus_for_win(winner_streak)
-                winner_pts_delta = 30 + winner_streak_bonus
-                winner_user.pts += winner_pts_delta
+                winner_pts_delta = pts_for_match_win(winner_streak)
+                winner_user.pts = apply_pts_delta(winner_user.pts, winner_pts_delta)
+                winner_user.level = level_from_pts(winner_user.pts)
+                add_rating_history(
+                    db,
+                    user_id=winner_user.id,
+                    pts_delta=winner_pts_delta,
+                    reason="match_result",
+                    match_id=match.id,
+                    task=match.task,
+                )
             participant.placement = 1
             participant.pts_awarded = winner_pts_delta
             winner_found = True
         else:
             participant.placement = 2
-            participant.pts_awarded = loser_pts_delta
             loser_user = users_by_id.get(participant.user_id)
             if loser_user is not None:
-                loser_user.pts = max(0, loser_user.pts + loser_pts_delta)
+                loser_pts_delta = pts_for_match_loss(loser_user.pts)
+                loser_user.pts = apply_pts_delta(loser_user.pts, loser_pts_delta)
+                loser_user.level = level_from_pts(loser_user.pts)
                 loser_user.pvp_win_streak = 0
+                add_rating_history(
+                    db,
+                    user_id=loser_user.id,
+                    pts_delta=loser_pts_delta,
+                    reason="match_result",
+                    match_id=match.id,
+                    task=match.task,
+                )
+            participant.pts_awarded = loser_pts_delta
             loser_user_id = participant.user_id
     if not winner_found:
         return None

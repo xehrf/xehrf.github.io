@@ -41,6 +41,12 @@ async def lifespan(_: FastAPI):
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT FALSE"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pvp_win_streak INTEGER DEFAULT 0"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pvp_best_win_streak INTEGER DEFAULT 0"))
+        conn.execute(text("ALTER TABLE rating_history ADD COLUMN IF NOT EXISTS season_code VARCHAR(16)"))
+        conn.execute(text("ALTER TABLE rating_history ADD COLUMN IF NOT EXISTS language_key VARCHAR(64)"))
+        conn.execute(text("ALTER TABLE rating_history ADD COLUMN IF NOT EXISTS topic_key VARCHAR(64)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_rating_history_season_code ON rating_history (season_code)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_rating_history_language_key ON rating_history (language_key)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_rating_history_topic_key ON rating_history (topic_key)"))
 
     with engine.begin() as conn:
         conn.execute(text("""

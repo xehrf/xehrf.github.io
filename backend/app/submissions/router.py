@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from app.auth.deps import get_current_user
 from app.db.models import Match, MatchParticipant, MatchStatus, Submission, SubmissionStatus, Task, User
 from app.db.session import get_db
+from app.rating.pts import apply_pts_delta, level_from_pts
+from app.rating.service import add_rating_history
 from app.submissions import anti_cheat
 from app.submissions.evaluator import evaluate_python_function
 from app.submissions.schemas import SubmissionCreate, SubmissionOut, SubmissionResultOut
@@ -80,7 +82,17 @@ def submit(
     elif task.task_type.value == "match":
         pts_delta = -min(user.pts, _penalty_points(task.difficulty))
 
-    user.pts = max(0, user.pts + pts_delta)
+    user.pts = apply_pts_delta(user.pts, pts_delta)
+    user.level = level_from_pts(user.pts)
+    if pts_delta != 0:
+        add_rating_history(
+            db,
+            user_id=user.id,
+            pts_delta=pts_delta,
+            reason="submission_result",
+            match_id=body.match_id,
+            task=task,
+        )
 
     db.add(sub)
     db.commit()

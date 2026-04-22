@@ -28,6 +28,12 @@ export function BottomNav() {
           </span>
           <span>Публикации</span>
         </NavLink>
+        <NavLink to="/leaderboard" className={itemClass}>
+          <span className="text-lg leading-none" aria-hidden>
+            LB
+          </span>
+          <span>Rating</span>
+        </NavLink>
         <NavLink to="/profile" className={itemClass}>
           <span className="text-lg leading-none" aria-hidden>
             👤

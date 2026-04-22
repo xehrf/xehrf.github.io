@@ -22,6 +22,8 @@ class PostOut(BaseModel):
     deadline: datetime
     status: str
     client_id: int
+    client_display_name: str | None = None
+    proposals_count: int = 0
     created_at: datetime
 
 
@@ -39,6 +41,7 @@ class ProposalOut(BaseModel):
     message: str
     portfolio_url: str | None
     status: str
+    developer_display_name: str | None = None
     created_at: datetime
 
 
@@ -51,6 +54,11 @@ class ContractOut(BaseModel):
     developer_id: int
     status: str
     result_text: str | None
+    post_title: str | None = None
+    post_budget: int | None = None
+    post_status: str | None = None
+    client_display_name: str | None = None
+    developer_display_name: str | None = None
     created_at: datetime
 
 
@@ -61,4 +69,44 @@ class SubmitResultBody(BaseModel):
 class CompleteContractBody(BaseModel):
     rating: int = Field(ge=1, le=5)
     comment: str | None = Field(default=None, max_length=2000)
+
+
+class RequestRevisionBody(BaseModel):
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class ContractMessageCreate(BaseModel):
+    message: str = Field(min_length=1, max_length=5000)
+
+
+class ContractMessageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    contract_id: int
+    sender_id: int
+    sender_display_name: str | None = None
+    message: str
+    created_at: datetime
+
+
+class ContractEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    contract_id: int
+    actor_id: int | None
+    actor_display_name: str | None = None
+    event_type: str
+    note: str | None
+    created_at: datetime
+
+
+class ContractTimelineOut(BaseModel):
+    contract_id: int
+    status: str
+    progress_percent: int
+    status_title: str
+    next_action: str | None = None
+    events: list[ContractEventOut]
 
