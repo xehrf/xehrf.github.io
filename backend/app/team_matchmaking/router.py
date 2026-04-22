@@ -45,6 +45,7 @@ async def join_team(user: User = Depends(get_current_user), db: Session = Depend
 
         result = tm_service.join_queue(db, user)
         print(f"Join queue result: {result}")
+        db.commit()
         
         if result.get("status") == "matched":
             await manager.broadcast(
@@ -85,6 +86,7 @@ async def join_team(user: User = Depends(get_current_user), db: Session = Depend
         print(f"Error in join_team: {e}")
         import traceback
         traceback.print_exc()
+        db.rollback()
         
         # Return a safe response instead of crashing
         return TeamMatchmakingJoinResponse(
@@ -99,10 +101,12 @@ async def join_team(user: User = Depends(get_current_user), db: Session = Depend
 @router.post("/leave")
 async def leave_team(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     if tm_service.leave_queue(db, user.id):
+        db.commit()
         return {"status": "left_queue"}
 
     team_id = tm_service.leave_team(db, user.id)
     if team_id is not None:
+        db.commit()
         await manager.broadcast(
             team_id,
             "user_left",
@@ -175,6 +179,7 @@ def list_teams(search: str | None = None, db: Session = Depends(get_db)) -> list
 @team_router.post("", response_model=TeamOut)
 def create_team(body: TeamCreateBody, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> TeamOut:
     team = tm_service.create_team(db, user, body.name, body.description or "")
+    db.commit()
     return TeamOut(
         team_id=team.id,
         name=team.name,
@@ -244,6 +249,7 @@ def update_team(
     if not tm_service.is_captain(team, user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only captain can update team")
     team = tm_service.update_team(db, team, body.name, body.description)
+    db.commit()
     return TeamOut(
         team_id=team.id,
         name=team.name,
@@ -262,6 +268,7 @@ def delete_team(team_id: int, user: User = Depends(get_current_user), db: Sessio
     if not tm_service.is_captain(team, user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only captain can delete team")
     tm_service.delete_team(db, team)
+    db.commit()
     return {"status": "deleted"}
 
 
@@ -273,6 +280,7 @@ def leave_team(team_id: int, user: User = Depends(get_current_user), db: Session
     if tm_service.get_current_team(db, user.id) is None or not any(m.user_id == user.id for m in team.members):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this team")
     tm_service.leave_team(db, user.id)
+    db.commit()
     return {"status": "left"}
 
 
@@ -287,6 +295,7 @@ def kick_member(team_id: int, user_id: int, user: User = Depends(get_current_use
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot kick yourself")
     if not tm_service.kick_team_member(db, team, user_id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unable to kick member")
+    db.commit()
     return {"status": "kicked", "user_id": user_id}
 
 
@@ -327,6 +336,7 @@ async def create_invite(
         inv = tm_service.create_invitation(db, team, user.id, body.invitee_user_id)
     except ValueError as err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    db.commit()
     await manager.broadcast(
         team_id,
         "team_invite_created",
@@ -374,6 +384,7 @@ async def accept_invite(
     team = tm_service.accept_invitation(db, invitation, user.id)
     if team is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unable to accept invitation")
+    db.commit()
     await manager.broadcast(
         team.id,
         "invitation_accepted",
@@ -394,6 +405,7 @@ async def decline_invite(
     ok = tm_service.decline_invitation(db, invitation, user.id)
     if not ok:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    db.commit()
     return {"status": "declined"}
 
 
@@ -410,6 +422,7 @@ async def ready_vote(
     if not any(member.user_id == user.id for member in team.members):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a team member")
     votes = tm_service.set_ready_vote(db, team_id, user.id, body.is_ready)
+    db.commit()
     await manager.broadcast(team_id, "team_ready_update", {"team_id": team_id, "votes": votes})
     return {"status": "ok", "votes": votes}
 
@@ -472,6 +485,7 @@ async def team_socket(
             if event == "ready_vote":
                 is_ready = bool(payload.get("is_ready", False))
                 votes = tm_service.set_ready_vote(db, team_id, user.id, is_ready)
+                db.commit()
                 await manager.broadcast(team_id, "team_ready_update", {"team_id": team_id, "votes": votes})
     except WebSocketDisconnect:
         manager.disconnect(team_id, websocket)

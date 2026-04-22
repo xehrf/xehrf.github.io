@@ -15,6 +15,7 @@ from app.db.models import (
     TeamMatchResult,
     TeamMatchmakingQueue,
     TeamMember,
+    TeamMemberRole,
     TeamReadyVote,
     TeamTask,
     TeamTaskStatus,
