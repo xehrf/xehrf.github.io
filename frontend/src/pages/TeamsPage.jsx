@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
@@ -92,8 +93,8 @@ function TeamCard({ team }) {
   const fillPct = Math.round((memberCount / maxMembers) * 100);
 
   return (
-    <a
-      href={`/team/${team.team_id}`}
+    <Link
+      to={`/team/${team.team_id}`}
       className="group block overflow-hidden rounded-3xl border border-border bg-canvas transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5"
     >
       {/* Banner */}
@@ -161,6 +162,6 @@ function TeamCard({ team }) {
           ))}
         </div>
       </div>
-    </a>
+    </Link>
   );
 }

@@ -12,6 +12,7 @@ import { RegisterPage } from "./pages/RegisterPage.jsx";
 import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { EditProfilePage } from "./pages/EditProfilePage.jsx";
 import { TeamPage } from "./pages/TeamPage.jsx";
+import { TeamPublicPage } from "./pages/TeamPublicPage.jsx";
 import { TaskSolvePage } from "./pages/TaskSolvePage.jsx";
 import { TeamCreatePage } from "./pages/TeamCreatePage.jsx";
 import { TeamsPage } from "./pages/TeamsPage.jsx";
@@ -101,7 +102,23 @@ export default function App() {
           path="/team"
           element={
             <RequireAuth>
+              <TeamsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/team/current"
+          element={
+            <RequireAuth>
               <TeamPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/team/:teamId"
+          element={
+            <RequireAuth>
+              <TeamPublicPage />
             </RequireAuth>
           }
         />
@@ -109,7 +126,7 @@ export default function App() {
           path="/teams"
           element={
             <RequireAuth>
-              <TeamsPage />
+              <Navigate to="/team" replace />
             </RequireAuth>
           }
         />

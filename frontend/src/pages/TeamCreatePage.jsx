@@ -25,7 +25,7 @@ export function TeamCreatePage() {
         method: "POST",
         body: { name: name.trim(), description: description.trim(), max_members: maxMembers, is_open: isOpen },
       });
-      navigate(team?.team_id ? `/team/${team.team_id}` : "/team");
+      navigate(team?.team_id ? "/team/current" : "/team");
     } catch (err) {
       setError(err?.message || "Не удалось создать команду");
     } finally {

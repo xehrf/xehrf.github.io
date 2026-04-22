@@ -899,7 +899,7 @@ export function MatchmakingPage() {
               </div>
               <button
                 type="button"
-                onClick={() => navigate("/team")}
+                onClick={() => navigate("/team/current")}
                 className="rounded-2xl bg-yellow-400 px-4 py-2 text-sm font-semibold text-slate-950"
               >
                 Открыть команду
