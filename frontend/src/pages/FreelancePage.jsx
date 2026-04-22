@@ -40,7 +40,7 @@ export function FreelancePage() {
       const data = await apiFetch(`/posts${query ? `?${query}` : ""}`);
       setPosts(Array.isArray(data) ? data : []);
     } catch (e) {
-      setError(e?.message || "Failed to load freelance posts");
+      setError(e?.message || "Не удалось загрузить заказы фриланса");
     } finally {
       setLoading(false);
     }
@@ -61,37 +61,37 @@ export function FreelancePage() {
     <div className="mx-auto w-full max-w-[430px] px-4 py-6 md:max-w-6xl md:px-6 md:py-8">
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Freelance Jobs</h1>
-          <p className="mt-1 text-sm text-muted">Find orders, send proposals, and track delivery in one place.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Фриланс-заказы</h1>
+          <p className="mt-1 text-sm text-muted">Находите заказы, отправляйте отклики и отслеживайте выполнение в одном месте.</p>
         </div>
         <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
           <LinkButton
             to="/freelance/create"
             className="h-12 justify-center rounded-[12px] py-3 md:h-auto md:rounded-btn md:py-2.5"
           >
-            Create post
+            Создать заказ
           </LinkButton>
           <LinkButton
             to="/freelance/my-jobs"
             variant="secondary"
             className="h-12 justify-center rounded-[12px] py-3 md:h-auto md:rounded-btn md:py-2.5"
           >
-            My jobs
+            Мои заказы
           </LinkButton>
         </div>
       </div>
 
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-muted">Total posts</p>
+          <p className="text-xs uppercase tracking-wide text-muted">Всего заказов</p>
           <p className="mt-1 text-2xl font-semibold text-foreground">{posts.length}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-muted">Open</p>
+          <p className="text-xs uppercase tracking-wide text-muted">Открытые</p>
           <p className="mt-1 text-2xl font-semibold text-foreground">{openCount}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-muted">In progress</p>
+          <p className="text-xs uppercase tracking-wide text-muted">В работе</p>
           <p className="mt-1 text-2xl font-semibold text-foreground">{inProgressCount}</p>
         </Card>
       </div>
@@ -101,13 +101,13 @@ export function FreelancePage() {
           <input
             value={filters.q}
             onChange={(e) => updateFilter("q", e.target.value)}
-            placeholder="Search title or description"
+            placeholder="Поиск по названию или описанию"
             className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
           />
           <input
             value={filters.minBudget}
             onChange={(e) => updateFilter("minBudget", e.target.value)}
-            placeholder="Min budget"
+            placeholder="Мин. бюджет"
             type="number"
             min="0"
             className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
@@ -115,7 +115,7 @@ export function FreelancePage() {
           <input
             value={filters.maxBudget}
             onChange={(e) => updateFilter("maxBudget", e.target.value)}
-            placeholder="Max budget"
+            placeholder="Макс. бюджет"
             type="number"
             min="0"
             className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
@@ -123,7 +123,7 @@ export function FreelancePage() {
           <input
             value={filters.tech}
             onChange={(e) => updateFilter("tech", e.target.value)}
-            placeholder="Technology (React, FastAPI)"
+            placeholder="Технология (React, FastAPI)"
             className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
           />
           <select
@@ -131,34 +131,34 @@ export function FreelancePage() {
             onChange={(e) => updateFilter("status", e.target.value)}
             className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
           >
-            <option value="">All statuses</option>
-            <option value="open">Open</option>
-            <option value="in_progress">In progress</option>
-            <option value="completed">Completed</option>
+            <option value="">Все статусы</option>
+            <option value="open">Открыт</option>
+            <option value="in_progress">В работе</option>
+            <option value="completed">Завершён</option>
           </select>
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
             <Button onClick={loadPosts} className="h-12 rounded-[12px] md:h-auto md:rounded-btn">
-              Filter
+              Применить
             </Button>
             <Button
               onClick={resetFilters}
               variant="secondary"
               className="h-12 rounded-[12px] md:h-auto md:rounded-btn"
             >
-              Reset
+              Сброс
             </Button>
           </div>
         </div>
       </Card>
 
-      {loading ? <Card className="text-sm text-muted">Loading posts...</Card> : null}
+      {loading ? <Card className="text-sm text-muted">Загрузка заказов...</Card> : null}
       {error ? <Card className="text-sm text-accent">{error}</Card> : null}
 
       {!loading && !error && posts.length === 0 ? (
         <Card className="p-6">
-          <h2 className="text-lg font-semibold text-foreground">No posts found</h2>
+          <h2 className="text-lg font-semibold text-foreground">Заказы не найдены</h2>
           <p className="mt-2 text-sm text-muted">
-            Try relaxing filters or create the first post in this category.
+            Попробуйте ослабить фильтры или создайте первый заказ в этой категории.
           </p>
         </Card>
       ) : null}
@@ -182,16 +182,16 @@ export function FreelancePage() {
               <p className="mt-2 line-clamp-3 text-sm text-muted">{post.description}</p>
               <div className="mt-3 space-y-1 text-sm">
                 <p className="text-muted">
-                  Stack: <span className="text-foreground">{post.tech_stack}</span>
+                  Стек: <span className="text-foreground">{post.tech_stack}</span>
                 </p>
                 <p className="text-muted">
-                  Budget: <span className="text-accent">{formatMoney(post.budget)}</span>
+                  Бюджет: <span className="text-accent">{formatMoney(post.budget)}</span>
                 </p>
                 <p className="text-muted">
-                  Deadline: <span className="text-foreground">{formatDate(post.deadline)}</span>
+                  Дедлайн: <span className="text-foreground">{formatDate(post.deadline)}</span>
                 </p>
                 <p className="text-muted">
-                  Proposals: <span className="text-foreground">{post.proposals_count ?? 0}</span>
+                  Отклики: <span className="text-foreground">{post.proposals_count ?? 0}</span>
                 </p>
               </div>
               <div className="mt-4">
@@ -199,7 +199,7 @@ export function FreelancePage() {
                   to={`/freelance/posts/${post.id}`}
                   className="h-12 w-full justify-center rounded-[12px] py-3 text-base md:h-auto md:w-auto md:rounded-btn md:text-sm"
                 >
-                  View details
+                  Подробнее
                 </LinkButton>
               </div>
             </Card>

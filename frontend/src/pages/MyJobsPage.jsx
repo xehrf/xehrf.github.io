@@ -11,16 +11,16 @@ import {
 } from "../utils/freelanceStatus.js";
 
 const ROLE_OPTIONS = [
-  { value: "", label: "All roles" },
-  { value: "client", label: "As client" },
-  { value: "developer", label: "As developer" },
+  { value: "", label: "Все роли" },
+  { value: "client", label: "Как клиент" },
+  { value: "developer", label: "Как разработчик" },
 ];
 
 const STATUS_OPTIONS = [
-  { value: "", label: "All statuses" },
-  { value: "active", label: "In progress" },
-  { value: "submitted", label: "Submitted" },
-  { value: "completed", label: "Completed" },
+  { value: "", label: "Все статусы" },
+  { value: "active", label: "В работе" },
+  { value: "submitted", label: "Отправлен" },
+  { value: "completed", label: "Завершён" },
 ];
 
 function ProgressBar({ percent }) {
@@ -58,7 +58,7 @@ export function MyJobsPage() {
       setContracts(Array.isArray(contractsData) ? contractsData : []);
       setMyPosts(Array.isArray(postsData) ? postsData : []);
     } catch (e) {
-      setError(e?.message || "Could not load jobs");
+      setError(e?.message || "Не удалось загрузить заказы");
     } finally {
       setLoading(false);
     }
@@ -100,29 +100,29 @@ export function MyJobsPage() {
     <div className="mx-auto w-full max-w-[430px] space-y-4 px-4 py-6 md:max-w-5xl md:px-6 md:py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">My Jobs</h1>
-          <p className="mt-1 text-sm text-muted">Track all your contracts and created posts.</p>
+          <h1 className="text-2xl font-bold text-foreground">Мои заказы</h1>
+          <p className="mt-1 text-sm text-muted">Отслеживайте все свои контракты и созданные заказы.</p>
         </div>
         <LinkButton to="/freelance" variant="secondary" className="h-11 rounded-[12px] px-4 py-2 md:rounded-btn">
-          Freelance feed
+          Каталог фриланса
         </LinkButton>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-muted">Total</p>
+          <p className="text-xs uppercase tracking-wide text-muted">Всего</p>
           <p className="mt-1 text-2xl font-semibold text-foreground">{stats.total}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-muted">In progress</p>
+          <p className="text-xs uppercase tracking-wide text-muted">В работе</p>
           <p className="mt-1 text-2xl font-semibold text-foreground">{stats.active}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-muted">Submitted</p>
+          <p className="text-xs uppercase tracking-wide text-muted">Отправлено</p>
           <p className="mt-1 text-2xl font-semibold text-foreground">{stats.submitted}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-muted">Completed</p>
+          <p className="text-xs uppercase tracking-wide text-muted">Завершено</p>
           <p className="mt-1 text-2xl font-semibold text-foreground">{stats.completed}</p>
         </Card>
       </div>
@@ -154,7 +154,7 @@ export function MyJobsPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by post, participant, id"
+            placeholder="Поиск по заказу, участнику, id"
             className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
           />
           <button
@@ -162,18 +162,18 @@ export function MyJobsPage() {
             className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground transition hover:border-accent/50 hover:text-accent"
             onClick={loadData}
           >
-            Refresh
+            Обновить
           </button>
         </div>
       </Card>
 
-      {loading ? <Card className="text-sm text-muted">Loading...</Card> : null}
+      {loading ? <Card className="text-sm text-muted">Загрузка...</Card> : null}
       {error ? <Card className="text-sm text-accent">{error}</Card> : null}
 
       <Card className="p-5">
-        <h2 className="text-lg font-semibold text-foreground">My Posts</h2>
+        <h2 className="text-lg font-semibold text-foreground">Мои заказы</h2>
         {myPosts.length === 0 ? (
-          <p className="mt-2 text-sm text-muted">You have not created posts yet.</p>
+          <p className="mt-2 text-sm text-muted">Вы пока не создали ни одного заказа.</p>
         ) : (
           <div className="mt-3 grid gap-3">
             {myPosts.map((post) => {
@@ -193,16 +193,16 @@ export function MyJobsPage() {
                   </div>
                   <div className="mt-2 grid gap-1 text-sm text-muted sm:grid-cols-2">
                     <p>
-                      Budget: <span className="text-foreground">{formatMoney(post.budget)}</span>
+                      Бюджет: <span className="text-foreground">{formatMoney(post.budget)}</span>
                     </p>
                     <p>
-                      Deadline: <span className="text-foreground">{formatDate(post.deadline)}</span>
+                      Дедлайн: <span className="text-foreground">{formatDate(post.deadline)}</span>
                     </p>
                     <p>
-                      Proposals: <span className="text-foreground">{post.proposals_count ?? 0}</span>
+                      Отклики: <span className="text-foreground">{post.proposals_count ?? 0}</span>
                     </p>
                     <p>
-                      Created: <span className="text-foreground">{formatDateTime(post.created_at)}</span>
+                      Создан: <span className="text-foreground">{formatDateTime(post.created_at)}</span>
                     </p>
                   </div>
                   <LinkButton
@@ -210,7 +210,7 @@ export function MyJobsPage() {
                     variant="secondary"
                     className="mt-3 h-11 w-full justify-center rounded-[12px] sm:h-auto sm:w-auto sm:rounded-btn"
                   >
-                    Open post
+                    Открыть заказ
                   </LinkButton>
                 </div>
               );
@@ -220,9 +220,9 @@ export function MyJobsPage() {
       </Card>
 
       <Card className="p-5">
-        <h2 className="text-lg font-semibold text-foreground">My Contracts</h2>
+        <h2 className="text-lg font-semibold text-foreground">Мои контракты</h2>
         {filteredContracts.length === 0 ? (
-          <p className="mt-2 text-sm text-muted">No contracts match current filters.</p>
+          <p className="mt-2 text-sm text-muted">Нет контрактов по текущим фильтрам.</p>
         ) : (
           <div className="mt-3 grid gap-3">
             {filteredContracts.map((contract) => {
@@ -232,9 +232,9 @@ export function MyJobsPage() {
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <h3 className="font-medium text-foreground">
-                        {contract.post_title || `Post #${contract.post_id}`}
+                        {contract.post_title || `Заказ #${contract.post_id}`}
                       </h3>
-                      <p className="mt-1 text-xs text-muted">Contract #{contract.id}</p>
+                      <p className="mt-1 text-xs text-muted">Контракт #{contract.id}</p>
                     </div>
                     <span
                       className={[
@@ -248,25 +248,25 @@ export function MyJobsPage() {
 
                   <div className="mt-3 grid gap-1 text-sm text-muted sm:grid-cols-2">
                     <p>
-                      Client: <span className="text-foreground">{contract.client_display_name || contract.client_id}</span>
+                      Клиент: <span className="text-foreground">{contract.client_display_name || contract.client_id}</span>
                     </p>
                     <p>
-                      Developer:{" "}
+                      Разработчик:{" "}
                       <span className="text-foreground">
                         {contract.developer_display_name || contract.developer_id}
                       </span>
                     </p>
                     <p>
-                      Budget: <span className="text-foreground">{formatMoney(contract.post_budget || 0)}</span>
+                      Бюджет: <span className="text-foreground">{formatMoney(contract.post_budget || 0)}</span>
                     </p>
                     <p>
-                      Created: <span className="text-foreground">{formatDateTime(contract.created_at)}</span>
+                      Создан: <span className="text-foreground">{formatDateTime(contract.created_at)}</span>
                     </p>
                   </div>
 
                   <div className="mt-3">
                     <div className="mb-1 flex items-center justify-between text-xs uppercase tracking-wide text-muted">
-                      <span>Progress</span>
+                      <span>Прогресс</span>
                       <span>{statusMeta.progress}%</span>
                     </div>
                     <ProgressBar percent={statusMeta.progress} />
@@ -277,7 +277,7 @@ export function MyJobsPage() {
                     variant="secondary"
                     className="mt-3 h-11 w-full justify-center rounded-[12px] sm:h-auto sm:w-auto sm:rounded-btn"
                   >
-                    Open contract
+                    Открыть контракт
                   </LinkButton>
                 </div>
               );

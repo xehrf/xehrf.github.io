@@ -25,6 +25,19 @@ function ProgressBar({ percent }) {
   );
 }
 
+function resolveProposalStatusLabel(status) {
+  switch (status) {
+    case "pending":
+      return "В ожидании";
+    case "accepted":
+      return "Принят";
+    case "rejected":
+      return "Отклонён";
+    default:
+      return status;
+  }
+}
+
 export function PostDetailsPage() {
   const { id } = useParams();
   const { user, refreshMe } = useAuth();
@@ -92,7 +105,7 @@ export function PostDetailsPage() {
         setMessages([]);
       }
     } catch (e) {
-      setError(e?.message || "Failed to load post details");
+      setError(e?.message || "Не удалось загрузить детали заказа");
     } finally {
       setLoading(false);
     }
@@ -105,7 +118,7 @@ export function PostDetailsPage() {
 
   async function apply() {
     if (!applyMessage.trim()) {
-      setError("Add a short message for the client before applying.");
+      setError("Добавьте короткое сообщение для клиента перед откликом.");
       return;
     }
     setBusyAction("apply");
@@ -122,7 +135,7 @@ export function PostDetailsPage() {
       setPortfolio("");
       await loadAll();
     } catch (e) {
-      setError(e?.message || "Could not apply");
+      setError(e?.message || "Не удалось отправить отклик");
     } finally {
       setBusyAction("");
     }
@@ -135,7 +148,7 @@ export function PostDetailsPage() {
       await apiFetch(`/proposals/${proposalId}/accept`, { method: "POST" });
       await loadAll();
     } catch (e) {
-      setError(e?.message || "Could not accept proposal");
+      setError(e?.message || "Не удалось принять отклик");
     } finally {
       setBusyAction("");
     }
@@ -144,7 +157,7 @@ export function PostDetailsPage() {
   async function submitResult() {
     if (!contract?.id) return;
     if (!resultText.trim()) {
-      setError("Describe the delivered result before submitting.");
+      setError("Опишите результат перед отправкой.");
       return;
     }
     setBusyAction("submit");
@@ -157,7 +170,7 @@ export function PostDetailsPage() {
       setResultText("");
       await loadAll();
     } catch (e) {
-      setError(e?.message || "Could not submit result");
+      setError(e?.message || "Не удалось отправить результат");
     } finally {
       setBusyAction("");
     }
@@ -175,7 +188,7 @@ export function PostDetailsPage() {
       setRevisionNote("");
       await loadAll();
     } catch (e) {
-      setError(e?.message || "Could not request revision");
+      setError(e?.message || "Не удалось запросить доработку");
     } finally {
       setBusyAction("");
     }
@@ -197,7 +210,7 @@ export function PostDetailsPage() {
       await loadAll();
       await refreshMe();
     } catch (e) {
-      setError(e?.message || "Could not complete contract");
+      setError(e?.message || "Не удалось завершить контракт");
     } finally {
       setBusyAction("");
     }
@@ -216,25 +229,25 @@ export function PostDetailsPage() {
       setChatText("");
       await loadAll();
     } catch (e) {
-      setError(e?.message || "Could not send message");
+      setError(e?.message || "Не удалось отправить сообщение");
     } finally {
       setBusyAction("");
     }
   }
 
   if (loading) {
-    return <div className="mx-auto max-w-[430px] px-4 py-8 text-sm text-muted md:max-w-4xl">Loading...</div>;
+    return <div className="mx-auto max-w-[430px] px-4 py-8 text-sm text-muted md:max-w-4xl">Загрузка...</div>;
   }
 
   if (!post) {
-    return <div className="mx-auto max-w-[430px] px-4 py-8 text-sm text-muted md:max-w-4xl">Post not found.</div>;
+    return <div className="mx-auto max-w-[430px] px-4 py-8 text-sm text-muted md:max-w-4xl">Заказ не найден.</div>;
   }
 
   return (
     <div className="mx-auto w-full max-w-[430px] space-y-4 px-4 py-6 md:max-w-5xl md:px-6 md:py-8">
       <div className="flex items-center justify-between gap-2">
         <LinkButton to="/freelance" variant="secondary" className="h-11 rounded-[12px] px-3 py-2 md:rounded-btn">
-          Back
+          Назад
         </LinkButton>
         <Button
           onClick={loadAll}
@@ -242,7 +255,7 @@ export function PostDetailsPage() {
           className="h-11 rounded-[12px] px-3 py-2 md:rounded-btn"
           disabled={Boolean(busyAction)}
         >
-          Refresh
+          Обновить
         </Button>
       </div>
 
@@ -263,16 +276,16 @@ export function PostDetailsPage() {
         </div>
         <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
           <p className="text-muted">
-            Stack: <span className="text-foreground">{post.tech_stack}</span>
+            Стек: <span className="text-foreground">{post.tech_stack}</span>
           </p>
           <p className="text-muted">
-            Budget: <span className="text-accent">{formatMoney(post.budget)}</span>
+            Бюджет: <span className="text-accent">{formatMoney(post.budget)}</span>
           </p>
           <p className="text-muted">
-            Deadline: <span className="text-foreground">{formatDate(post.deadline)}</span>
+            Дедлайн: <span className="text-foreground">{formatDate(post.deadline)}</span>
           </p>
           <p className="text-muted">
-            Proposals: <span className="text-foreground">{post.proposals_count ?? 0}</span>
+            Отклики: <span className="text-foreground">{post.proposals_count ?? 0}</span>
           </p>
         </div>
       </Card>
@@ -281,16 +294,16 @@ export function PostDetailsPage() {
 
       {!isClient && post.status === "open" ? (
         <Card className="p-5">
-          <h2 className="text-lg font-semibold text-foreground">Send proposal</h2>
+          <h2 className="text-lg font-semibold text-foreground">Отправить отклик</h2>
           <textarea
             className="mt-3 min-h-[120px] w-full rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
-            placeholder="Tell client how you will solve this task"
+            placeholder="Расскажите клиенту, как вы решите эту задачу"
             value={applyMessage}
             onChange={(e) => setApplyMessage(e.target.value)}
           />
           <input
             className="mt-3 w-full rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
-            placeholder="Portfolio URL (optional)"
+            placeholder="Ссылка на портфолио (необязательно)"
             value={portfolio}
             onChange={(e) => setPortfolio(e.target.value)}
           />
@@ -299,22 +312,22 @@ export function PostDetailsPage() {
             onClick={apply}
             disabled={busyAction === "apply"}
           >
-            {busyAction === "apply" ? "Sending..." : "Apply"}
+            {busyAction === "apply" ? "Отправка..." : "Откликнуться"}
           </Button>
         </Card>
       ) : null}
 
       {isClient ? (
         <Card className="p-5">
-          <h2 className="text-lg font-semibold text-foreground">Proposals</h2>
+          <h2 className="text-lg font-semibold text-foreground">Отклики</h2>
           {proposals.length === 0 ? (
-            <p className="mt-3 text-sm text-muted">No proposals yet.</p>
+            <p className="mt-3 text-sm text-muted">Пока нет откликов.</p>
           ) : (
             <div className="mt-3 grid gap-3">
               {proposals.map((proposal) => (
                 <div key={proposal.id} className="rounded-btn border border-border bg-canvas p-3">
                   <div className="text-sm text-muted">
-                    {proposal.developer_display_name || `Developer #${proposal.developer_id}`}
+                    {proposal.developer_display_name || `Разработчик #${proposal.developer_id}`}
                   </div>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{proposal.message}</p>
                   {proposal.portfolio_url ? (
@@ -324,18 +337,20 @@ export function PostDetailsPage() {
                       rel="noreferrer"
                       className="mt-1 inline-flex text-xs text-accent hover:underline"
                     >
-                      Portfolio
+                      Портфолио
                     </a>
                   ) : null}
                   <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <span className="text-xs text-muted uppercase tracking-wide">{proposal.status}</span>
+                    <span className="text-xs text-muted uppercase tracking-wide">
+                      {resolveProposalStatusLabel(proposal.status)}
+                    </span>
                     {post.status === "open" && proposal.status === "pending" ? (
                       <Button
                         className="h-11 w-full rounded-[12px] sm:h-auto sm:w-auto sm:rounded-btn"
                         onClick={() => acceptProposal(proposal.id)}
                         disabled={busyAction === `accept:${proposal.id}`}
                       >
-                        {busyAction === `accept:${proposal.id}` ? "Selecting..." : "Select developer"}
+                        {busyAction === `accept:${proposal.id}` ? "Выбор..." : "Выбрать разработчика"}
                       </Button>
                     ) : null}
                   </div>
@@ -350,12 +365,12 @@ export function PostDetailsPage() {
         <Card className="p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-foreground">Contract #{contract.id}</h2>
+              <h2 className="text-lg font-semibold text-foreground">Контракт #{contract.id}</h2>
               <p className="mt-1 text-sm text-muted">
-                Client: <span className="text-foreground">{contract.client_display_name || contract.client_id}</span>
+                Клиент: <span className="text-foreground">{contract.client_display_name || contract.client_id}</span>
               </p>
               <p className="text-sm text-muted">
-                Developer:{" "}
+                Разработчик:{" "}
                 <span className="text-foreground">{contract.developer_display_name || contract.developer_id}</span>
               </p>
             </div>
@@ -371,7 +386,7 @@ export function PostDetailsPage() {
 
           <div className="mt-4">
             <div className="mb-1 flex items-center justify-between text-xs uppercase tracking-wide text-muted">
-              <span>Status progress</span>
+              <span>Прогресс статуса</span>
               <span>{progressPercent}%</span>
             </div>
             <ProgressBar percent={progressPercent} />
@@ -380,17 +395,17 @@ export function PostDetailsPage() {
 
           {contract.result_text ? (
             <div className="mt-4 rounded-btn border border-border bg-canvas p-3">
-              <p className="text-xs uppercase tracking-wide text-muted">Submitted result</p>
+              <p className="text-xs uppercase tracking-wide text-muted">Отправленный результат</p>
               <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{contract.result_text}</p>
             </div>
           ) : null}
 
           {isDeveloper && contract.status === "active" ? (
             <div className="mt-4">
-              <h3 className="text-sm font-semibold text-foreground">Submit result</h3>
+              <h3 className="text-sm font-semibold text-foreground">Отправить результат</h3>
               <textarea
                 className="mt-2 min-h-[120px] w-full rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
-                placeholder="Describe what was done and include links if needed"
+                placeholder="Опишите, что сделано, и добавьте ссылки при необходимости"
                 value={resultText}
                 onChange={(e) => setResultText(e.target.value)}
               />
@@ -399,17 +414,17 @@ export function PostDetailsPage() {
                 onClick={submitResult}
                 disabled={busyAction === "submit"}
               >
-                {busyAction === "submit" ? "Submitting..." : "Submit result"}
+                {busyAction === "submit" ? "Отправка..." : "Отправить результат"}
               </Button>
             </div>
           ) : null}
 
           {isClient && contract.status === "submitted" ? (
             <div className="mt-4 grid gap-3 rounded-btn border border-border bg-canvas p-3">
-              <h3 className="text-sm font-semibold text-foreground">Review delivery</h3>
+              <h3 className="text-sm font-semibold text-foreground">Проверка результата</h3>
               <textarea
                 className="min-h-[80px] w-full rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
-                placeholder="Revision note (optional)"
+                placeholder="Комментарий к доработке (необязательно)"
                 value={revisionNote}
                 onChange={(e) => setRevisionNote(e.target.value)}
               />
@@ -420,12 +435,12 @@ export function PostDetailsPage() {
                   onClick={requestRevision}
                   disabled={busyAction === "revision"}
                 >
-                  {busyAction === "revision" ? "Sending..." : "Request revision"}
+                  {busyAction === "revision" ? "Отправка..." : "Запросить доработку"}
                 </Button>
               </div>
 
               <div className="grid gap-2 sm:grid-cols-[140px_1fr] sm:items-center">
-                <label className="text-sm text-muted">Rating</label>
+                <label className="text-sm text-muted">Оценка</label>
                 <select
                   value={rating}
                   onChange={(e) => setRating(e.target.value)}
@@ -440,7 +455,7 @@ export function PostDetailsPage() {
               </div>
               <textarea
                 className="min-h-[80px] w-full rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
-                placeholder="Final review comment (optional)"
+                placeholder="Финальный отзыв (необязательно)"
                 value={reviewComment}
                 onChange={(e) => setReviewComment(e.target.value)}
               />
@@ -449,7 +464,7 @@ export function PostDetailsPage() {
                 onClick={completeContract}
                 disabled={busyAction === "complete"}
               >
-                {busyAction === "complete" ? "Completing..." : "Approve and complete"}
+                {busyAction === "complete" ? "Завершение..." : "Принять и завершить"}
               </Button>
             </div>
           ) : null}
@@ -458,7 +473,7 @@ export function PostDetailsPage() {
 
       {contract && timeline?.events?.length ? (
         <Card className="p-5">
-          <h2 className="text-lg font-semibold text-foreground">Status timeline</h2>
+          <h2 className="text-lg font-semibold text-foreground">Лента статусов</h2>
           <div className="mt-3 grid gap-2">
             {timeline.events.map((event) => (
               <div key={`${event.id}-${event.created_at}`} className="rounded-btn border border-border bg-canvas p-3">
@@ -467,7 +482,7 @@ export function PostDetailsPage() {
                   <p className="text-xs text-muted">{formatDateTime(event.created_at)}</p>
                 </div>
                 {event.actor_display_name ? (
-                  <p className="mt-1 text-xs text-muted">By: {event.actor_display_name}</p>
+                  <p className="mt-1 text-xs text-muted">От: {event.actor_display_name}</p>
                 ) : null}
                 {event.note ? <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{event.note}</p> : null}
               </div>
@@ -478,10 +493,10 @@ export function PostDetailsPage() {
 
       {contract && isContractMember ? (
         <Card className="p-5">
-          <h2 className="text-lg font-semibold text-foreground">Messages</h2>
+          <h2 className="text-lg font-semibold text-foreground">Сообщения</h2>
           <div className="mt-3 max-h-[340px] space-y-2 overflow-y-auto rounded-btn border border-border bg-canvas p-3">
             {messages.length === 0 ? (
-              <p className="text-sm text-muted">No messages yet.</p>
+              <p className="text-sm text-muted">Пока нет сообщений.</p>
             ) : (
               messages.map((msg) => {
                 const mine = user?.id === msg.sender_id;
@@ -496,7 +511,7 @@ export function PostDetailsPage() {
                       "max-w-[90%]",
                     ].join(" ")}
                   >
-                    <p className="text-xs text-muted">{mine ? "You" : msg.sender_display_name || msg.sender_id}</p>
+                    <p className="text-xs text-muted">{mine ? "Вы" : msg.sender_display_name || msg.sender_id}</p>
                     <p className="mt-1 whitespace-pre-wrap text-sm">{msg.message}</p>
                     <p className="mt-1 text-[11px] text-muted">{formatDateTime(msg.created_at)}</p>
                   </div>
@@ -508,7 +523,7 @@ export function PostDetailsPage() {
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <textarea
               className="min-h-[44px] w-full rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
-              placeholder="Type message"
+              placeholder="Введите сообщение"
               value={chatText}
               onChange={(e) => setChatText(e.target.value)}
             />
@@ -517,7 +532,7 @@ export function PostDetailsPage() {
               className="h-12 rounded-[12px] px-6 sm:h-auto sm:rounded-btn"
               disabled={busyAction === "chat" || !chatText.trim()}
             >
-              {busyAction === "chat" ? "Sending..." : "Send"}
+              {busyAction === "chat" ? "Отправка..." : "Отправить"}
             </Button>
           </div>
         </Card>

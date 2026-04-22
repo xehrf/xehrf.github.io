@@ -48,7 +48,7 @@ export function CreatePostPage() {
 
     if (!isValid) {
       setSubmitting(false);
-      setError("Please fill every field correctly. Deadline must be in the future.");
+      setError("Пожалуйста, заполните все поля корректно. Дедлайн должен быть в будущем.");
       return;
     }
 
@@ -65,7 +65,7 @@ export function CreatePostPage() {
       });
       navigate(`/freelance/posts/${post.id}`);
     } catch (e) {
-      setError(e?.message || "Could not create post");
+      setError(e?.message || "Не удалось создать заказ");
     } finally {
       setSubmitting(false);
     }
@@ -75,21 +75,21 @@ export function CreatePostPage() {
     <div className="mx-auto w-full max-w-[430px] px-4 py-6 md:max-w-3xl md:px-6 md:py-8">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Create Freelance Post</h1>
-          <p className="mt-1 text-sm text-muted">Describe the task clearly to receive stronger proposals.</p>
+          <h1 className="text-2xl font-bold text-foreground">Создать фриланс-заказ</h1>
+          <p className="mt-1 text-sm text-muted">Опишите задачу понятно, чтобы получить более сильные отклики.</p>
         </div>
         <LinkButton to="/freelance" variant="secondary" className="hidden md:inline-flex">
-          Back to list
+          Назад к списку
         </LinkButton>
       </div>
 
       <Card>
         <form onSubmit={handleSubmit} className="grid gap-4">
           <div className="grid gap-2">
-            <label className="text-sm font-medium text-foreground">Title</label>
+            <label className="text-sm font-medium text-foreground">Название</label>
             <input
               className="h-12 rounded-[12px] border border-border bg-canvas px-3 text-sm text-foreground md:h-auto md:rounded-btn md:py-2"
-              placeholder="Build Telegram bot with payment flow"
+              placeholder="Разработать Telegram-бота с оплатой"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={200}
@@ -97,18 +97,18 @@ export function CreatePostPage() {
           </div>
 
           <div className="grid gap-2">
-            <label className="text-sm font-medium text-foreground">Description</label>
+            <label className="text-sm font-medium text-foreground">Описание</label>
             <textarea
               className="min-h-[160px] rounded-[12px] border border-border bg-canvas px-3 py-3 text-sm text-foreground md:rounded-btn"
-              placeholder="Expected functionality, priorities, and delivery format..."
+              placeholder="Ожидаемый функционал, приоритеты и формат сдачи..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
-            <p className="text-xs text-muted">Minimum 10 characters</p>
+            <p className="text-xs text-muted">Минимум 10 символов</p>
           </div>
 
           <div className="grid gap-2">
-            <label className="text-sm font-medium text-foreground">Tech stack</label>
+            <label className="text-sm font-medium text-foreground">Технологический стек</label>
             <input
               className="h-12 rounded-[12px] border border-border bg-canvas px-3 text-sm text-foreground md:h-auto md:rounded-btn md:py-2"
               placeholder="Python, FastAPI, PostgreSQL"
@@ -120,7 +120,7 @@ export function CreatePostPage() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <label className="text-sm font-medium text-foreground">Budget</label>
+              <label className="text-sm font-medium text-foreground">Бюджет</label>
               <input
                 className="h-12 rounded-[12px] border border-border bg-canvas px-3 text-sm text-foreground md:h-auto md:rounded-btn md:py-2"
                 placeholder="1000"
@@ -130,11 +130,11 @@ export function CreatePostPage() {
                 onChange={(e) => setBudget(e.target.value)}
               />
               <p className="text-xs text-muted">
-                Preview: <span className="text-foreground">{formatMoney(budget || 0)}</span>
+                Предпросмотр: <span className="text-foreground">{formatMoney(budget || 0)}</span>
               </p>
             </div>
             <div className="grid gap-2">
-              <label className="text-sm font-medium text-foreground">Deadline</label>
+              <label className="text-sm font-medium text-foreground">Дедлайн</label>
               <input
                 className="h-12 rounded-[12px] border border-border bg-canvas px-3 text-sm text-foreground md:h-auto md:rounded-btn md:py-2"
                 type="datetime-local"
@@ -152,14 +152,14 @@ export function CreatePostPage() {
               variant="secondary"
               className="h-12 w-full justify-center rounded-[12px] sm:h-auto sm:w-auto sm:rounded-btn"
             >
-              Cancel
+              Отмена
             </LinkButton>
             <Button
               type="submit"
               disabled={submitting || !isValid}
               className="h-12 w-full rounded-[12px] text-base sm:h-auto sm:w-auto sm:rounded-btn sm:text-sm"
             >
-              {submitting ? "Publishing..." : "Publish post"}
+              {submitting ? "Публикация..." : "Опубликовать заказ"}
             </Button>
           </div>
         </form>
