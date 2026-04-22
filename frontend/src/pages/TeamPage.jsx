@@ -235,12 +235,12 @@ export function TeamPage() {
       if (avatarFile) {
         const fd = new FormData();
         fd.append("file", avatarFile);
-        await apiFetch(`/teams/${team.team_id}/avatar`, { method: "POST", formData: fd });
+        await apiFetch(`/teams/${team.team_id}/avatar`, { method: "POST", body: fd });
       }
       if (bannerFile) {
         const fd = new FormData();
         fd.append("file", bannerFile);
-        await apiFetch(`/teams/${team.team_id}/banner`, { method: "POST", formData: fd });
+        await apiFetch(`/teams/${team.team_id}/banner`, { method: "POST", body: fd });
       }
       const updated = await apiFetch("/teams/current");
       setTeam(updated);
