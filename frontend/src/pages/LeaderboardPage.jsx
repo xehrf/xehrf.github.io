@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../components/ui/Card.jsx";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
-import { apiFetch } from "../api/client";
+import { apiFetch, resolveAssetUrl } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
 
 function formatNumber(value) {
-  return new Intl.NumberFormat("en-US").format(Number(value || 0));
+  return new Intl.NumberFormat("ru-RU").format(Number(value || 0));
 }
 
 function formatPercent(value) {
@@ -24,6 +24,7 @@ function pointsToPath(points, width, height, padding) {
   const spanY = Math.max(1, maxY - minY);
   const toCanvasX = (x) => padding + ((x - minX) / spanX) * (width - padding * 2);
   const toCanvasY = (y) => height - padding - ((y - minY) / spanY) * (height - padding * 2);
+
   return points
     .map((point, index) => `${index === 0 ? "M" : "L"} ${toCanvasX(point.x).toFixed(2)} ${toCanvasY(point.y).toFixed(2)}`)
     .join(" ");
@@ -33,6 +34,7 @@ function HistoryChart({ points }) {
   const width = 800;
   const height = 260;
   const padding = 24;
+
   const chartPoints = useMemo(() => {
     let cumulative = 0;
     return (points || []).map((point, index) => {
@@ -40,20 +42,21 @@ function HistoryChart({ points }) {
       return { x: index, y: cumulative, label: point.date };
     });
   }, [points]);
+
   const path = useMemo(() => pointsToPath(chartPoints, width, height, padding), [chartPoints]);
   const min = chartPoints.length ? Math.min(...chartPoints.map((p) => p.y)) : 0;
   const max = chartPoints.length ? Math.max(...chartPoints.map((p) => p.y)) : 0;
 
   if (!chartPoints.length) {
-    return <p className="text-sm text-muted">No history points yet.</p>;
+    return <p className="text-sm text-muted">Нет данных для графика за выбранный период.</p>;
   }
 
   return (
     <div>
       <div className="mb-2 flex items-center justify-between text-xs text-muted">
-        <span>Delta range</span>
+        <span>Диапазон дельты</span>
         <span>
-          {formatNumber(min)} to {formatNumber(max)}
+          {formatNumber(min)} .. {formatNumber(max)}
         </span>
       </div>
       <svg viewBox={`0 0 ${width} ${height}`} className="h-[240px] w-full rounded-btn border border-border bg-canvas">
@@ -83,8 +86,130 @@ function buildFilterQuery(filters) {
   return params.toString();
 }
 
-export function LeaderboardPage() {
+function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onTogglePin, onCompare }) {
+  if (!row) {
+    return (
+      <div className="flex h-full min-h-[280px] items-center justify-center rounded-btn border border-dashed border-border bg-canvas p-4 text-center text-sm text-muted">
+        Наведите курсор на участника таблицы или нажмите на строку, чтобы закрепить минипрофиль.
+      </div>
+    );
+  }
+
+  const nickname = profile?.nickname || row.nickname || row.display_name || "unknown";
+  const displayName = profile?.nickname || profile?.display_name || row.display_name || "Unknown";
+  const avatarUrl = resolveAssetUrl(profile?.avatar_url || row.avatar_url || "");
+  const bannerUrl = resolveAssetUrl(profile?.banner_url || "");
+  const bio = profile?.bio?.trim() || "Пока без описания. Нажмите «Сравнить», чтобы посмотреть разницу по PTS.";
+  const role = typeof profile?.role === "string" ? profile.role.trim() : "";
+
+  const hasProfileSkills = Array.isArray(profile?.skills) && profile.skills.length > 0;
+  const skillChips = hasProfileSkills
+    ? profile.skills.map((item) => ({
+        key: `skill:${item.id ?? item.skill_name}`,
+        label: item.skill_name,
+        proficiency: item.proficiency,
+      }))
+    : (Array.isArray(profile?.technologies) && profile.technologies.length > 0
+        ? profile.technologies
+        : Array.isArray(row.technologies)
+          ? row.technologies
+          : []
+      ).map((tech) => ({
+        key: `tech:${tech}`,
+        label: tech,
+        proficiency: null,
+      }));
+
+  return (
+    <div className="overflow-hidden rounded-btn border border-border bg-canvas">
+      <div className="relative h-20">
+        {bannerUrl ? (
+          <img src={bannerUrl} alt={`Баннер ${displayName}`} className="h-full w-full object-cover" />
+        ) : (
+          <div className="h-full w-full bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900" />
+        )}
+      </div>
+
+      <div className="p-4">
+        <div className="-mt-10 flex items-end gap-3">
+          <div className="h-16 w-16 overflow-hidden rounded-full border-[3px] border-canvas bg-elevated">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={`Аватар ${displayName}`} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-xl font-bold text-foreground">
+                {displayName[0]?.toUpperCase() || "?"}
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 pb-1">
+            <p className="truncate text-base font-semibold text-foreground">{displayName}</p>
+            <p className="truncate text-xs text-muted">@{nickname}</p>
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-center gap-2 text-xs text-muted">
+          <span>PTS {formatNumber(row.pts_total)}</span>
+          <span>|</span>
+          <span>Серия {formatNumber(row.pvp_win_streak)}</span>
+          <span>|</span>
+          <span className="capitalize">{row.level}</span>
+        </div>
+
+        {role ? (
+          <p className="mt-2 inline-flex rounded-full border border-border bg-elevated px-2 py-1 text-[11px] uppercase tracking-wide text-accent">
+            Роль: {role}
+          </p>
+        ) : null}
+
+        <p className="mt-3 rounded-btn border border-border/70 bg-elevated/60 px-3 py-2 text-xs leading-5 text-foreground/90">
+          {bio}
+        </p>
+
+        <div className="mt-3">
+          <p className="mb-2 text-[11px] uppercase tracking-wide text-muted">Навыки</p>
+          <div className="flex flex-wrap gap-2">
+            {skillChips.length === 0 ? (
+              <span className="rounded-full border border-dashed border-border px-2 py-1 text-xs text-muted">
+                Навыки не указаны
+              </span>
+            ) : (
+              skillChips.slice(0, 8).map((chip) => (
+                <span
+                  key={chip.key}
+                  className="inline-flex items-center rounded-full border border-border bg-elevated px-2.5 py-1 text-xs text-foreground"
+                >
+                  {chip.label}
+                  {chip.proficiency ? <span className="ml-1 text-muted">{chip.proficiency}/5</span> : null}
+                </span>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Button onClick={onTogglePin} variant={pinned ? "secondary" : "primary"} className="h-10 rounded-[10px] px-3">
+            {pinned ? "Открепить" : "Закрепить"}
+          </Button>
+          <Button
+            onClick={onCompare}
+            variant="secondary"
+            disabled={isSelf}
+            className="h-10 rounded-[10px] px-3"
+            title={isSelf ? "Сравнение с самим собой не требуется" : "Сравнить этого игрока"}
+          >
+            Сравнить
+          </Button>
+        </div>
+
+        {loading ? <p className="mt-2 text-xs text-muted">Загружаем дополнительные данные профиля…</p> : null}
+      </div>
+    </div>
+  );
+}
+
+export function LeaderboardContent({ embedded = false }) {
   const { user } = useAuth();
+
   const [meta, setMeta] = useState({ periods: ["all_time"], seasons: [], languages: [], topics: [] });
   const [filters, setFilters] = useState({
     period: "all_time",
@@ -102,17 +227,40 @@ export function LeaderboardPage() {
   const [compareData, setCompareData] = useState(null);
   const [compareError, setCompareError] = useState("");
 
+  const [hoveredUserId, setHoveredUserId] = useState(null);
+  const [pinnedUserId, setPinnedUserId] = useState(null);
+  const [profileByUserId, setProfileByUserId] = useState({});
+  const [profileLoadingByUserId, setProfileLoadingByUserId] = useState({});
+
+  const compareSectionRef = useRef(null);
+
   const categoryOptions = useMemo(() => {
     if (filters.categoryType === "language") return meta.languages || [];
     if (filters.categoryType === "topic") return meta.topics || [];
     return [];
   }, [filters.categoryType, meta.languages, meta.topics]);
 
+  const compareCandidates = useMemo(() => {
+    return (leaderboard.items || []).filter((item) => Number(item.user_id) !== Number(user?.id));
+  }, [leaderboard.items, user?.id]);
+
+  const rowByUserId = useMemo(() => {
+    return new Map((leaderboard.items || []).map((row) => [Number(row.user_id), row]));
+  }, [leaderboard.items]);
+
+  const activePreviewUserId = pinnedUserId ?? hoveredUserId;
+  const activePreviewRow =
+    activePreviewUserId == null ? null : (rowByUserId.get(Number(activePreviewUserId)) ?? null);
+  const activePreviewKey = activePreviewUserId == null ? "" : String(activePreviewUserId);
+  const activePreviewProfile = activePreviewKey ? profileByUserId[activePreviewKey] ?? null : null;
+  const activePreviewLoading = activePreviewKey ? Boolean(profileLoadingByUserId[activePreviewKey]) : false;
+
   async function loadMeta() {
     const [seasonsData, categoriesData] = await Promise.all([
       apiFetch("/rating/seasons"),
       apiFetch("/rating/categories"),
     ]);
+
     setMeta({
       periods: Array.isArray(seasonsData?.periods) ? seasonsData.periods : ["all_time"],
       seasons: Array.isArray(seasonsData?.seasons) ? seasonsData.seasons : [],
@@ -121,62 +269,92 @@ export function LeaderboardPage() {
     });
   }
 
-  async function loadMain() {
-    setLoading(true);
-    setError("");
-    try {
-      const query = buildFilterQuery(filters);
-      const suffix = query ? `?${query}` : "";
-      const [lb, pos, hist] = await Promise.all([
-        apiFetch(`/rating/leaderboard${suffix}`),
-        apiFetch(`/rating/position/me${suffix}`),
-        apiFetch(`/rating/history/me${suffix}`),
-      ]);
-      setLeaderboard(lb || { items: [], total: 0, me: null });
-      setPosition(pos || null);
-      setHistory(hist || { chart: [], items: [] });
-    } catch (e) {
-      setError(e?.message || "Could not load leaderboard");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadCompare(otherId) {
+  async function loadCompare(otherId, nextFilters = filters) {
     if (!otherId) {
       setCompareData(null);
       setCompareError("");
       return;
     }
+
     setCompareError("");
+
     try {
       const params = new URLSearchParams();
       params.set("other_user_id", String(otherId));
-      if (filters.period) params.set("period", filters.period);
-      if (filters.season) params.set("season", filters.season);
-      if (filters.categoryType) params.set("category_type", filters.categoryType);
-      if (filters.category) params.set("category", filters.category);
+      if (nextFilters.period) params.set("period", nextFilters.period);
+      if (nextFilters.season) params.set("season", nextFilters.season);
+      if (nextFilters.categoryType) params.set("category_type", nextFilters.categoryType);
+      if (nextFilters.category) params.set("category", nextFilters.category);
       const data = await apiFetch(`/rating/compare?${params.toString()}`);
       setCompareData(data);
     } catch (e) {
-      setCompareError(e?.message || "Could not compare users");
+      setCompareError(e?.message || "Не удалось сравнить пользователей");
       setCompareData(null);
+    }
+  }
+
+  async function ensureProfileLoaded(userId) {
+    if (userId == null || userId === "") return;
+    const key = String(userId);
+    if (profileLoadingByUserId[key]) return;
+    if (Object.prototype.hasOwnProperty.call(profileByUserId, key)) return;
+
+    setProfileLoadingByUserId((prev) => ({ ...prev, [key]: true }));
+
+    try {
+      const profile = await apiFetch(`/users/${key}/profile`);
+      setProfileByUserId((prev) => ({ ...prev, [key]: profile || null }));
+    } catch {
+      setProfileByUserId((prev) => ({ ...prev, [key]: null }));
+    } finally {
+      setProfileLoadingByUserId((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
+  }
+
+  async function loadMain(nextFilters = filters) {
+    setLoading(true);
+    setError("");
+
+    try {
+      const query = buildFilterQuery(nextFilters);
+      const suffix = query ? `?${query}` : "";
+
+      const [lb, pos, hist] = await Promise.all([
+        apiFetch(`/rating/leaderboard${suffix}`),
+        apiFetch(`/rating/position/me${suffix}`),
+        apiFetch(`/rating/history/me${suffix}`),
+      ]);
+
+      setLeaderboard(lb || { items: [], total: 0, me: null });
+      setPosition(pos || null);
+      setHistory(hist || { chart: [], items: [] });
+      await loadCompare(compareUserId, nextFilters);
+    } catch (e) {
+      setError(e?.message || "Не удалось загрузить рейтинг");
+    } finally {
+      setLoading(false);
     }
   }
 
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       try {
         await loadMeta();
         if (mounted) await loadMain();
       } catch (e) {
         if (mounted) {
-          setError(e?.message || "Could not load rating metadata");
+          setError(e?.message || "Не удалось загрузить метаданные рейтинга");
           setLoading(false);
         }
       }
     })();
+
     return () => {
       mounted = false;
     };
@@ -184,38 +362,79 @@ export function LeaderboardPage() {
   }, []);
 
   useEffect(() => {
-    loadCompare(compareUserId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compareUserId]);
+    const knownIds = new Set((leaderboard.items || []).map((item) => Number(item.user_id)));
 
-  const compareCandidates = useMemo(() => {
-    return (leaderboard.items || []).filter((item) => Number(item.user_id) !== Number(user?.id));
-  }, [leaderboard.items, user?.id]);
+    if (hoveredUserId != null && !knownIds.has(Number(hoveredUserId))) {
+      setHoveredUserId(null);
+    }
+
+    if (pinnedUserId != null && !knownIds.has(Number(pinnedUserId))) {
+      setPinnedUserId(null);
+    }
+  }, [leaderboard.items, hoveredUserId, pinnedUserId]);
 
   function updateFilter(key, value) {
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
 
   function resetFilters() {
-    setFilters({
+    const next = {
       period: "all_time",
       season: "",
       categoryType: "",
       category: "",
       search: "",
-    });
+    };
+
+    setFilters(next);
+    loadMain(next);
+  }
+
+  function selectUserForCompare(userId, { scroll = false } = {}) {
+    const candidateId = Number(userId);
+    if (!candidateId || candidateId === Number(user?.id)) return;
+
+    const nextId = String(candidateId);
+    setCompareUserId(nextId);
+    loadCompare(nextId);
+
+    if (scroll) {
+      window.requestAnimationFrame(() => {
+        compareSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }
+
+  function handleLeaderboardRowHover(row) {
+    setHoveredUserId(row.user_id);
+    ensureProfileLoaded(row.user_id);
+  }
+
+  function handleLeaderboardRowClick(row) {
+    const rowId = Number(row.user_id);
+    const alreadyPinned = Number(pinnedUserId) === rowId;
+
+    setPinnedUserId(alreadyPinned ? null : rowId);
+    setHoveredUserId(rowId);
+    ensureProfileLoaded(rowId);
+
+    if (!alreadyPinned) {
+      selectUserForCompare(rowId, { scroll: true });
+    }
   }
 
   return (
-    <div className="mx-auto w-full max-w-[430px] space-y-4 px-4 py-6 md:max-w-6xl md:px-6 md:py-8">
+    <div className={embedded ? "space-y-4" : "mx-auto w-full max-w-[430px] space-y-4 px-4 py-6 md:max-w-6xl md:px-6 md:py-8"}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Rating & Leaderboard</h1>
-          <p className="mt-1 text-sm text-muted">PTS ranking, rating history, filters, and player comparison.</p>
+          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Рейтинг PvP</h1>
+          <p className="mt-1 text-sm text-muted">Таблица лидеров, график PTS и сравнение игроков.</p>
         </div>
-        <LinkButton to="/dashboard" variant="secondary" className="h-11 rounded-[12px] px-4 py-2 md:rounded-btn">
-          Back to tasks
-        </LinkButton>
+        {!embedded ? (
+          <LinkButton to="/dashboard" variant="secondary" className="h-11 rounded-[12px] px-4 py-2 md:rounded-btn">
+            Назад к задачам
+          </LinkButton>
+        ) : null}
       </div>
 
       <Card className="p-4">
@@ -231,18 +450,20 @@ export function LeaderboardPage() {
               </option>
             ))}
           </select>
+
           <select
             value={filters.season}
             onChange={(e) => updateFilter("season", e.target.value)}
             className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
           >
-            <option value="">No season override</option>
+            <option value="">Без сезона</option>
             {(meta.seasons || []).map((season) => (
               <option key={season.code} value={season.code}>
                 {season.title}
               </option>
             ))}
           </select>
+
           <select
             value={filters.categoryType}
             onChange={(e) => {
@@ -251,146 +472,228 @@ export function LeaderboardPage() {
             }}
             className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
           >
-            <option value="">All categories</option>
-            <option value="language">Language</option>
-            <option value="topic">Topic</option>
+            <option value="">Все категории</option>
+            <option value="language">Язык</option>
+            <option value="topic">Тема</option>
           </select>
+
           <select
             value={filters.category}
             onChange={(e) => updateFilter("category", e.target.value)}
             disabled={!filters.categoryType}
             className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground disabled:opacity-60"
           >
-            <option value="">All {filters.categoryType || "categories"}</option>
+            <option value="">Все значения</option>
             {categoryOptions.map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>
             ))}
           </select>
+
           <input
             value={filters.search}
             onChange={(e) => updateFilter("search", e.target.value)}
-            placeholder="Search player"
+            placeholder="Поиск игрока"
             className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
           />
+
           <div className="grid grid-cols-2 gap-2">
-            <Button onClick={loadMain} className="h-11 rounded-[12px] md:rounded-btn">
-              Apply
+            <Button onClick={() => loadMain()} className="h-11 rounded-[12px] md:rounded-btn">
+              Применить
             </Button>
             <Button onClick={resetFilters} variant="secondary" className="h-11 rounded-[12px] md:rounded-btn">
-              Reset
+              Сброс
             </Button>
           </div>
         </div>
       </Card>
 
-      {loading ? <Card className="text-sm text-muted">Loading rating...</Card> : null}
+      {loading ? <Card className="text-sm text-muted">Загрузка рейтинга...</Card> : null}
       {error ? <Card className="text-sm text-accent">{error}</Card> : null}
 
       {!loading && !error ? (
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Card className="p-4">
-              <p className="text-xs uppercase tracking-wide text-muted">My rank</p>
+              <p className="text-xs uppercase tracking-wide text-muted">Место</p>
               <p className="mt-1 text-2xl font-semibold text-foreground">#{position?.rank ?? "-"}</p>
             </Card>
             <Card className="p-4">
-              <p className="text-xs uppercase tracking-wide text-muted">Percentile</p>
+              <p className="text-xs uppercase tracking-wide text-muted">Перцентиль</p>
               <p className="mt-1 text-2xl font-semibold text-foreground">{formatPercent(position?.percentile || 0)}</p>
             </Card>
             <Card className="p-4">
-              <p className="text-xs uppercase tracking-wide text-muted">Period delta</p>
+              <p className="text-xs uppercase tracking-wide text-muted">Дельта периода</p>
               <p className="mt-1 text-2xl font-semibold text-foreground">{formatNumber(position?.pts_period || 0)}</p>
             </Card>
           </div>
 
           <Card className="p-5">
-            <h2 className="text-lg font-semibold text-foreground">Leaderboard</h2>
-            <p className="mt-1 text-xs text-muted">Total players: {formatNumber(leaderboard.total || 0)}</p>
+            <h2 className="text-lg font-semibold text-foreground">Таблица лидеров</h2>
+            <p className="mt-1 text-xs text-muted">Игроков в выборке: {formatNumber(leaderboard.total || 0)}</p>
+            <p className="mt-1 text-xs text-muted">Hover показывает минипрофиль, клик закрепляет карточку и добавляет игрока в сравнение.</p>
+
             {(leaderboard.items || []).length === 0 ? (
-              <p className="mt-3 text-sm text-muted">No players match selected filters.</p>
+              <p className="mt-3 text-sm text-muted">По этим фильтрам нет игроков.</p>
             ) : (
-              <div className="mt-3 overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
-                      <th className="py-2 pr-4">Rank</th>
-                      <th className="py-2 pr-4">Player</th>
-                      <th className="py-2 pr-4">Total PTS</th>
-                      <th className="py-2 pr-4">Period PTS</th>
-                      <th className="py-2 pr-4">Streak</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leaderboard.items.map((row) => (
-                      <tr key={row.user_id} className="border-b border-border/60 text-foreground">
-                        <td className="py-2 pr-4 font-semibold">#{row.rank}</td>
-                        <td className="py-2 pr-4">
-                          <div className="font-medium">{row.display_name}</div>
-                          <div className="text-xs text-muted">{row.level}</div>
-                        </td>
-                        <td className="py-2 pr-4">{formatNumber(row.pts_total)}</td>
-                        <td className="py-2 pr-4">{formatNumber(row.pts_period)}</td>
-                        <td className="py-2 pr-4">{formatNumber(row.pvp_win_streak)}</td>
+              <div className="mt-3 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+                <div className="overflow-x-auto rounded-btn border border-border/70">
+                  <table className="min-w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
+                        <th className="py-2 pl-3 pr-4">Место</th>
+                        <th className="py-2 pr-4">Игрок</th>
+                        <th className="py-2 pr-4">Общий PTS</th>
+                        <th className="py-2 pr-4">PTS за период</th>
+                        <th className="py-2 pr-4">Серия</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody onMouseLeave={() => setHoveredUserId(null)}>
+                      {leaderboard.items.map((row) => {
+                        const rowId = Number(row.user_id);
+                        const isActive = Number(activePreviewUserId) === rowId;
+                        const isPinned = Number(pinnedUserId) === rowId;
+                        const avatarUrl = resolveAssetUrl(row.avatar_url || "");
+
+                        return (
+                          <tr
+                            key={row.user_id}
+                            className={[
+                              "cursor-pointer border-b border-border/60 text-foreground transition-colors",
+                              isActive ? "bg-accent/10" : "hover:bg-canvas/60",
+                            ].join(" ")}
+                            onMouseEnter={() => handleLeaderboardRowHover(row)}
+                            onClick={() => handleLeaderboardRowClick(row)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                handleLeaderboardRowClick(row);
+                              }
+                            }}
+                            tabIndex={0}
+                            aria-label={`Игрок ${row.display_name}`}
+                          >
+                            <td className="py-2 pl-3 pr-4 font-semibold">
+                              <span>#{row.rank}</span>
+                              {isPinned ? <span className="ml-2 text-[10px] uppercase tracking-wide text-accent">pin</span> : null}
+                            </td>
+
+                            <td className="py-2 pr-4">
+                              <div className="flex items-center gap-3">
+                                <div className="h-9 w-9 overflow-hidden rounded-full border border-border bg-elevated">
+                                  {avatarUrl ? (
+                                    <img src={avatarUrl} alt={`Аватар ${row.display_name}`} className="h-full w-full object-cover" />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-foreground">
+                                      {(row.display_name || "?")[0]?.toUpperCase() || "?"}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="truncate font-medium">{row.display_name}</div>
+                                  <div className="truncate text-xs text-muted">
+                                    @{row.nickname} | {row.level}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="py-2 pr-4">{formatNumber(row.pts_total)}</td>
+                            <td className="py-2 pr-4">{formatNumber(row.pts_period)}</td>
+                            <td className="py-2 pr-4">{formatNumber(row.pvp_win_streak)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <LeaderboardMiniProfileCard
+                  row={activePreviewRow}
+                  profile={activePreviewProfile}
+                  loading={activePreviewLoading}
+                  pinned={Boolean(activePreviewRow && Number(pinnedUserId) === Number(activePreviewRow.user_id))}
+                  isSelf={Boolean(activePreviewRow && Number(activePreviewRow.user_id) === Number(user?.id))}
+                  onTogglePin={() => {
+                    if (!activePreviewRow) return;
+                    const activeId = Number(activePreviewRow.user_id);
+                    const isAlreadyPinned = Number(pinnedUserId) === activeId;
+                    setPinnedUserId(isAlreadyPinned ? null : activeId);
+                    ensureProfileLoaded(activeId);
+                  }}
+                  onCompare={() => {
+                    if (!activePreviewRow) return;
+                    selectUserForCompare(activePreviewRow.user_id, { scroll: true });
+                  }}
+                />
               </div>
             )}
           </Card>
 
           <Card className="p-5">
-            <h2 className="text-lg font-semibold text-foreground">Rating history chart</h2>
-            <p className="mt-1 text-xs text-muted">Cumulative PTS delta for selected filters.</p>
+            <h2 className="text-lg font-semibold text-foreground">График изменения PTS</h2>
+            <p className="mt-1 text-xs text-muted">Накопленная дельта по выбранным фильтрам.</p>
             <div className="mt-3">
               <HistoryChart points={history.chart || []} />
             </div>
           </Card>
 
-          <Card className="p-5">
-            <h2 className="text-lg font-semibold text-foreground">Compare with another user</h2>
-            <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(220px,320px)_1fr] sm:items-start">
-              <select
-                value={compareUserId}
-                onChange={(e) => setCompareUserId(e.target.value)}
-                className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
-              >
-                <option value="">Select player from current leaderboard</option>
-                {compareCandidates.map((item) => (
-                  <option key={item.user_id} value={item.user_id}>
-                    {item.display_name} (#{item.rank})
-                  </option>
-                ))}
-              </select>
-              {compareError ? <p className="text-sm text-accent">{compareError}</p> : null}
-              {compareData ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <div className="rounded-btn border border-border bg-canvas p-3">
-                    <p className="text-xs uppercase tracking-wide text-muted">{compareData.left.display_name}</p>
-                    <p className="mt-1 text-sm text-foreground">Total: {formatNumber(compareData.left.pts_total)}</p>
-                    <p className="text-sm text-foreground">Period: {formatNumber(compareData.left.pts_period)}</p>
-                    <p className="text-sm text-muted">Rank: {compareData.left.rank ?? "-"}</p>
+          <div ref={compareSectionRef}>
+            <Card className="p-5">
+              <h2 className="text-lg font-semibold text-foreground">Сравнение с другим игроком</h2>
+              <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(220px,320px)_1fr] sm:items-start">
+                <select
+                  value={compareUserId}
+                  onChange={(e) => {
+                    const nextId = e.target.value;
+                    setCompareUserId(nextId);
+                    loadCompare(nextId);
+                    ensureProfileLoaded(nextId);
+                  }}
+                  className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
+                >
+                  <option value="">Выберите игрока из таблицы</option>
+                  {compareCandidates.map((item) => (
+                    <option key={item.user_id} value={item.user_id}>
+                      {item.display_name} (#{item.rank})
+                    </option>
+                  ))}
+                </select>
+
+                {compareError ? <p className="text-sm text-accent">{compareError}</p> : null}
+
+                {compareData ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-btn border border-border bg-canvas p-3">
+                      <p className="text-xs uppercase tracking-wide text-muted">{compareData.left.display_name}</p>
+                      <p className="mt-1 text-sm text-foreground">Общий: {formatNumber(compareData.left.pts_total)}</p>
+                      <p className="text-sm text-foreground">Период: {formatNumber(compareData.left.pts_period)}</p>
+                      <p className="text-sm text-muted">Место: {compareData.left.rank ?? "-"}</p>
+                    </div>
+                    <div className="rounded-btn border border-border bg-canvas p-3">
+                      <p className="text-xs uppercase tracking-wide text-muted">{compareData.right.display_name}</p>
+                      <p className="mt-1 text-sm text-foreground">Общий: {formatNumber(compareData.right.pts_total)}</p>
+                      <p className="text-sm text-foreground">Период: {formatNumber(compareData.right.pts_period)}</p>
+                      <p className="text-sm text-muted">Место: {compareData.right.rank ?? "-"}</p>
+                    </div>
+                    <div className="rounded-btn border border-border bg-canvas p-3 sm:col-span-2">
+                      <p className="text-xs uppercase tracking-wide text-muted">Разница (вы - соперник)</p>
+                      <p className="mt-1 text-sm text-foreground">
+                        Общий: {formatNumber(compareData.pts_total_diff)} | Период: {formatNumber(compareData.pts_period_diff)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="rounded-btn border border-border bg-canvas p-3">
-                    <p className="text-xs uppercase tracking-wide text-muted">{compareData.right.display_name}</p>
-                    <p className="mt-1 text-sm text-foreground">Total: {formatNumber(compareData.right.pts_total)}</p>
-                    <p className="text-sm text-foreground">Period: {formatNumber(compareData.right.pts_period)}</p>
-                    <p className="text-sm text-muted">Rank: {compareData.right.rank ?? "-"}</p>
-                  </div>
-                  <div className="rounded-btn border border-border bg-canvas p-3 sm:col-span-2">
-                    <p className="text-xs uppercase tracking-wide text-muted">Difference (you - opponent)</p>
-                    <p className="mt-1 text-sm text-foreground">
-                      Total: {formatNumber(compareData.pts_total_diff)} | Period: {formatNumber(compareData.pts_period_diff)}
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </Card>
+                ) : null}
+              </div>
+            </Card>
+          </div>
         </>
       ) : null}
     </div>
   );
+}
+
+export function LeaderboardPage() {
+  return <LeaderboardContent embedded={false} />;
 }

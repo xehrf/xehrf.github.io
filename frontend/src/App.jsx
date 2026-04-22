@@ -5,7 +5,6 @@ import { FreelancePage } from "./pages/FreelancePage.jsx";
 import { HomePage } from "./pages/HomePage.jsx";
 import { LoginPage } from "./pages/LoginPage.jsx";
 import { MatchmakingPage } from "./pages/MatchmakingPage.jsx";
-import { LeaderboardPage } from "./pages/LeaderboardPage.jsx";
 import { CreatePostPage } from "./pages/CreatePostPage.jsx";
 import { MyJobsPage } from "./pages/MyJobsPage.jsx";
 import { PostDetailsPage } from "./pages/PostDetailsPage.jsx";
@@ -94,7 +93,7 @@ export default function App() {
           path="/leaderboard"
           element={
             <RequireAuth>
-              <LeaderboardPage />
+              <Navigate to="/matchmaking?tab=leaderboard" replace />
             </RequireAuth>
           }
         />

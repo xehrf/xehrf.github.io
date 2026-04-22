@@ -51,9 +51,7 @@ export function Navbar({ user }) {
           <NavLink to="/teams" className={navLinkClass}>
             Команды
           </NavLink>
-          <NavLink to="/leaderboard" className={navLinkClass}>
-            Leaderboard
-          </NavLink>
+
           <NavLink to="/profile" className={navLinkClass}>
             Профиль
           </NavLink>

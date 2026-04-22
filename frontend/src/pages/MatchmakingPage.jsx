@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { apiFetch, getWebSocketBaseUrl, resolveAssetUrl } from "../api/client";
+import { LeaderboardContent } from "./LeaderboardPage.jsx";
 
 const PARTY_SIZE = 2;
 
@@ -598,7 +599,9 @@ function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender }) {
 
 export function MatchmakingPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isMobile = useMediaQuery("(max-width: 767px)");
+  const activeTab = searchParams.get("tab") === "leaderboard" ? "leaderboard" : "duel";
 
   const myUserId = useMemo(() => getMyUserIdFromToken(), []);
   const [activeMatch, setActiveMatch] = useState(null);
@@ -617,6 +620,16 @@ export function MatchmakingPage() {
     if (searching) return "searching";
     return "idle";
   }, [activeMatch, searching]);
+
+  function switchTab(tab) {
+    const next = new URLSearchParams(searchParams);
+    if (tab === "leaderboard") {
+      next.set("tab", "leaderboard");
+    } else {
+      next.delete("tab");
+    }
+    setSearchParams(next, { replace: true });
+  }
 
   const loadQuests = useCallback(async () => {
     try {
@@ -849,7 +862,34 @@ export function MatchmakingPage() {
           <p className="mt-2 text-sm text-white/55">Очередь, подключение соперника и дуэльные задания 1v1.</p>
         </div>
 
-        {teamCurrent ? (
+        <div className="mx-auto mb-6 flex max-w-xl rounded-2xl border border-yellow-500/20 bg-slate-950/70 p-1">
+          <button
+            type="button"
+            onClick={() => switchTab("duel")}
+            className={[
+              "h-11 flex-1 rounded-xl text-sm font-semibold transition",
+              activeTab === "duel" ? "bg-yellow-400 text-slate-950" : "text-white/75 hover:text-white",
+            ].join(" ")}
+          >
+            Дуэль
+          </button>
+          <button
+            type="button"
+            onClick={() => switchTab("leaderboard")}
+            className={[
+              "h-11 flex-1 rounded-xl text-sm font-semibold transition",
+              activeTab === "leaderboard" ? "bg-yellow-400 text-slate-950" : "text-white/75 hover:text-white",
+            ].join(" ")}
+          >
+            Рейтинг
+          </button>
+        </div>
+
+        {activeTab === "leaderboard" ? (
+          <LeaderboardContent embedded />
+        ) : (
+          <>
+            {teamCurrent ? (
           <div className="mb-6 rounded-2xl border border-yellow-500/20 bg-slate-950 p-5 text-sm text-white">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -937,6 +977,8 @@ export function MatchmakingPage() {
 
             {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : null}
           </div>
+        )}
+          </>
         )}
       </div>
     </div>
