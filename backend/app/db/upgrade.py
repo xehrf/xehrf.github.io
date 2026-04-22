@@ -1,6 +1,6 @@
 from sqlalchemy import inspect, text
 
-from app.db.models import User
+from app.db.models import Team, User
 from app.db.session import engine
 
 
@@ -31,6 +31,15 @@ def upgrade_user_profile_fields() -> None:
             )
 
 
+def upgrade_team_profile_fields() -> None:
+    with engine.begin() as connection:
+        if not has_column(Team.__tablename__, "avatar_url"):
+            connection.execute(text("ALTER TABLE teams ADD COLUMN avatar_url VARCHAR(1024) NULL"))
+        if not has_column(Team.__tablename__, "banner_url"):
+            connection.execute(text("ALTER TABLE teams ADD COLUMN banner_url VARCHAR(1024) NULL"))
+
+
 if __name__ == "__main__":
     upgrade_user_profile_fields()
-    print("User profile fields upgraded.")
+    upgrade_team_profile_fields()
+    print("User and team profile fields upgraded.")
