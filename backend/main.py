@@ -57,6 +57,8 @@ async def lifespan(_: FastAPI):
 
     try:
         with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE teams ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(1024)"))
+            conn.execute(text("ALTER TABLE teams ADD COLUMN IF NOT EXISTS banner_url VARCHAR(1024)"))
             conn.execute(text("ALTER TABLE teams ADD COLUMN IF NOT EXISTS description VARCHAR DEFAULT ''"))
             conn.execute(text("ALTER TABLE teams ADD COLUMN IF NOT EXISTS owner_id INTEGER"))
             conn.execute(text("ALTER TABLE teams ADD COLUMN IF NOT EXISTS rating INTEGER DEFAULT 0"))
