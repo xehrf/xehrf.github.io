@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
  
-from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
- 
+
 from app.auth.deps import get_current_user
 from app.auth.security import decode_token
 from app.db.models import User
@@ -27,6 +27,32 @@ from app.team_matchmaking.ws import manager
  
 router = APIRouter(prefix="/team-matchmaking", tags=["team-matchmaking"])
 team_router = APIRouter(prefix="/teams", tags=["teams"])
+
+
+def _team_member_payload(member, *, online: bool) -> TeamMemberOut:
+    return TeamMemberOut(
+        user_id=member.user_id,
+        display_name=member.user.display_name or member.user.nickname,
+        nickname=member.user.nickname,
+        avatar_url=member.user.avatar_url,
+        pts=member.user.pts,
+        role=member.role.value,
+        online=online,
+    )
+
+
+def _team_payload(team) -> TeamOut:
+    return TeamOut(
+        team_id=team.id,
+        name=team.name,
+        description=team.description or "",
+        avatar_url=team.avatar_url,
+        banner_url=team.banner_url,
+        created_at=team.created_at,
+        captain_user_id=tm_service.get_team_captain_user_id(team),
+        member_count=len(team.members),
+        team_rating=(sum(member.user.pts for member in team.members) // len(team.members)) if team.members else 0,
+    )
  
  
 @router.post("/join", response_model=TeamMatchmakingJoinResponse)
@@ -130,16 +156,7 @@ def current_team(user: User = Depends(get_current_user), db: Session = Depends(g
     online_members = manager.get_online_members(team.id)
     member_rows = []
     for member in team.members:
-        member_rows.append(
-            {
-                "user_id": member.user.id,
-                "display_name": member.user.display_name,
-                "nickname": member.user.nickname,
-                "pts": member.user.pts,
-                "role": member.role.value,
-                "online": member.user.id in online_members,
-            }
-        )
+        member_rows.append(_team_member_payload(member, online=member.user.id in online_members))
  
     active_task = next((task for task in team.tasks if task.status == "active"), None)
     task_payload = None
@@ -152,6 +169,10 @@ def current_team(user: User = Depends(get_current_user), db: Session = Depends(g
  
     return TeamCurrentResponse(
         team_id=team.id,
+        name=team.name,
+        description=team.description or "",
+        avatar_url=team.avatar_url,
+        banner_url=team.banner_url,
         created_at=team.created_at,
         task=task_payload,
         members=member_rows,
@@ -163,31 +184,14 @@ def current_team(user: User = Depends(get_current_user), db: Session = Depends(g
 @team_router.get("", response_model=list[TeamOut])
 def list_teams(search: str | None = None, db: Session = Depends(get_db)) -> list[TeamOut]:
     teams = tm_service.list_teams(db, search)
-    return [
-        TeamOut(
-            team_id=team.id,
-            name=team.name,
-            created_at=team.created_at,
-            captain_user_id=tm_service.get_team_captain_user_id(team),
-            member_count=len(team.members),
-            team_rating=(sum(member.user.pts for member in team.members) // len(team.members)) if team.members else 0,
-        )
-        for team in teams
-    ]
+    return [_team_payload(team) for team in teams]
  
  
 @team_router.post("", response_model=TeamOut)
 def create_team(body: TeamCreateBody, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> TeamOut:
     team = tm_service.create_team(db, user, body.name, body.description or "")
     db.commit()
-    return TeamOut(
-        team_id=team.id,
-        name=team.name,
-        created_at=team.created_at,
-        captain_user_id=tm_service.get_team_captain_user_id(team),
-        member_count=len(team.members),
-        team_rating=(sum(member.user.pts for member in team.members) // len(team.members)) if team.members else 0,
-    )
+    return _team_payload(team)
  
  
 @team_router.get("/invites", response_model=list[TeamInviteOut])
@@ -251,21 +255,16 @@ def get_team(team_id: int, db: Session = Depends(get_db)) -> TeamDetailOut:
     return TeamDetailOut(
         team_id=team.id,
         name=team.name,
-        description=team.description,
+        description=team.description or "",
+        avatar_url=team.avatar_url,
+        banner_url=team.banner_url,
         created_at=team.created_at,
         owner_id=team.owner_id,
         captain_user_id=tm_service.get_team_captain_user_id(team),
         member_count=len(team.members),
         team_rating=(sum(member.user.pts for member in team.members) // len(team.members)) if team.members else 0,
         members=[
-            TeamMemberOut(
-                user_id=member.user_id,
-                display_name=member.user.display_name or member.user.nickname,
-                nickname=member.user.nickname,
-                pts=member.user.pts,
-                role=member.role.value,
-                online=False,
-            )
+            _team_member_payload(member, online=False)
             for member in team.members
         ],
     )
@@ -277,14 +276,7 @@ def get_team_members(team_id: int, db: Session = Depends(get_db)) -> list[TeamMe
     if members is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
     return [
-        TeamMemberOut(
-            user_id=member.user_id,
-            display_name=member.user.display_name or member.user.nickname,
-            nickname=member.user.nickname,
-            pts=member.user.pts,
-            role=member.role.value,
-            online=False,
-        )
+        _team_member_payload(member, online=False)
         for member in members
     ]
  
@@ -303,14 +295,41 @@ def update_team(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only captain can update team")
     team = tm_service.update_team(db, team, body.name, body.description)
     db.commit()
-    return TeamOut(
-        team_id=team.id,
-        name=team.name,
-        created_at=team.created_at,
-        captain_user_id=tm_service.get_team_captain_user_id(team),
-        member_count=len(team.members),
-        team_rating=(sum(member.user.pts for member in team.members) // len(team.members)) if team.members else 0,
-    )
+    return _team_payload(team)
+
+
+@team_router.post("/{team_id}/avatar", response_model=TeamOut)
+def upload_team_avatar(
+    team_id: int,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TeamOut:
+    team = tm_service.get_team_by_id(db, team_id)
+    if team is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+    if not tm_service.is_captain(team, user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only captain can update team")
+    team = tm_service.update_team(db, team, avatar=file)
+    db.commit()
+    return _team_payload(team)
+
+
+@team_router.post("/{team_id}/banner", response_model=TeamOut)
+def upload_team_banner(
+    team_id: int,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TeamOut:
+    team = tm_service.get_team_by_id(db, team_id)
+    if team is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+    if not tm_service.is_captain(team, user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only captain can update team")
+    team = tm_service.update_team(db, team, banner=file)
+    db.commit()
+    return _team_payload(team)
  
  
 @team_router.delete("/{team_id}")

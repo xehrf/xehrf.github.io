@@ -211,6 +211,8 @@ class Team(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(120), default="Team")
     description: Mapped[str] = mapped_column(String(256), default="")
+    avatar_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    banner_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True)
     rating: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

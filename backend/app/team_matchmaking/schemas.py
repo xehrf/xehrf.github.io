@@ -7,6 +7,7 @@ class TeamMemberOut(BaseModel):
     user_id: int
     display_name: str
     nickname: str
+    avatar_url: str | None = None
     pts: int
     role: str
     online: bool
@@ -20,6 +21,10 @@ class TeamTaskOut(BaseModel):
 
 class TeamCurrentResponse(BaseModel):
     team_id: int
+    name: str
+    description: str
+    avatar_url: str | None = None
+    banner_url: str | None = None
     created_at: datetime
     task: TeamTaskOut | None
     members: list[TeamMemberOut]
@@ -49,6 +54,9 @@ class TeamUpdateBody(BaseModel):
 class TeamOut(BaseModel):
     team_id: int
     name: str
+    description: str = ""
+    avatar_url: str | None = None
+    banner_url: str | None = None
     created_at: datetime
     captain_user_id: int
     member_count: int
@@ -56,7 +64,6 @@ class TeamOut(BaseModel):
 
 
 class TeamDetailOut(TeamOut):
-    description: str
     owner_id: int | None
     members: list[TeamMemberOut]
 

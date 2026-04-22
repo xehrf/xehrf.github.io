@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from fastapi import UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -21,6 +22,7 @@ from app.db.models import (
     TeamTaskStatus,
     User,
 )
+from app.uploads.service import save_upload_file
 
 TEAM_SIZE = 3
 PTC_STEP = 50
@@ -111,11 +113,22 @@ def create_team(db: Session, owner: User, name: str, description: str = "") -> T
     return get_team_by_id(db, team.id) or team
 
 
-def update_team(db: Session, team: Team, name: str | None = None, description: str | None = None) -> Team:
+def update_team(
+    db: Session,
+    team: Team,
+    name: str | None = None,
+    description: str | None = None,
+    avatar: UploadFile | None = None,
+    banner: UploadFile | None = None,
+) -> Team:
     if name is not None:
         team.name = name.strip()[:120] or team.name
     if description is not None:
         team.description = description.strip()[:256]
+    if avatar is not None:
+        team.avatar_url = save_upload_file(avatar, "team_avatars")
+    if banner is not None:
+        team.banner_url = save_upload_file(banner, "team_banners")
     db.add(team)
     db.flush()
     return get_team_by_id(db, team.id) or team
