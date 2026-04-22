@@ -86,14 +86,29 @@ function buildFilterQuery(filters) {
   return params.toString();
 }
 
-function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onTogglePin, onCompare }) {
-  if (!row) {
-    return (
-      <div className="flex h-full min-h-[280px] items-center justify-center rounded-btn border border-dashed border-border bg-canvas p-4 text-center text-sm text-muted">
-        Наведите курсор на участника таблицы или нажмите на строку, чтобы закрепить минипрофиль.
-      </div>
-    );
-  }
+function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onTogglePin, onCompare, anchorRect }) {
+  const cardRef = useRef(null);
+  const [pos, setPos] = useState({ top: 0, left: 0, ready: false });
+
+  useEffect(() => {
+    if (!anchorRect || !cardRef.current) return;
+    const cardW = cardRef.current.offsetWidth || 300;
+    const cardH = cardRef.current.offsetHeight || 340;
+
+    let left = anchorRect.right + 14;
+    let top = anchorRect.top + anchorRect.height / 2 - cardH / 2;
+
+    // Flip left if overflows right edge
+    if (left + cardW > window.innerWidth - 16) {
+      left = anchorRect.left - cardW - 14;
+    }
+    // Clamp vertically
+    top = Math.max(8, Math.min(top, window.innerHeight - cardH - 8));
+
+    setPos({ top, left, ready: true });
+  }, [anchorRect]);
+
+  if (!row) return null;
 
   const nickname = profile?.nickname || row.nickname || row.display_name || "unknown";
   const displayName = profile?.nickname || profile?.display_name || row.display_name || "Unknown";
@@ -121,7 +136,20 @@ function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onT
       }));
 
   return (
-    <div className="overflow-hidden rounded-btn border border-border bg-canvas">
+    <div
+      ref={cardRef}
+      style={{
+        position: "fixed",
+        top: pos.top,
+        left: pos.left,
+        width: 300,
+        zIndex: 9999,
+        opacity: pos.ready ? 1 : 0,
+        pointerEvents: pos.ready ? "auto" : "none",
+        transition: "opacity 0.15s ease",
+      }}
+      className="overflow-hidden rounded-btn border border-border bg-canvas shadow-2xl"
+    >
       <div className="relative h-20">
         {bannerUrl ? (
           <img src={bannerUrl} alt={`Баннер ${displayName}`} className="h-full w-full object-cover" />
@@ -210,8 +238,7 @@ function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onT
 export function LeaderboardContent({ embedded = false }) {
   const { user } = useAuth();
 
-  const [meta, setMeta] = useState({ periods: ["all_time"], seasons: [], languages: [], topics: [] });
-  const [filters, setFilters] = useState({
+  const [filters] = useState({
     period: "all_time",
     season: "",
     categoryType: "",
@@ -231,14 +258,9 @@ export function LeaderboardContent({ embedded = false }) {
   const [pinnedUserId, setPinnedUserId] = useState(null);
   const [profileByUserId, setProfileByUserId] = useState({});
   const [profileLoadingByUserId, setProfileLoadingByUserId] = useState({});
+  const [anchorRect, setAnchorRect] = useState(null);
 
   const compareSectionRef = useRef(null);
-
-  const categoryOptions = useMemo(() => {
-    if (filters.categoryType === "language") return meta.languages || [];
-    if (filters.categoryType === "topic") return meta.topics || [];
-    return [];
-  }, [filters.categoryType, meta.languages, meta.topics]);
 
   const compareCandidates = useMemo(() => {
     return (leaderboard.items || []).filter((item) => Number(item.user_id) !== Number(user?.id));
@@ -254,20 +276,6 @@ export function LeaderboardContent({ embedded = false }) {
   const activePreviewKey = activePreviewUserId == null ? "" : String(activePreviewUserId);
   const activePreviewProfile = activePreviewKey ? profileByUserId[activePreviewKey] ?? null : null;
   const activePreviewLoading = activePreviewKey ? Boolean(profileLoadingByUserId[activePreviewKey]) : false;
-
-  async function loadMeta() {
-    const [seasonsData, categoriesData] = await Promise.all([
-      apiFetch("/rating/seasons"),
-      apiFetch("/rating/categories"),
-    ]);
-
-    setMeta({
-      periods: Array.isArray(seasonsData?.periods) ? seasonsData.periods : ["all_time"],
-      seasons: Array.isArray(seasonsData?.seasons) ? seasonsData.seasons : [],
-      languages: Array.isArray(categoriesData?.languages) ? categoriesData.languages : [],
-      topics: Array.isArray(categoriesData?.topics) ? categoriesData.topics : [],
-    });
-  }
 
   async function loadCompare(otherId, nextFilters = filters) {
     if (!otherId) {
@@ -345,11 +353,10 @@ export function LeaderboardContent({ embedded = false }) {
 
     (async () => {
       try {
-        await loadMeta();
         if (mounted) await loadMain();
       } catch (e) {
         if (mounted) {
-          setError(e?.message || "Не удалось загрузить метаданные рейтинга");
+          setError(e?.message || "Не удалось загрузить рейтинг");
           setLoading(false);
         }
       }
@@ -373,23 +380,6 @@ export function LeaderboardContent({ embedded = false }) {
     }
   }, [leaderboard.items, hoveredUserId, pinnedUserId]);
 
-  function updateFilter(key, value) {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-  }
-
-  function resetFilters() {
-    const next = {
-      period: "all_time",
-      season: "",
-      categoryType: "",
-      category: "",
-      search: "",
-    };
-
-    setFilters(next);
-    loadMain(next);
-  }
-
   function selectUserForCompare(userId, { scroll = false } = {}) {
     const candidateId = Number(userId);
     if (!candidateId || candidateId === Number(user?.id)) return;
@@ -405,8 +395,9 @@ export function LeaderboardContent({ embedded = false }) {
     }
   }
 
-  function handleLeaderboardRowHover(row) {
+  function handleLeaderboardRowHover(row, rect) {
     setHoveredUserId(row.user_id);
+    if (rect) setAnchorRect(rect);
     ensureProfileLoaded(row.user_id);
   }
 
@@ -437,77 +428,6 @@ export function LeaderboardContent({ embedded = false }) {
         ) : null}
       </div>
 
-      <Card className="p-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
-          <select
-            value={filters.period}
-            onChange={(e) => updateFilter("period", e.target.value)}
-            className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
-          >
-            {(meta.periods || []).map((period) => (
-              <option key={period} value={period}>
-                {period}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={filters.season}
-            onChange={(e) => updateFilter("season", e.target.value)}
-            className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
-          >
-            <option value="">Без сезона</option>
-            {(meta.seasons || []).map((season) => (
-              <option key={season.code} value={season.code}>
-                {season.title}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={filters.categoryType}
-            onChange={(e) => {
-              updateFilter("categoryType", e.target.value);
-              updateFilter("category", "");
-            }}
-            className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
-          >
-            <option value="">Все категории</option>
-            <option value="language">Язык</option>
-            <option value="topic">Тема</option>
-          </select>
-
-          <select
-            value={filters.category}
-            onChange={(e) => updateFilter("category", e.target.value)}
-            disabled={!filters.categoryType}
-            className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground disabled:opacity-60"
-          >
-            <option value="">Все значения</option>
-            {categoryOptions.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-
-          <input
-            value={filters.search}
-            onChange={(e) => updateFilter("search", e.target.value)}
-            placeholder="Поиск игрока"
-            className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
-          />
-
-          <div className="grid grid-cols-2 gap-2">
-            <Button onClick={() => loadMain()} className="h-11 rounded-[12px] md:rounded-btn">
-              Применить
-            </Button>
-            <Button onClick={resetFilters} variant="secondary" className="h-11 rounded-[12px] md:rounded-btn">
-              Сброс
-            </Button>
-          </div>
-        </div>
-      </Card>
 
       {loading ? <Card className="text-sm text-muted">Загрузка рейтинга...</Card> : null}
       {error ? <Card className="text-sm text-accent">{error}</Card> : null}
@@ -537,8 +457,7 @@ export function LeaderboardContent({ embedded = false }) {
             {(leaderboard.items || []).length === 0 ? (
               <p className="mt-3 text-sm text-muted">По этим фильтрам нет игроков.</p>
             ) : (
-              <div className="mt-3 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
-                <div className="overflow-x-auto rounded-btn border border-border/70">
+              <div className="mt-3 overflow-x-auto rounded-btn border border-border/70">
                   <table className="min-w-full text-left text-sm">
                     <thead>
                       <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
@@ -549,7 +468,7 @@ export function LeaderboardContent({ embedded = false }) {
                         <th className="py-2 pr-4">Серия</th>
                       </tr>
                     </thead>
-                    <tbody onMouseLeave={() => setHoveredUserId(null)}>
+                    <tbody onMouseLeave={() => { setHoveredUserId(null); setAnchorRect(null); }}>
                       {leaderboard.items.map((row) => {
                         const rowId = Number(row.user_id);
                         const isActive = Number(activePreviewUserId) === rowId;
@@ -563,7 +482,11 @@ export function LeaderboardContent({ embedded = false }) {
                               "cursor-pointer border-b border-border/60 text-foreground transition-colors",
                               isActive ? "bg-accent/10" : "hover:bg-canvas/60",
                             ].join(" ")}
-                            onMouseEnter={() => handleLeaderboardRowHover(row)}
+                            onMouseEnter={(e) => {
+                              const avatarEl = e.currentTarget.querySelector(".avatar-anchor");
+                              const rect = avatarEl ? avatarEl.getBoundingClientRect() : e.currentTarget.getBoundingClientRect();
+                              handleLeaderboardRowHover(row, rect);
+                            }}
                             onClick={() => handleLeaderboardRowClick(row)}
                             onKeyDown={(event) => {
                               if (event.key === "Enter" || event.key === " ") {
@@ -581,7 +504,7 @@ export function LeaderboardContent({ embedded = false }) {
 
                             <td className="py-2 pr-4">
                               <div className="flex items-center gap-3">
-                                <div className="h-9 w-9 overflow-hidden rounded-full border border-border bg-elevated">
+                                <div className="avatar-anchor h-9 w-9 overflow-hidden rounded-full border border-border bg-elevated">
                                   {avatarUrl ? (
                                     <img src={avatarUrl} alt={`Аватар ${row.display_name}`} className="h-full w-full object-cover" />
                                   ) : (
@@ -608,28 +531,28 @@ export function LeaderboardContent({ embedded = false }) {
                     </tbody>
                   </table>
                 </div>
-
-                <LeaderboardMiniProfileCard
-                  row={activePreviewRow}
-                  profile={activePreviewProfile}
-                  loading={activePreviewLoading}
-                  pinned={Boolean(activePreviewRow && Number(pinnedUserId) === Number(activePreviewRow.user_id))}
-                  isSelf={Boolean(activePreviewRow && Number(activePreviewRow.user_id) === Number(user?.id))}
-                  onTogglePin={() => {
-                    if (!activePreviewRow) return;
-                    const activeId = Number(activePreviewRow.user_id);
-                    const isAlreadyPinned = Number(pinnedUserId) === activeId;
-                    setPinnedUserId(isAlreadyPinned ? null : activeId);
-                    ensureProfileLoaded(activeId);
-                  }}
-                  onCompare={() => {
-                    if (!activePreviewRow) return;
-                    selectUserForCompare(activePreviewRow.user_id, { scroll: true });
-                  }}
-                />
-              </div>
             )}
           </Card>
+
+          <LeaderboardMiniProfileCard
+            row={activePreviewRow}
+            profile={activePreviewProfile}
+            loading={activePreviewLoading}
+            pinned={Boolean(activePreviewRow && Number(pinnedUserId) === Number(activePreviewRow.user_id))}
+            isSelf={Boolean(activePreviewRow && Number(activePreviewRow.user_id) === Number(user?.id))}
+            anchorRect={anchorRect}
+            onTogglePin={() => {
+              if (!activePreviewRow) return;
+              const activeId = Number(activePreviewRow.user_id);
+              const isAlreadyPinned = Number(pinnedUserId) === activeId;
+              setPinnedUserId(isAlreadyPinned ? null : activeId);
+              ensureProfileLoaded(activeId);
+            }}
+            onCompare={() => {
+              if (!activePreviewRow) return;
+              selectUserForCompare(activePreviewRow.user_id, { scroll: true });
+            }}
+          />
 
           <Card className="p-5">
             <h2 className="text-lg font-semibold text-foreground">График изменения PTS</h2>
