@@ -87,7 +87,16 @@ export function TeamPage() {
   const [messages, setMessages] = useState([]);
   const [chatText, setChatText] = useState("");
   const [wsStatus, setWsStatus] = useState("connecting"); // connecting | connected | disconnected
-  const [activeTab, setActiveTab] = useState("chat"); // chat | stats | history | invites
+  const [activeTab, setActiveTab] = useState("chat"); // chat | stats | history | invites | settings
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsError, setSettingsError] = useState("");
+  const [settingsSuccess, setSettingsSuccess] = useState("");
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [bannerPreview, setBannerPreview] = useState(null);
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [bannerFile, setBannerFile] = useState(null);
+  const avatarInputRef = useRef(null);
+  const bannerInputRef = useRef(null);
   const websocketRef = useRef(null);
   const chatEndRef = useRef(null);
   const navigate = useNavigate();
@@ -203,6 +212,49 @@ export function TeamPage() {
     } catch (e) { setError(e?.message || "Не удалось исключить"); }
   }
 
+  function handleAvatarChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  }
+
+  function handleBannerChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBannerFile(file);
+    setBannerPreview(URL.createObjectURL(file));
+  }
+
+  async function handleSettingsSave() {
+    if (!team) return;
+    setSettingsLoading(true);
+    setSettingsError("");
+    setSettingsSuccess("");
+    try {
+      if (avatarFile) {
+        const fd = new FormData();
+        fd.append("file", avatarFile);
+        await apiFetch(`/teams/${team.team_id}/avatar`, { method: "POST", formData: fd });
+      }
+      if (bannerFile) {
+        const fd = new FormData();
+        fd.append("file", bannerFile);
+        await apiFetch(`/teams/${team.team_id}/banner`, { method: "POST", formData: fd });
+      }
+      const updated = await apiFetch("/teams/current");
+      setTeam(updated);
+      setAvatarFile(null);
+      setBannerFile(null);
+      setSettingsSuccess("Изменения сохранены!");
+      setTimeout(() => setSettingsSuccess(""), 3000);
+    } catch (e) {
+      setSettingsError(e?.message || "Не удалось сохранить изменения");
+    } finally {
+      setSettingsLoading(false);
+    }
+  }
+
   if (loading) return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
       <div className="h-48 animate-pulse rounded-3xl border border-border bg-canvas" />
@@ -225,6 +277,7 @@ export function TeamPage() {
     { id: "stats", label: "📊 Статистика" },
     { id: "history", label: "🏆 История" },
     ...(myInvites.length > 0 ? [{ id: "invites", label: `📨 Инвайты (${myInvites.length})` }] : [{ id: "invites", label: "📨 Инвайты" }]),
+    ...(isCaptain ? [{ id: "settings", label: "⚙️ Настройки" }] : []),
   ];
 
   return (
@@ -561,6 +614,118 @@ export function TeamPage() {
                   )}
                 </div>
               )}
+              {/* SETTINGS TAB — captain only */}
+              {activeTab === "settings" && isCaptain && (
+                <div className="space-y-6">
+                  {/* Avatar upload */}
+                  <div>
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Аватарка команды</p>
+                    <div className="flex items-center gap-4">
+                      {/* Preview */}
+                      <div
+                        className="h-20 w-20 flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-elevated transition hover:border-accent/60"
+                        onClick={() => avatarInputRef.current?.click()}
+                      >
+                        {avatarPreview || resolveAssetUrl(team.avatar_url || "") ? (
+                          <img
+                            src={avatarPreview || resolveAssetUrl(team.avatar_url)}
+                            alt="avatar"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-muted">
+                            <span className="text-2xl">🖼</span>
+                            <span className="text-[10px]">Выбрать</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-foreground font-medium">
+                          {avatarFile ? avatarFile.name : "Файл не выбран"}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted">PNG, JPG до 5 МБ. Рекомендуется 256×256</p>
+                        <button
+                          type="button"
+                          onClick={() => avatarInputRef.current?.click()}
+                          className="mt-2 rounded-xl border border-border bg-elevated px-3 py-1.5 text-xs font-semibold text-foreground transition hover:border-accent/50 hover:text-accent"
+                        >
+                          Выбрать файл
+                        </button>
+                        <input
+                          ref={avatarInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleAvatarChange}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Banner upload */}
+                  <div>
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Баннер команды</p>
+                    <div
+                      className="relative h-32 w-full cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-elevated transition hover:border-accent/60"
+                      onClick={() => bannerInputRef.current?.click()}
+                    >
+                      {bannerPreview || resolveAssetUrl(team.banner_url || "") ? (
+                        <>
+                          <img
+                            src={bannerPreview || resolveAssetUrl(team.banner_url)}
+                            alt="banner"
+                            className="h-full w-full object-cover"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition hover:opacity-100">
+                            <span className="rounded-xl bg-black/60 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
+                              Изменить баннер
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted">
+                          <span className="text-3xl">🖼</span>
+                          <span className="text-xs">Нажмите чтобы выбрать баннер</span>
+                          <span className="text-[11px] text-muted/60">PNG, JPG до 10 МБ. Рекомендуется 1200×300</span>
+                        </div>
+                      )}
+                    </div>
+                    {bannerFile && (
+                      <p className="mt-1.5 text-xs text-muted">Выбран: {bannerFile.name}</p>
+                    )}
+                    <input
+                      ref={bannerInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleBannerChange}
+                    />
+                  </div>
+
+                  {/* Feedback */}
+                  {settingsError && (
+                    <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                      {settingsError}
+                    </div>
+                  )}
+                  {settingsSuccess && (
+                    <div className="rounded-2xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-400">
+                      ✓ {settingsSuccess}
+                    </div>
+                  )}
+
+                  {/* Save button */}
+                  <button
+                    type="button"
+                    onClick={handleSettingsSave}
+                    disabled={settingsLoading || (!avatarFile && !bannerFile)}
+                    className="w-full rounded-2xl bg-accent py-3 text-sm font-bold text-black transition hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {settingsLoading ? "Сохраняем..." : "Сохранить изменения"}
+                  </button>
+                </div>
+              )}
+
             </div>
           </Card>
         </div>
