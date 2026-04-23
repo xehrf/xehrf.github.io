@@ -115,6 +115,21 @@ function getBadgePresentation(badge) {
   return { icon: "R", ...getRolePalette(badge.label) };
 }
 
+function translateQuestTitle(title) {
+  if (!title) return "";
+  const playMatch = title.match(/^Play\s+(\d+)\s+PvP\s+matches$/i);
+  if (playMatch) {
+    const count = Number(playMatch[1]);
+    return `Сыграйте ${count} PvP матч${count === 1 ? "" : count >= 2 && count <= 4 ? "а" : "ей"}`;
+  }
+  const winMatch = title.match(/^Win\s+(\d+)\s+PvP\s+matches$/i);
+  if (winMatch) {
+    const count = Number(winMatch[1]);
+    return `Выиграйте ${count} PvP матч${count === 1 ? "" : count >= 2 && count <= 4 ? "а" : "ей"}`;
+  }
+  return title;
+}
+
 function QueueSlot({ label, active, complete }) {
   return (
     <div
@@ -197,7 +212,7 @@ function QuestPanel({ quests, onClaim, claimingQuestKey }) {
                 <div key={rowKey} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2.5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-white">{quest.title}</p>
+                      <p className="truncate text-sm font-medium text-white">{translateQuestTitle(quest.title)}</p>
                       <p className="mt-0.5 text-xs text-white/60">
                         {progress}/{target} • +{quest.reward_pts} PTS
                       </p>
@@ -554,7 +569,7 @@ function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender }) {
   }
 
   return (
-    <div className="grid h-[560px] grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="grid min-h-[520px] grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:h-[560px]">
       <div className="flex min-h-0 flex-col gap-4">
         <div className="rounded-2xl border p-4" style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -850,8 +865,7 @@ export function MatchmakingPage() {
     }
   }
 
-  if (isMobile) return <Navigate to="/dashboard" replace />;
-
+  // Показываем матчмейкинг и на мобильных устройствах, а не редиректим на dashboard.
   return (
     <div className="min-h-screen bg-canvas">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
@@ -969,7 +983,7 @@ export function MatchmakingPage() {
 
             {quests?.streak ? (
               <div className="mt-4 rounded-2xl border px-4 py-3" style={{ borderColor: "rgba(255,214,0,0.15)" }}>
-                <p className="text-[11px] uppercase tracking-wider text-[#FFD600]">Win Streak</p>
+                <p className="text-[11px] uppercase tracking-wider text-[#FFD600]">Серия побед</p>
                 <p className="mt-1 text-sm text-white">
                   Текущая серия: <span className="font-semibold text-[#FFD600]">{quests.streak.current}</span> • Лучшая:{" "}
                   <span className="font-semibold text-[#FFD600]">{quests.streak.best}</span>
