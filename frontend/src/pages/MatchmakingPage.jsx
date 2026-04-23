@@ -868,7 +868,9 @@ export function MatchmakingPage() {
             onClick={() => switchTab("duel")}
             className={[
               "h-11 flex-1 rounded-xl text-sm font-semibold transition",
-              activeTab === "duel" ? "bg-yellow-400 text-slate-950" : "text-white/75 hover:text-white",
+              activeTab === "duel"
+                ? "bg-[#FFD600] text-slate-950 shadow-[0_0_20px_rgba(255,214,0,0.25)]"
+                : "text-white/75 hover:text-white",
             ].join(" ")}
           >
             Дуэль
@@ -878,7 +880,9 @@ export function MatchmakingPage() {
             onClick={() => switchTab("leaderboard")}
             className={[
               "h-11 flex-1 rounded-xl text-sm font-semibold transition",
-              activeTab === "leaderboard" ? "bg-yellow-400 text-slate-950" : "text-white/75 hover:text-white",
+              activeTab === "leaderboard"
+                ? "bg-[#FFD600] text-slate-950 shadow-[0_0_20px_rgba(255,214,0,0.25)]"
+                : "text-white/75 hover:text-white",
             ].join(" ")}
           >
             Рейтинг
@@ -900,7 +904,7 @@ export function MatchmakingPage() {
               <button
                 type="button"
                 onClick={() => navigate("/team/current")}
-                className="rounded-2xl bg-yellow-400 px-4 py-2 text-sm font-semibold text-slate-950"
+                className="rounded-2xl bg-[#FFD600] px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_0_20px_rgba(255,214,0,0.25)] transition hover:bg-yellow-300"
               >
                 Открыть команду
               </button>
