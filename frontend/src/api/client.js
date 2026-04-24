@@ -87,7 +87,7 @@ export function resolveAssetUrl(url) {
 
 export async function apiFetch(
   path,
-  { method = "GET", body, auth = true, timeoutMs = 10000, headers: customHeaders = {} } = {},
+  { method = "GET", body, auth = true, timeoutMs = 30000, headers: customHeaders = {} } = {},
 ) {
   const headers = { ...customHeaders };
   if (body !== undefined && !(body instanceof FormData)) headers["Content-Type"] = "application/json";
