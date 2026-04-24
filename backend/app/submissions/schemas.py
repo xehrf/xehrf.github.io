@@ -13,6 +13,7 @@ class SubmissionOut(BaseModel):
     id: int
     task_id: int
     match_id: int | None
+    task_attempt_id: int | None
     status: str
     plagiarism_score: float | None
     auto_test_passed: bool | None

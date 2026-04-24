@@ -4,6 +4,7 @@ import { Button } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
+import { ptsForDifficulty } from "../utils/taskPts.js";
 
 function toTaskTypeLabel(taskType) {
   if (taskType === "solo") return "Solo";
@@ -24,7 +25,7 @@ export function TaskSolvePage() {
   const navigate = useNavigate();
   const { taskId } = useParams();
   const [searchParams] = useSearchParams();
-  const { refreshMe } = useAuth();
+  const { refreshMe, user } = useAuth();
 
   const taskIdNum = useMemo(() => Number(taskId), [taskId]);
   const isTeamContext = searchParams.get("team") === "1";
@@ -168,19 +169,88 @@ export function TaskSolvePage() {
     !timeUp;
   const hasTeamTaskContext = isTeamContext && teamTask?.task_id === task?.id && teamTask?.status === "active";
 
+  const recoverSubmitResult = useCallback(
+    async ({ attemptId, matchId }) => {
+      if (!task || !attemptId) return false;
+
+      try {
+        const submissions = await apiFetch("/submissions/me");
+        if (!Array.isArray(submissions)) return false;
+
+        const matchedSubmission =
+          submissions.find(
+            (item) =>
+              item?.task_id === task.id &&
+              item?.task_attempt_id === attemptId &&
+              (item?.match_id ?? null) === (matchId ?? null),
+          ) ?? null;
+
+        if (!matchedSubmission) return false;
+
+        const verdict =
+          matchedSubmission.auto_test_passed === true || matchedSubmission.status === "accepted"
+            ? "correct"
+            : matchedSubmission.auto_test_passed === false || matchedSubmission.status === "rejected"
+              ? "wrong"
+              : null;
+
+        if (!verdict) return false;
+
+        let updatedPts = typeof user?.pts === "number" ? user.pts : 0;
+        try {
+          const me = await apiFetch("/auth/me");
+          if (typeof me?.pts === "number") {
+            updatedPts = me.pts;
+          }
+        } catch {
+          // Best-effort recovery: keep the latest known PTS snapshot.
+        }
+
+        setResult({
+          submission_id: matchedSubmission.id,
+          task_id: task.id,
+          attempt_id: attemptId,
+          verdict,
+          message:
+            verdict === "correct"
+              ? "Решение сохранено. Ответ сервера оборвался, но задача уже зачтена."
+              : "Решение отправлено, но ответ сервера оборвался. Статус попытки обновлён.",
+          passed_tests: null,
+          total_tests: null,
+          pts_delta: verdict === "correct" ? ptsForDifficulty(task.difficulty) : 0,
+          updated_pts: updatedPts,
+          attempt_status: verdict === "correct" ? "completed" : "failed",
+        });
+
+        if (hasTeamTaskContext && verdict === "correct") {
+          setTeamTask(null);
+        }
+
+        setError("");
+        await refreshMe();
+        await loadAttempt();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [hasTeamTaskContext, loadAttempt, refreshMe, task, user?.pts],
+  );
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!task || !canSubmit) return;
+
+    const matchId =
+      task.task_type === "match" && activeMatch && activeMatch.task_id === task.id
+        ? activeMatch.match_id
+        : null;
+    const attemptId = attempt?.id ?? null;
 
     setSubmitting(true);
     setError("");
     setResult(null);
     try {
-      const matchId =
-        task.task_type === "match" && activeMatch && activeMatch.task_id === task.id
-          ? activeMatch.match_id
-          : null;
-
       if (isTeamContext && !hasTeamTaskContext) {
         setError("Командная задача уже не активна.");
         setSubmitting(false);
@@ -207,6 +277,9 @@ export function TaskSolvePage() {
       await refreshMe();
       await loadAttempt();
     } catch (e) {
+      if (e?.status === 0 && (await recoverSubmitResult({ attemptId, matchId }))) {
+        return;
+      }
       setError(e?.message || "Ошибка при отправке");
     } finally {
       setSubmitting(false);
@@ -342,12 +415,14 @@ export function TaskSolvePage() {
                 {result.verdict === "correct" ? "✅ ПРАВИЛЬНО" : "❌ НЕПРАВИЛЬНО"}
               </div>
               <p className="mt-2 text-sm text-muted">{result.message}</p>
-              <div className="mt-3 text-sm text-muted">
+              {typeof result.passed_tests === "number" && typeof result.total_tests === "number" ? (
+                <div className="mt-3 text-sm text-muted">
                 Тесты:{" "}
                 <span className="text-foreground">
                   {result.passed_tests}/{result.total_tests}
                 </span>
-              </div>
+                </div>
+              ) : null}
               <div className="mt-1 text-sm text-muted">
                 Попытка: <span className="text-foreground">{result.attempt_status}</span>
               </div>
