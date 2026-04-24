@@ -357,7 +357,7 @@ def _select_task_by_ptc(db: Session, average_ptc: int) -> Task | None:
 
     task = (
         db.query(Task)
-        .filter(Task.task_type == TaskType.match, Task.is_published.is_(True), Task.difficulty.in_(difficulties))
+        .filter(Task.task_type == TaskType.solo, Task.is_published.is_(True), Task.difficulty.in_(difficulties))
         .order_by(Task.id)
         .first()
     )
@@ -366,7 +366,7 @@ def _select_task_by_ptc(db: Session, average_ptc: int) -> Task | None:
 
     return (
         db.query(Task)
-        .filter(Task.task_type == TaskType.match, Task.is_published.is_(True))
+        .filter(Task.task_type == TaskType.solo, Task.is_published.is_(True))
         .order_by(Task.id)
         .first()
     )

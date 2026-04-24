@@ -229,6 +229,11 @@ async def surrender_match(user: User = Depends(get_current_user), db: Session = 
     if active is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active match to surrender.")
 
+    mm_service.finalize_match_if_ready(db, active)
+    db.refresh(active)
+    if active.status not in (MatchStatus.pending, MatchStatus.active):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Match is already finished.")
+
     opponent = mm_service.get_match_opponent(db, active.id, user.id)
     if opponent is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot surrender without opponent.")

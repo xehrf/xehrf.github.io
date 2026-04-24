@@ -14,6 +14,8 @@ from app.db.models import (
     SubmissionStatus,
     Task,
     TaskAttempt,
+    TeamTask,
+    TeamTaskStatus,
     TaskType,
     User,
 )
@@ -24,6 +26,8 @@ from app.rating.pts import level_from_pts, pts_for_solo_task
 from app.rating.service import add_rating_history
 from app.submissions import anti_cheat
 from app.submissions.evaluator import evaluate_python_function
+from app.team_matchmaking import service as tm_service
+from app.team_matchmaking.ws import manager as team_manager
 from app.tasks.schemas import (
     TaskAttemptOut,
     TaskCreate,
@@ -75,6 +79,29 @@ def _emit_match_finished(participant_ids: list[int], payload: dict) -> None:
             await matchmaking_manager.send_event(uid, "match_finished", payload)
 
     asyncio.run(_send())
+
+
+def _emit_team_task_completed(team_id: int, payload: dict) -> None:
+    async def _send() -> None:
+        await team_manager.broadcast(team_id, "task_completed", payload)
+
+    asyncio.run(_send())
+
+
+def _get_team_task_for_user(db: Session, user_id: int, task_id: int) -> TeamTask | None:
+    team = tm_service.get_current_team(db, user_id)
+    if team is None:
+        return None
+
+    matching_tasks = [team_task for team_task in team.tasks if team_task.task_id == task_id]
+    if not matching_tasks:
+        return None
+
+    active_task = next((team_task for team_task in matching_tasks if team_task.status == TeamTaskStatus.active), None)
+    if active_task is not None:
+        return active_task
+
+    return max(matching_tasks, key=lambda team_task: team_task.id)
 
 
 @router.post("", response_model=TaskOut)
@@ -236,29 +263,36 @@ def submit_task_solution(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Time is up for this attempt")
 
     match: Match | None = None
+    team_task = _get_team_task_for_user(db, user.id, task_id) if body.match_id is None else None
+    has_active_team_task = team_task is not None and team_task.status == TeamTaskStatus.active
+
+    if team_task is not None and not has_active_team_task:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This team task is already completed")
+
     if task.task_type == TaskType.match:
-        if body.match_id is None:
+        if body.match_id is None and not has_active_team_task:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="match_id is required for match tasks",
+                detail="match_id is required for PvP match tasks",
             )
-        match = db.query(Match).filter(Match.id == body.match_id).first()
-        if match is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
-        if match.status not in (MatchStatus.active, MatchStatus.pending):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Match is not active")
-        part = (
-            db.query(MatchParticipant)
-            .filter(
-                MatchParticipant.match_id == body.match_id,
-                MatchParticipant.user_id == user.id,
+        if body.match_id is not None:
+            match = db.query(Match).filter(Match.id == body.match_id).first()
+            if match is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
+            if match.status not in (MatchStatus.active, MatchStatus.pending):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Match is not active")
+            part = (
+                db.query(MatchParticipant)
+                .filter(
+                    MatchParticipant.match_id == body.match_id,
+                    MatchParticipant.user_id == user.id,
+                )
+                .first()
             )
-            .first()
-        )
-        if part is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a participant")
-        if match.ends_at and now > match.ends_at:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Time is up for this match")
+            if part is None:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a participant")
+            if match.ends_at and now > match.ends_at:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Time is up for this match")
 
     verdict = evaluate_python_function(body.code, task.tests_json)
 
@@ -291,6 +325,8 @@ def submit_task_solution(
         attempt.status = AttemptStatus.completed
         attempt.score = pts_delta
         attempt_status = AttemptStatus.completed
+        if has_active_team_task:
+            team_task.status = TeamTaskStatus.completed
         user.pts = user.pts + pts_delta
         user.level = level_from_pts(user.pts)
         add_rating_history(
@@ -308,6 +344,15 @@ def submit_task_solution(
 
     db.add(sub)
     db.commit()
+    if has_active_team_task and verdict.passed:
+        _emit_team_task_completed(
+            team_task.team_id,
+            {
+                "task_id": team_task.task_id,
+                "status": team_task.status.value,
+                "solved_by_user_id": user.id,
+            },
+        )
     if match is not None and verdict.passed:
         db.refresh(match)
         result = mm_service.complete_match_with_winner(db, match, user.id)

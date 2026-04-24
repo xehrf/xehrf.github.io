@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { apiFetch } from "../api/client";
@@ -23,12 +23,15 @@ function formatCountdown(totalSeconds) {
 export function TaskSolvePage() {
   const navigate = useNavigate();
   const { taskId } = useParams();
+  const [searchParams] = useSearchParams();
   const { refreshMe } = useAuth();
 
   const taskIdNum = useMemo(() => Number(taskId), [taskId]);
+  const isTeamContext = searchParams.get("team") === "1";
 
   const [task, setTask] = useState(null);
   const [activeMatch, setActiveMatch] = useState(null);
+  const [teamTask, setTeamTask] = useState(null);
   const [attempt, setAttempt] = useState(null);
   const [remainingSec, setRemainingSec] = useState(null);
   const [code, setCode] = useState("");
@@ -102,6 +105,28 @@ export function TaskSolvePage() {
   }, [task]);
 
   useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!task) {
+        if (mounted) setTeamTask(null);
+        return;
+      }
+      try {
+        const currentTeam = await apiFetch("/teams/current");
+        if (!mounted) return;
+        const currentTeamTask =
+          currentTeam?.task?.task_id === task.id && currentTeam.task.status === "active" ? currentTeam.task : null;
+        setTeamTask(currentTeamTask);
+      } catch {
+        if (mounted) setTeamTask(null);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [task]);
+
+  useEffect(() => {
     if (!attempt?.id || attempt.status !== "active") return;
     const deadline = new Date(attempt.deadline).getTime();
     const tick = () => {
@@ -141,6 +166,7 @@ export function TaskSolvePage() {
     remainingSec != null &&
     remainingSec > 0 &&
     !timeUp;
+  const hasTeamTaskContext = isTeamContext && teamTask?.task_id === task?.id && teamTask?.status === "active";
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -155,7 +181,13 @@ export function TaskSolvePage() {
           ? activeMatch.match_id
           : null;
 
-      if (task.task_type === "match" && !matchId) {
+      if (isTeamContext && !hasTeamTaskContext) {
+        setError("Командная задача уже не активна.");
+        setSubmitting(false);
+        return;
+      }
+
+      if (task.task_type === "match" && !matchId && !hasTeamTaskContext) {
         setError("Для match-задачи нужен активный матч (queue → match).");
         setSubmitting(false);
         return;
@@ -169,6 +201,9 @@ export function TaskSolvePage() {
         },
       });
       setResult(submitResult);
+      if (hasTeamTaskContext && submitResult?.verdict === "correct") {
+        setTeamTask(null);
+      }
       await refreshMe();
       await loadAttempt();
     } catch (e) {
@@ -260,9 +295,10 @@ export function TaskSolvePage() {
               placeholder={canSubmit ? "// ваше решение" : "// сначала примите задание и дождитесь активной попытки"}
             />
             <div className="mt-2 text-xs text-muted">
-              {task.task_type === "match" && (!activeMatch || activeMatch.task_id !== task.id)
+              {task.task_type === "match" && !hasTeamTaskContext && (!activeMatch || activeMatch.task_id !== task.id)
                 ? "Для match: сначала найдите матч, чтобы был активный match_id."
                 : null}
+              {hasTeamTaskContext ? "Эта задача активна у вашей команды, можно отправлять решение сразу." : null}
             </div>
           </Card>
 

@@ -144,6 +144,13 @@ export function TeamPage() {
       if (eventName === "user_left") setMessages((p) => [...p, { system: true, message: `${data.nickname || data.display_name} покинул команду.` }]);
       if (eventName === "team_ready_update") setReadyVotes(data.votes ?? {});
       if (eventName === "invitation_accepted") setMessages((p) => [...p, { system: true, message: `Пользователь #${data.user_id} принял приглашение.` }]);
+      if (eventName === "task_completed") {
+        setTeam((prev) => {
+          if (!prev?.task || prev.task.task_id !== data.task_id) return prev;
+          return { ...prev, task: null };
+        });
+        setMessages((p) => [...p, { system: true, message: `Задача #${data.task_id} решена командой.` }]);
+      }
     });
     ws.addEventListener("close", () => setWsStatus("disconnected"));
     ws.addEventListener("error", () => setWsStatus("disconnected"));
@@ -297,7 +304,7 @@ export function TeamPage() {
           {/* Task button */}
           {team.task ? (
             <Link
-              to={`/tasks/${team.task.task_id}/solve`}
+              to={`/tasks/${team.task.task_id}/solve?team=1`}
               className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-xl bg-accent px-3 py-2 text-xs font-bold text-black transition hover:bg-accent/90"
             >
               ▶ Открыть задачу
@@ -432,7 +439,7 @@ export function TeamPage() {
               </div>
               {team.task ? (
                 <Link
-                  to={`/tasks/${team.task.task_id}/solve`}
+                  to={`/tasks/${team.task.task_id}/solve?team=1`}
                   className="rounded-xl bg-accent px-4 py-2 text-xs font-bold text-black transition hover:bg-accent/90"
                 >
                   Решать →

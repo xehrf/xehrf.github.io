@@ -503,7 +503,7 @@ function ChatPanel({ messages, myUserId, onSend }) {
   );
 }
 
-function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender }) {
+function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender, surrendering }) {
   const [messages, setMessages] = useState([]);
   const [participants, setParticipants] = useState([]);
   const [onlineIds, setOnlineIds] = useState([]);
@@ -591,7 +591,8 @@ function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender }) {
               <button
                 type="button"
                 onClick={onSurrender}
-                className="rounded-xl border px-4 py-2 text-sm text-white/70 transition-colors hover:text-white"
+                disabled={surrendering}
+                className="rounded-xl border px-4 py-2 text-sm text-white/70 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
                 style={{ borderColor: "rgba(255,214,0,0.2)", background: "transparent" }}
               >
                 Сдаться
@@ -629,6 +630,7 @@ export function MatchmakingPage() {
   const [claimingQuestKey, setClaimingQuestKey] = useState("");
   const [lastMatchResult, setLastMatchResult] = useState(null);
   const [rematchLoading, setRematchLoading] = useState(false);
+  const [surrendering, setSurrendering] = useState(false);
 
   const state = useMemo(() => {
     if (activeMatch) return "matched";
@@ -720,6 +722,7 @@ export function MatchmakingPage() {
         setActiveMatch((prev) => ({ ...(prev ?? {}), ...data }));
         setLastMatchResult(null);
         setSearching(false);
+        setSurrendering(false);
         setStatusNote("Соперник найден. Переходим в дуэль.");
         apiFetch("/matchmaking/active")
           .then((current) => {
@@ -733,6 +736,7 @@ export function MatchmakingPage() {
         setActiveMatch(null);
         setSearching(false);
         setRematchLoading(false);
+        setSurrendering(false);
         setQueueInfo({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
 
         const iWon = data.winner_user_id === myUserId;
@@ -788,13 +792,29 @@ export function MatchmakingPage() {
       setError(res.message || "Ошибка матчмейкинга.");
       setSearching(false);
     } catch (e) {
+      const message = e?.message || "";
+      const alreadyFinished =
+        e?.status === 409 ||
+        message.includes("Match is already finished") ||
+        message.includes("No active match to surrender");
+      if (alreadyFinished) {
+        setActiveMatch(null);
+        setSearching(false);
+        setQueueInfo({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
+        setStatusNote("Матч уже завершён.");
+        await loadQuests();
+        return;
+      }
       setError(e?.message || "Ошибка матчмейкинга.");
       setSearching(false);
+      setSurrendering(false);
     }
+    setSurrendering(false);
   }
 
   async function handleLeaveQueue() {
     setError("");
+    setSurrendering(true);
     try {
       await apiFetch("/matchmaking/queue", { method: "DELETE" });
     } catch {
@@ -807,19 +827,101 @@ export function MatchmakingPage() {
   }
 
   async function handleSurrender() {
-    if (!activeMatch) return;
+    if (!activeMatch || surrendering) return;
     const confirmed = window.confirm("Вы точно уверены? Вы потеряете PTS!");
     if (!confirmed) return;
     setError("");
+    setSurrendering(true);
     try {
-      await apiFetch("/matchmaking/surrender", { method: "POST" });
+      const payload = await apiFetch("/matchmaking/surrender", { method: "POST" });
+      setLastMatchResult(payload);
       setActiveMatch(null);
       setSearching(false);
       setQueueInfo({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
+      await loadQuests();
       setStatusNote("Вы сдались в матче. PTS были уменьшены.");
     } catch (e) {
       setError(e?.message || "Не удалось сдаться в матче.");
     }
+    setSurrendering(false);
+  }
+
+  async function runFindMatch() {
+    if (state === "searching") return;
+    setError("");
+    setSearching(true);
+    setStatusNote("Подключаем к PvP-очереди...");
+    try {
+      const res = await apiFetch("/matchmaking/queue", { method: "POST" });
+      if (res.status === "matched" || res.status === "already_in_match") {
+        setActiveMatch(res);
+        setSearching(false);
+        setStatusNote("Матч найден.");
+        return;
+      }
+      if (res.status === "queued") {
+        setQueueInfo({
+          queue_size: res.queue_size ?? 1,
+          queue_position: res.queue_position ?? null,
+          total: PARTY_SIZE,
+        });
+        setStatusNote("Вы в очереди. Ожидаем соперника...");
+        return;
+      }
+      setError(res.message || "Ошибка матчмейкинга.");
+      setSearching(false);
+    } catch (e) {
+      setError(e?.message || "Ошибка матчмейкинга.");
+      setSearching(false);
+    }
+  }
+
+  async function runLeaveQueue() {
+    setError("");
+    try {
+      await apiFetch("/matchmaking/queue", { method: "DELETE" });
+    } catch {
+      // ignore
+    }
+    setActiveMatch(null);
+    setSearching(false);
+    setQueueInfo({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
+    setStatusNote("Поиск отменен.");
+  }
+
+  async function runSurrender() {
+    if (!activeMatch || surrendering) return;
+    const confirmed = window.confirm("Вы точно уверены? Вы потеряете PTS!");
+    if (!confirmed) return;
+
+    setError("");
+    setSurrendering(true);
+    try {
+      const payload = await apiFetch("/matchmaking/surrender", { method: "POST" });
+      setLastMatchResult(payload);
+      setActiveMatch(null);
+      setSearching(false);
+      setQueueInfo({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
+      await loadQuests();
+      setStatusNote("Вы сдались в матче. PTS были уменьшены.");
+    } catch (e) {
+      const message = e?.message || "Не удалось сдаться в матче.";
+      const alreadyFinished =
+        e?.status === 409 ||
+        message.includes("Match is already finished") ||
+        message.includes("No active match to surrender");
+
+      if (alreadyFinished) {
+        setActiveMatch(null);
+        setSearching(false);
+        setQueueInfo({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
+        setStatusNote("Матч уже завершён.");
+        await loadQuests();
+      } else {
+        setError(message);
+      }
+    }
+    setSurrendering(false);
   }
 
   async function handleClaimQuest(period, questId) {
@@ -931,7 +1033,8 @@ export function MatchmakingPage() {
             activeMatch={activeMatch}
             myUserId={myUserId}
             onNavigateTask={(taskId) => navigate(`/tasks/${taskId}/solve`)}
-            onSurrender={handleSurrender}
+            onSurrender={runSurrender}
+            surrendering={surrendering}
           />
         ) : (
           <div
@@ -963,7 +1066,7 @@ export function MatchmakingPage() {
               {state === "idle" ? (
                 <button
                   type="button"
-                  onClick={handleFindMatch}
+                  onClick={runFindMatch}
                   className="h-12 rounded-xl text-sm font-semibold transition-opacity hover:opacity-85"
                   style={{ background: "#FFD600", color: "#111" }}
                 >
@@ -972,7 +1075,7 @@ export function MatchmakingPage() {
               ) : (
                 <button
                   type="button"
-                  onClick={handleLeaveQueue}
+                  onClick={runLeaveQueue}
                   className="h-12 rounded-xl border text-sm font-medium text-white/80 transition-colors hover:text-white"
                   style={{ borderColor: "rgba(255,214,0,0.2)", background: "transparent" }}
                 >
