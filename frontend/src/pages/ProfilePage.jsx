@@ -29,6 +29,82 @@ export function ProfilePage() {
     return out;
   }, [submissions, taskTitles]);
 
+  const activityData = useMemo(() => {
+    const last30Days = [];
+    const today = new Date();
+    
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const daySubmissions = submissions.filter(s => {
+        const submissionDate = new Date(s.created_at).toISOString().split('T')[0];
+        return submissionDate === dateStr;
+      });
+      
+      last30Days.push({
+        date: dateStr,
+        submissions: daySubmissions.length,
+        successful: daySubmissions.filter(s => s.auto_test_passed === true || s.status === "accepted").length
+      });
+    }
+    
+    return last30Days;
+  }, [submissions]);
+
+  const statistics = useMemo(() => {
+    const totalSubmissions = submissions.length;
+    const successfulSubmissions = submissions.filter(s => s.auto_test_passed === true || s.status === "accepted").length;
+    const successRate = totalSubmissions > 0 ? Math.round((successfulSubmissions / totalSubmissions) * 100) : 0;
+    const avgSubmissionsPerDay = activityData.reduce((sum, day) => sum + day.submissions, 0) / 30;
+    
+    return {
+      totalSubmissions,
+      successfulSubmissions,
+      successRate,
+      avgSubmissionsPerDay: Math.round(avgSubmissionsPerDay * 10) / 10,
+      currentStreak: calculateCurrentStreak(),
+      longestStreak: calculateLongestStreak()
+    };
+  }, [submissions, activityData]);
+
+  function calculateCurrentStreak() {
+    const today = new Date();
+    let streak = 0;
+    
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const dayActivity = activityData.find(d => d.date === dateStr);
+      if (dayActivity && dayActivity.successful > 0) {
+        streak++;
+      } else if (i > 0) {
+        break;
+      }
+    }
+    
+    return streak;
+  }
+
+  function calculateLongestStreak() {
+    let longestStreak = 0;
+    let currentStreak = 0;
+    
+    for (const day of activityData) {
+      if (day.successful > 0) {
+        currentStreak++;
+        longestStreak = Math.max(longestStreak, currentStreak);
+      } else {
+        currentStreak = 0;
+      }
+    }
+    
+    return longestStreak;
+  }
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -175,7 +251,116 @@ export function ProfilePage() {
               <div className="text-xs uppercase tracking-wider text-muted">Уровень</div>
               <div className="mt-2 text-2xl font-semibold capitalize text-foreground">{u.level}</div>
             </div>
+            <div className="rounded-3xl border border-border bg-canvas p-4">
+              <div className="text-xs uppercase tracking-wider text-muted">Решено задач</div>
+              <div className="mt-2 text-2xl font-semibold text-foreground">{completedTasks.length}</div>
+            </div>
+            <div className="rounded-3xl border border-border bg-canvas p-4">
+              <div className="text-xs uppercase tracking-wider text-muted">Текущий стрик</div>
+              <div className="mt-2 text-2xl font-semibold text-foreground">{statistics.currentStreak} 🔥</div>
+            </div>
           </div>
+
+          <Card className="mt-6">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted mb-4">Активность за последние 30 дней</h3>
+            <div className="h-32">
+              <svg viewBox="0 0 300 120" className="w-full h-full">
+                {activityData.map((day, index) => {
+                  const x = (index / 29) * 280 + 10;
+                  const height = (day.submissions / Math.max(...activityData.map(d => d.submissions), 1)) * 80;
+                  const y = 100 - height;
+                  
+                  return (
+                    <g key={day.date}>
+                      <rect
+                        x={x}
+                        y={y}
+                        width={8}
+                        height={height}
+                        fill={day.successful > 0 ? "#10b981" : "#6b7280"}
+                        className="opacity-80 hover:opacity-100 transition-opacity"
+                      >
+                        <title>{`${day.date}: ${day.submissions} попыток, ${day.successful} успешно`}</title>
+                      </rect>
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+            <div className="mt-2 flex justify-between text-xs text-muted">
+              <span>30 дней назад</span>
+              <span>Сегодня</span>
+            </div>
+          </Card>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <Card className="p-4">
+              <div className="text-xs uppercase tracking-wider text-muted">Всего попыток</div>
+              <div className="mt-2 text-xl font-semibold text-foreground">{statistics.totalSubmissions}</div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs uppercase tracking-wider text-muted">Успешных</div>
+              <div className="mt-2 text-xl font-semibold text-accent">{statistics.successfulSubmissions}</div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs uppercase tracking-wider text-muted">Успешность</div>
+              <div className="mt-2 text-xl font-semibold text-foreground">{statistics.successRate}%</div>
+            </Card>
+          </div>
+
+          <Card className="mt-6">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted mb-4">Календарь активности</h3>
+            <div className="grid grid-cols-7 gap-1">
+              {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(day => (
+                <div key={day} className="text-center text-xs text-muted font-medium py-1">
+                  {day}
+                </div>
+              ))}
+              {activityData.slice(-28).map((day, index) => {
+                const intensity = day.submissions === 0 ? 0 : 
+                                 day.submissions === 1 ? 1 :
+                                 day.submissions <= 3 ? 2 :
+                                 day.submissions <= 5 ? 3 : 4;
+                
+                const bgColor = intensity === 0 ? 'bg-elevated/30' :
+                               intensity === 1 ? 'bg-accent/20' :
+                               intensity === 2 ? 'bg-accent/40' :
+                               intensity === 3 ? 'bg-accent/60' : 'bg-accent/80';
+                
+                return (
+                  <div
+                    key={day.date}
+                    className={`aspect-square rounded ${bgColor} flex items-center justify-center text-xs font-medium transition-all hover:scale-110`}
+                    title={`${day.date}: ${day.submissions} попыток`}
+                  >
+                    {day.submissions > 0 && (
+                      <span className={intensity > 2 ? 'text-white' : 'text-foreground'}>
+                        {day.submissions}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-3 flex items-center justify-between text-xs text-muted">
+              <div className="flex items-center gap-2">
+                <span>Меньше</span>
+                <div className="flex gap-1">
+                  {[0, 1, 2, 3, 4].map(level => {
+                    const bgColor = level === 0 ? 'bg-elevated/30' :
+                                   level === 1 ? 'bg-accent/20' :
+                                   level === 2 ? 'bg-accent/40' :
+                                   level === 3 ? 'bg-accent/60' : 'bg-accent/80';
+                    return <div key={level} className={`w-3 h-3 rounded ${bgColor}`} />;
+                  })}
+                </div>
+                <span>Больше</span>
+              </div>
+              <div>
+                Среднее: {statistics.avgSubmissionsPerDay} в день
+              </div>
+            </div>
+          </Card>
         </div>
       </Card>
 

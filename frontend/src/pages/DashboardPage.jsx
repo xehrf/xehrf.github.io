@@ -56,6 +56,14 @@ export function DashboardPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Задачи</h1>
           <p className="mt-1 text-sm text-muted">Решай задачи и зарабатывай PTS</p>
         </div>
+        <Button
+          type="button"
+          variant="secondary"
+          className="justify-center rounded-[12px] px-5 py-2.5 text-sm"
+          onClick={() => navigate('/achievements')}
+        >
+          🏆 Достижения
+        </Button>
       </div>
 
       <div className="mb-6 flex flex-wrap items-center gap-2 md:mb-8">
