@@ -3,12 +3,10 @@ import { Link } from "react-router-dom";
 import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 
 async function generateResumePDF(profile, completedTasks, skillChips) {
-  const [{ jsPDF }, html2canvas] = await Promise.all([
-    import("jspdf"),
-    import("html2canvas"),
-  ]);
 
   const avatarUrl = resolveAssetUrl(profile.avatar_url || "");
   const now = new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" });
