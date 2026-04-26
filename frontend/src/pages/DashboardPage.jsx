@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { TaskCard } from "../components/tasks/TaskCard.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
+import { BeautifulLineChart } from "../components/charts/BeautifulLineChart.jsx";
 import { apiFetch } from "../api/client";
 import { useNavigate } from "react-router-dom";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
@@ -51,6 +52,18 @@ export function DashboardPage() {
 
   return (
     <div className="mx-auto w-full max-w-[430px] px-4 py-6 md:max-w-6xl md:px-6 md:py-8">
+      {/* Chart Section */}
+      <div className="mb-8">
+        <div className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Аналитика</h1>
+            <p className="mt-1 text-sm text-muted">Ваша динамика роста</p>
+          </div>
+        </div>
+        <BeautifulLineChart height={300} />
+      </div>
+
+      {/* Tasks Section */}
       <div className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Задачи</h1>
