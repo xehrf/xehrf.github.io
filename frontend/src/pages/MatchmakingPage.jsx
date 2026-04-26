@@ -723,7 +723,22 @@ function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender, surren
     () => getOpponentFromParticipants(participants, myUserId),
     [participants, myUserId]
   );
-  const opponent = opponentFromParticipants ?? activeMatch?.opponent ?? null;
+
+  // activeMatch?.opponent иногда содержит СВОЕГО юзера — фильтруем
+  const opponentFromMatch = useMemo(() => {
+    if (!activeMatch) return null;
+    // Пробуем поле opponent
+    if (activeMatch.opponent?.user_id && activeMatch.opponent.user_id !== myUserId) {
+      return activeMatch.opponent;
+    }
+    // Пробуем поле participants если есть
+    if (Array.isArray(activeMatch.participants)) {
+      return activeMatch.participants.find(p => p.user_id !== myUserId) ?? null;
+    }
+    return null;
+  }, [activeMatch, myUserId]);
+
+  const opponent = opponentFromParticipants ?? opponentFromMatch ?? null;
   const opponentOnline = opponent ? onlineIds.includes(opponent.user_id) : false;
   const myName = participants.find(p => p.user_id === myUserId)?.nickname ?? "Вы";
   const oppName = opponent?.nickname ?? opponent?.display_name ?? "Соперник";
@@ -840,7 +855,7 @@ function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender, surren
       )}
 
       {/* Opponent panel compact */}
-      <OpponentIntelPanel opponentUserId={opponent?.user_id ?? null} online={opponentOnline} />
+      <OpponentIntelPanel opponentUserId={opponent?.user_id ?? null} online={opponentOnline} myUserId={myUserId} />
     </div>
   );
 }
@@ -981,20 +996,23 @@ function QuestPanel({ quests, onClaim, claimingQuestKey }) {
   );
 }
 
-function OpponentIntelPanel({ opponentUserId, online }) {
+function OpponentIntelPanel({ opponentUserId, online, myUserId }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Защита: не загружаем если id не задан или это наш собственный профиль
+  const safeId = opponentUserId && opponentUserId !== myUserId ? opponentUserId : null;
+
   useEffect(() => {
-    if (!opponentUserId) { setProfile(null); return; }
+    if (!safeId) { setProfile(null); return; }
     let mounted = true;
     setLoading(true);
-    apiFetch(`/users/${opponentUserId}/profile`)
+    apiFetch(`/users/${safeId}/profile`)
       .then((data) => { if (mounted) setProfile(data); })
       .catch(() => { if (mounted) setProfile(null); })
       .finally(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
-  }, [opponentUserId]);
+  }, [safeId]);
 
   const badges = useMemo(() => {
     const role = String(profile?.role ?? "").trim();
@@ -1331,3 +1349,4 @@ export function MatchmakingPage() {
     </div>
   );
 }
+
