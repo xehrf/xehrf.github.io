@@ -170,7 +170,8 @@ async function generateResumePDF(profile, completedTasks, skillChips) {
 
   try {
     await new Promise(r => setTimeout(r, 300));
-  const canvas = await html2canvas.default(container.firstElementChild, {
+  const h2c = html2canvas.default || html2canvas;
+  const canvas = await h2c(container.firstElementChild, {
       scale: 2,
       useCORS: true,
       allowTaint: true,
