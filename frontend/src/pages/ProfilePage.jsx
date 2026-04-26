@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-
 import { Link } from "react-router-dom";
-
 import { LinkButton } from "../components/ui/Button.jsx";
-
 import { Card } from "../components/ui/Card.jsx";
-
+import { LineChart } from "../components/ui/LineChart.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
 
 
@@ -29,34 +26,126 @@ export function ProfilePage() {
 
 
   const completedTasks = useMemo(() => {
-
     const seen = new Set();
-
     const out = [];
-
     for (const s of submissions) {
-
       const ok = s.auto_test_passed === true || s.status === "accepted";
-
       if (!ok) continue;
-
       if (seen.has(s.task_id)) continue;
-
       seen.add(s.task_id);
-
       out.push({
-
         taskId: s.task_id,
-
         title: taskTitles[s.task_id] ?? `Задача #${s.task_id}`,
-
       });
-
     }
-
     return out;
-
   }, [submissions, taskTitles]);
+
+  const activityData = useMemo(() => {
+    const last30Days = [];
+    const today = new Date();
+    
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const daySubmissions = submissions.filter(s => {
+        const submissionDate = new Date(s.created_at).toISOString().split('T')[0];
+        return submissionDate === dateStr;
+      });
+      
+      last30Days.push({
+        date: dateStr,
+        submissions: daySubmissions.length,
+        successful: daySubmissions.filter(s => s.auto_test_passed === true || s.status === "accepted").length
+      });
+    }
+    
+    return last30Days;
+  }, [submissions]);
+
+  const ptsChartData = useMemo(() => {
+    // Generate sample PTS data for the last 30 days
+    const data = [];
+    const today = new Date();
+    let currentPts = u.pts || 100; // Start from current PTS or default
+    
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      
+      // Simulate PTS changes based on successful submissions
+      const daySubmissions = submissions.filter(s => {
+        const submissionDate = new Date(s.created_at).toISOString().split('T')[0];
+        const targetDate = date.toISOString().split('T')[0];
+        return submissionDate === targetDate && (s.auto_test_passed === true || s.status === "accepted");
+      });
+      
+      // Add random PTS gains for successful submissions
+      const ptsGain = daySubmissions.length * Math.floor(Math.random() * 10 + 5);
+      currentPts += ptsGain;
+      
+      data.push({
+        date: date.toISOString(),
+        value: currentPts
+      });
+    }
+    
+    return data.reverse(); // Show chronological order
+  }, [submissions, u.pts]);
+
+  const statistics = useMemo(() => {
+    const totalSubmissions = submissions.length;
+    const successfulSubmissions = submissions.filter(s => s.auto_test_passed === true || s.status === "accepted").length;
+    const successRate = totalSubmissions > 0 ? Math.round((successfulSubmissions / totalSubmissions) * 100) : 0;
+    const avgSubmissionsPerDay = activityData.reduce((sum, day) => sum + day.submissions, 0) / 30;
+    
+    return {
+      totalSubmissions,
+      successfulSubmissions,
+      successRate,
+      avgSubmissionsPerDay: Math.round(avgSubmissionsPerDay * 10) / 10,
+      currentStreak: calculateCurrentStreak(),
+      longestStreak: calculateLongestStreak()
+    };
+  }, [submissions, activityData]);
+
+  function calculateCurrentStreak() {
+    const today = new Date();
+    let streak = 0;
+    
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const dayActivity = activityData.find(d => d.date === dateStr);
+      if (dayActivity && dayActivity.successful > 0) {
+        streak++;
+      } else if (i > 0) {
+        break;
+      }
+    }
+    
+    return streak;
+  }
+
+  function calculateLongestStreak() {
+    let longestStreak = 0;
+    let currentStreak = 0;
+    
+    for (const day of activityData) {
+      if (day.successful > 0) {
+        currentStreak++;
+        longestStreak = Math.max(longestStreak, currentStreak);
+      } else {
+        currentStreak = 0;
+      }
+    }
+    
+    return longestStreak;
+  }
 
 
 
@@ -330,35 +419,19 @@ export function ProfilePage() {
 
             </p>
 
-          )}
-
-
 
           <div className="grid gap-4 md:grid-cols-2">
-
             <div className="rounded-3xl border border-border bg-canvas p-4">
-
               <div className="text-xs uppercase tracking-wider text-muted">PTS</div>
-
               <div className="mt-2 text-2xl font-semibold text-foreground">{u.pts}</div>
-
             </div>
-
             <div className="rounded-3xl border border-border bg-canvas p-4">
-
               <div className="text-xs uppercase tracking-wider text-muted">Уровень</div>
-
               <div className="mt-2 text-2xl font-semibold capitalize text-foreground">{u.level}</div>
-
             </div>
-
-          </div>
-
-        </div>
-
-      </Card>
-
-
+            <div className="rounded-3xl border border-border bg-canvas p-4">
+              <div className="text-xs uppercase tracking-wider text-muted">Решено задач</div>
+              <div className="mt-2 text-2xl font-semibold text-foreground">{completedTasks.length}</div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
 
