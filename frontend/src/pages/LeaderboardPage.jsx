@@ -3,6 +3,38 @@ import { Card } from "../components/ui/Card.jsx";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Tooltip,
+  Filler,
+} from "chart.js";
+import { Line } from "react-chartjs-2";
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
+
+// Crosshair plugin — vertical dashed line on hover
+const crosshairPlugin = {
+  id: "crosshair",
+  afterDatasetsDraw(chart) {
+    const { ctx, tooltip, chartArea } = chart;
+    if (!tooltip._active?.length) return;
+    const x = tooltip._active[0].element.x;
+    ctx.save();
+    ctx.beginPath();
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = "rgba(255, 214, 0, 0.35)";
+    ctx.lineWidth = 1.5;
+    ctx.moveTo(x, chartArea.top);
+    ctx.lineTo(x, chartArea.bottom);
+    ctx.stroke();
+    ctx.restore();
+  },
+};
+ChartJS.register(crosshairPlugin);
 
 function formatNumber(value) {
   return new Intl.NumberFormat("ru-RU").format(Number(value || 0));
@@ -12,65 +44,176 @@ function formatPercent(value) {
   return `${Number(value || 0).toFixed(1)}%`;
 }
 
-function pointsToPath(points, width, height, padding) {
-  if (!points.length) return "";
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y);
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-  const spanX = Math.max(1, maxX - minX);
-  const spanY = Math.max(1, maxY - minY);
-  const toCanvasX = (x) => padding + ((x - minX) / spanX) * (width - padding * 2);
-  const toCanvasY = (y) => height - padding - ((y - minY) / spanY) * (height - padding * 2);
-
-  return points
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${toCanvasX(point.x).toFixed(2)} ${toCanvasY(point.y).toFixed(2)}`)
-    .join(" ");
-}
-
 function HistoryChart({ points }) {
-  const width = 800;
-  const height = 260;
-  const padding = 24;
+  const chartRef = useRef(null);
+  const [tooltipData, setTooltipData] = useState(null);
 
-  const chartPoints = useMemo(() => {
+  const { labels, values } = useMemo(() => {
     let cumulative = 0;
-    return (points || []).map((point, index) => {
+    const processed = (points || []).map((point) => {
       cumulative += Number(point.total_delta || 0);
-      return { x: index, y: cumulative, label: point.date };
+      return { y: cumulative, label: point.date };
     });
+    return {
+      labels: processed.map((p) => p.label),
+      values: processed.map((p) => p.y),
+    };
   }, [points]);
 
-  const path = useMemo(() => pointsToPath(chartPoints, width, height, padding), [chartPoints]);
-  const min = chartPoints.length ? Math.min(...chartPoints.map((p) => p.y)) : 0;
-  const max = chartPoints.length ? Math.max(...chartPoints.map((p) => p.y)) : 0;
+  const min = values.length ? Math.min(...values) : 0;
+  const max = values.length ? Math.max(...values) : 0;
+  const isPositive = values.length >= 2 ? values[values.length - 1] >= values[0] : true;
+  const growth = values.length >= 2 ? values[values.length - 1] - values[0] : 0;
 
-  if (!chartPoints.length) {
+  if (!values.length) {
     return <p className="text-sm text-muted">Нет данных для графика за выбранный период.</p>;
   }
 
+  const chartDataConfig = {
+    labels,
+    datasets: [{
+      data: values,
+      borderColor: "#FFD700",
+      backgroundColor(context) {
+        const { ctx, chartArea } = context.chart;
+        if (!chartArea) return "rgba(255,215,0,0.08)";
+        const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+        gradient.addColorStop(0, "rgba(255,215,0,0.20)");
+        gradient.addColorStop(0.6, "rgba(255,215,0,0.05)");
+        gradient.addColorStop(1, "rgba(255,215,0,0)");
+        return gradient;
+      },
+      borderWidth: 2,
+      fill: true,
+      tension: 0.4,
+      pointRadius: 0,
+      pointHoverRadius: 6,
+      pointHoverBackgroundColor: "#FFD700",
+      pointHoverBorderColor: "#111",
+      pointHoverBorderWidth: 2.5,
+    }],
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 800, easing: "easeInOutQuart" },
+    interaction: { intersect: false, mode: "index" },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        enabled: false,
+        external(context) {
+          const model = context.tooltip;
+          if (model.opacity === 0) { setTooltipData(null); return; }
+          if (model.dataPoints?.length) {
+            const idx = model.dataPoints[0].dataIndex;
+            setTooltipData({ value: values[idx], label: labels[idx], x: model.caretX, y: model.caretY });
+          }
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        border: { display: false },
+        ticks: {
+          color: "rgba(255,255,255,0.35)",
+          font: { size: 11, family: "ui-monospace, monospace" },
+          maxTicksLimit: 6,
+          maxRotation: 0,
+        },
+      },
+      y: {
+        grid: { color: "rgba(255,255,255,0.06)", drawBorder: false },
+        border: { display: false },
+        ticks: {
+          color: "rgba(255,255,255,0.35)",
+          font: { size: 11, family: "ui-monospace, monospace" },
+          callback: (v) => formatNumber(v),
+        },
+      },
+    },
+  };
+
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between text-xs text-muted">
+      {/* Range header */}
+      <div className="mb-4 flex items-center justify-between text-xs text-muted">
         <span>Диапазон дельты</span>
-        <span>
-          {formatNumber(min)} .. {formatNumber(max)}
-        </span>
+        <span>{formatNumber(min)} .. {formatNumber(max)}</span>
       </div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-[240px] w-full rounded-btn border border-border bg-canvas">
-        <defs>
-          <linearGradient id="ratingLine" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#f8d553" />
-            <stop offset="100%" stopColor="#7dd3fc" />
-          </linearGradient>
-        </defs>
-        <path d={path} fill="none" stroke="url(#ratingLine)" strokeWidth="3" />
-      </svg>
+
+      {/* Metric cards */}
+      <div className="mb-5 grid grid-cols-3 gap-3">
+        {[
+          { label: "Начало", value: formatNumber(values[0]) + " PTS", sub: labels[0] || "—", accent: false },
+          { label: "Сейчас", value: formatNumber(values[values.length - 1]) + " PTS", sub: labels[labels.length - 1] || "—", accent: false },
+          {
+            label: "Прирост",
+            value: (growth >= 0 ? "+" : "") + formatNumber(growth) + " PTS",
+            sub: (isPositive ? "↑" : "↓") + " за период",
+            accent: true,
+            positive: isPositive,
+          },
+        ].map((card, i) => (
+          <div
+            key={i}
+            style={{
+              borderRadius: 12,
+              padding: "12px 14px",
+              background: card.accent ? "rgba(255,215,0,0.07)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${card.accent ? "rgba(255,215,0,0.25)" : "rgba(255,255,255,0.08)"}`,
+            }}
+          >
+            <div style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", marginBottom: 6, fontFamily: "ui-monospace, monospace" }}>
+              {card.label}
+            </div>
+            <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.02em", color: card.accent ? "#FFD700" : "rgba(255,255,255,0.9)", marginBottom: 3, lineHeight: 1 }}>
+              {card.value}
+            </div>
+            <div style={{ fontSize: 11, fontFamily: "ui-monospace, monospace", color: card.accent ? (card.positive ? "#4ade80" : "#f87171") : "rgba(255,255,255,0.3)" }}>
+              {card.sub}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Chart */}
+      <div style={{ position: "relative", height: 240, borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", padding: "16px 12px 10px", background: "rgba(255,255,255,0.02)" }}>
+        <Line ref={chartRef} data={chartDataConfig} options={chartOptions} />
+
+        {/* React tooltip */}
+        {tooltipData && (
+          <div style={{
+            position: "absolute",
+            left: tooltipData.x,
+            top: tooltipData.y - 52,
+            transform: "translateX(-50%)",
+            pointerEvents: "none",
+            zIndex: 10,
+            background: "rgba(18,18,18,0.92)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid rgba(255,215,0,0.3)",
+            borderRadius: 10,
+            padding: "8px 14px",
+            textAlign: "center",
+            minWidth: 110,
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#FFD700", fontFamily: "ui-monospace, monospace", marginBottom: 2 }}>
+              {formatNumber(tooltipData.value)} PTS
+            </div>
+            <div style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", color: "rgba(255,255,255,0.4)", letterSpacing: "0.04em" }}>
+              {tooltipData.label}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Date labels */}
       <div className="mt-2 flex items-center justify-between text-[11px] text-muted">
-        <span>{chartPoints[0]?.label}</span>
-        <span>{chartPoints[chartPoints.length - 1]?.label}</span>
+        <span>{labels[0]}</span>
+        <span>{labels[labels.length - 1]}</span>
       </div>
     </div>
   );
