@@ -20,8 +20,9 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 const crosshairPlugin = {
   id: "crosshair",
   afterDatasetsDraw(chart) {
-    const { ctx, tooltip, chartArea } = chart;
-    if (!tooltip._active?.length) return;
+    const { ctx, chartArea } = chart;
+    const tooltip = chart.tooltip;
+    if (!tooltip || !tooltip._active || !tooltip._active.length) return;
     const x = tooltip._active[0].element.x;
     ctx.save();
     ctx.beginPath();
