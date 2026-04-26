@@ -5,236 +5,209 @@ import { Card } from "../components/ui/Card.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
 
 async function generateResumePDF(profile, completedTasks, skillChips) {
-  const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const [{ jsPDF }, html2canvas] = await Promise.all([
+    import("jspdf"),
+    import("html2canvas"),
+  ]);
 
-  const W = 210;
-  const gold = [255, 214, 0];
-  const dark = [15, 15, 20];
-  const mid = [40, 40, 50];
-  const light = [180, 180, 190];
-  const white = [255, 255, 255];
-  const green = [74, 222, 128];
-
-  // Background
-  doc.setFillColor(...dark);
-  doc.rect(0, 0, W, 297, "F");
-
-  // Header stripe
-  doc.setFillColor(25, 25, 35);
-  doc.rect(0, 0, W, 60, "F");
-
-  // Gold accent line
-  doc.setFillColor(...gold);
-  doc.rect(0, 58, W, 2, "F");
-
-  // Avatar circle
   const avatarUrl = resolveAssetUrl(profile.avatar_url || "");
-  let avatarLoaded = false;
-  if (avatarUrl) {
-    try {
-      const img = await new Promise((res, rej) => {
-        const i = new Image();
-        i.crossOrigin = "anonymous";
-        i.onload = () => res(i);
-        i.onerror = rej;
-        i.src = avatarUrl;
-      });
-      const canvas = document.createElement("canvas");
-      canvas.width = 120; canvas.height = 120;
-      const ctx = canvas.getContext("2d");
-      ctx.beginPath();
-      ctx.arc(60, 60, 60, 0, Math.PI * 2);
-      ctx.closePath();
-      ctx.clip();
-      ctx.drawImage(img, 0, 0, 120, 120);
-      const dataUrl = canvas.toDataURL("image/png");
-      // Gold border circle
-      doc.setFillColor(...gold);
-      doc.circle(30, 30, 17, "F");
-      doc.setFillColor(25, 25, 35);
-      doc.circle(30, 30, 15.5, "F");
-      doc.addImage(dataUrl, "PNG", 15, 15, 30, 30, undefined, "FAST");
-      avatarLoaded = true;
-    } catch {}
-  }
-  if (!avatarLoaded) {
-    doc.setFillColor(...mid);
-    doc.circle(30, 30, 17, "F");
-    doc.setFontSize(16);
-    doc.setTextColor(...gold);
-    const initials = (profile.nickname || profile.display_name || "?")[0].toUpperCase();
-    doc.text(initials, 30, 33, { align: "center" });
-  }
-
-  // Name & handle
-  doc.setFontSize(22);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...white);
-  doc.text(profile.nickname || profile.display_name || "Unknown", 55, 25);
-
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...light);
-  doc.text(`@${profile.nickname || profile.display_name}`, 55, 33);
-
-  // Level badge
-  const level = (profile.level || "beginner").toUpperCase();
-  doc.setFillColor(...gold);
-  doc.roundedRect(55, 37, level.length * 3.5 + 10, 8, 2, 2, "F");
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...dark);
-  doc.text(level, 60, 43);
-
-  // CodeArena label top-right
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...gold);
-  doc.text("CodeArena", W - 15, 12, { align: "right" });
-  doc.setFontSize(7);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...light);
-  doc.text("Player Resume", W - 15, 18, { align: "right" });
-
-  // Date
   const now = new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" });
-  doc.setFontSize(7);
-  doc.setTextColor(...light);
-  doc.text(`Сформировано: ${now}`, W - 15, 24, { align: "right" });
 
-  let y = 72;
+  // Build HTML string for the resume
+  const html = `
+    <div style="
+      width: 794px;
+      min-height: 1123px;
+      background: #0f0f14;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #fff;
+      position: relative;
+      box-sizing: border-box;
+    ">
+      <!-- Header -->
+      <div style="background: #191923; padding: 32px 40px 28px; position: relative; border-bottom: 3px solid #FFD600;">
+        <div style="position: absolute; top: 20px; right: 40px; text-align: right;">
+          <div style="color: #FFD600; font-size: 14px; font-weight: 700; letter-spacing: 1px;">CodeArena</div>
+          <div style="color: #888; font-size: 11px; margin-top: 2px;">Player Resume</div>
+          <div style="color: #666; font-size: 10px; margin-top: 4px;">Сформировано: ${now}</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 24px;">
+          <div style="
+            width: 90px; height: 90px; border-radius: 50%;
+            border: 3px solid #FFD600;
+            overflow: hidden; flex-shrink: 0;
+            background: #2a2a35;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 36px; font-weight: 700; color: #FFD600;
+          ">
+            ${avatarUrl
+              ? `<img src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover;" crossorigin="anonymous" />`
+              : (profile.nickname || profile.display_name || "?")[0].toUpperCase()
+            }
+          </div>
+          <div>
+            <div style="font-size: 30px; font-weight: 700; color: #fff; line-height: 1.1;">
+              ${profile.nickname || profile.display_name || "Unknown"}
+            </div>
+            <div style="font-size: 13px; color: #aaa; margin-top: 4px;">
+              @${profile.nickname || profile.display_name}
+            </div>
+            <div style="
+              display: inline-block;
+              background: #FFD600; color: #111;
+              font-size: 10px; font-weight: 700;
+              letter-spacing: 1px; text-transform: uppercase;
+              padding: 4px 14px; border-radius: 20px; margin-top: 10px;
+            ">${profile.level || "beginner"}</div>
+          </div>
+        </div>
+      </div>
 
-  // ── Stats row ──
-  const stats = [
-    { label: "PTS", value: String(profile.pts ?? 0) },
-    { label: "Задач решено", value: String(completedTasks.length) },
-    { label: "Навыков", value: String(skillChips.filter(s => s.type === "skill").length) },
-    { label: "Уровень", value: profile.level || "beginner" },
-  ];
-  const colW = (W - 30) / stats.length;
-  stats.forEach((stat, i) => {
-    const x = 15 + i * colW;
-    doc.setFillColor(30, 30, 42);
-    doc.roundedRect(x, y, colW - 4, 22, 3, 3, "F");
-    doc.setFontSize(15);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...gold);
-    doc.text(stat.value, x + (colW - 4) / 2, y + 11, { align: "center" });
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(...light);
-    doc.text(stat.label, x + (colW - 4) / 2, y + 18, { align: "center" });
-  });
-  y += 30;
+      <div style="padding: 28px 40px;">
 
-  // ── Bio ──
-  if (profile.bio) {
-    doc.setFillColor(25, 25, 35);
-    doc.roundedRect(15, y, W - 30, 2, 1, 1, "F");
+        <!-- Stats -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px;">
+          ${[
+            { label: "PTS", value: profile.pts ?? 0 },
+            { label: "Задач решено", value: completedTasks.length },
+            { label: "Навыков", value: skillChips.filter(s => s.type === "skill").length },
+            { label: "Уровень", value: profile.level || "beginner" },
+          ].map(s => `
+            <div style="background: #1e1e2a; border-radius: 12px; padding: 16px; text-align: center; border: 1px solid #2a2a3a;">
+              <div style="font-size: 24px; font-weight: 700; color: #FFD600;">${s.value}</div>
+              <div style="font-size: 11px; color: #888; margin-top: 4px;">${s.label}</div>
+            </div>
+          `).join("")}
+        </div>
 
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...gold);
-    doc.text("О СЕБЕ", 15, y + 8);
+        ${profile.bio ? `
+        <!-- Bio -->
+        <div style="margin-bottom: 28px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <div style="width: 4px; height: 18px; background: #FFD600; border-radius: 2px;"></div>
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #fff; text-transform: uppercase;">О себе</div>
+            <div style="flex: 1; height: 1px; background: #2a2a3a;"></div>
+          </div>
+          <div style="background: #191923; border-radius: 10px; padding: 14px 18px; font-size: 13px; color: #ccc; line-height: 1.7; border: 1px solid #2a2a3a;">
+            ${profile.bio}
+          </div>
+        </div>
+        ` : ""}
 
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(...white);
-    const bioLines = doc.splitTextToSize(profile.bio, W - 30);
-    doc.text(bioLines, 15, y + 16);
-    y += 16 + bioLines.length * 5 + 8;
-  }
+        ${skillChips.length > 0 ? `
+        <!-- Skills -->
+        <div style="margin-bottom: 28px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <div style="width: 4px; height: 18px; background: #FFD600; border-radius: 2px;"></div>
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #fff; text-transform: uppercase;">Навыки и роль</div>
+            <div style="flex: 1; height: 1px; background: #2a2a3a;"></div>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            ${skillChips.map(s => `
+              <div style="
+                padding: 6px 14px; border-radius: 20px;
+                background: ${s.type === "role" ? "rgba(99,102,241,0.2)" : "rgba(255,214,0,0.1)"};
+                border: 1px solid ${s.type === "role" ? "rgba(99,102,241,0.5)" : "rgba(255,214,0,0.3)"};
+                font-size: 12px; color: ${s.type === "role" ? "#a5b4fc" : "#FFD600"};
+                font-weight: ${s.type === "role" ? "700" : "400"};
+              ">
+                ${s.label}${s.type === "skill" ? ` <span style="opacity:0.6; font-size:11px;">${s.proficiency}/5</span>` : " <span style='font-size:10px;opacity:0.7;'>РОЛЬ</span>"}
+              </div>
+            `).join("")}
+          </div>
+        </div>
+        ` : ""}
 
-  // ── Section divider helper ──
-  function sectionHeader(label, yPos) {
-    doc.setFillColor(...gold);
-    doc.rect(15, yPos, 3, 6, "F");
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...white);
-    doc.text(label, 21, yPos + 5);
-    doc.setDrawColor(...mid);
-    doc.setLineWidth(0.3);
-    doc.line(21 + doc.getTextWidth(label) + 4, yPos + 3, W - 15, yPos + 3);
-    return yPos + 12;
-  }
+        ${completedTasks.length > 0 ? `
+        <!-- Tasks -->
+        <div>
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <div style="width: 4px; height: 18px; background: #FFD600; border-radius: 2px;"></div>
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #fff; text-transform: uppercase;">Выполненные задачи</div>
+            <div style="flex: 1; height: 1px; background: #2a2a3a;"></div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            ${completedTasks.map((task, i) => `
+              <div style="
+                display: flex; align-items: center; justify-content: space-between;
+                padding: 10px 14px; border-radius: 8px;
+                background: ${i % 2 === 0 ? "#191923" : "transparent"};
+                border: 1px solid ${i % 2 === 0 ? "#2a2a3a" : "transparent"};
+              ">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <div style="
+                    width: 20px; height: 20px; border-radius: 50%;
+                    background: #4ade80;
+                    display: flex; align-items: center; justify-content: center;
+                    font-size: 11px; font-weight: 700; color: #111; flex-shrink: 0;
+                  ">✓</div>
+                  <div style="font-size: 13px; color: #e5e5e5;">${task.title}</div>
+                </div>
+                <div style="font-size: 11px; color: #555; flex-shrink: 0;">#${task.taskId}</div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+        ` : ""}
 
-  // ── Skills ──
-  if (skillChips.length > 0) {
-    y = sectionHeader("НАВЫКИ И РОЛЬ", y);
-    let sx = 15;
-    skillChips.forEach((skill) => {
-      const label = skill.type === "skill"
-        ? `${skill.label}  ${skill.proficiency}/5`
-        : `${skill.label}  РОЛЬ`;
-      const tw = doc.getTextWidth(label) + 10;
-      if (sx + tw > W - 15) { sx = 15; y += 9; }
-      doc.setFillColor(skill.type === "role" ? 40 : 30, skill.type === "role" ? 30 : 35, skill.type === "role" ? 55 : 50);
-      doc.roundedRect(sx, y - 5, tw, 7, 2, 2, "F");
-      doc.setDrawColor(skill.type === "role" ? 120 : 80, skill.type === "role" ? 80 : 100, skill.type === "role" ? 200 : 150);
-      doc.setLineWidth(0.3);
-      doc.roundedRect(sx, y - 5, tw, 7, 2, 2, "S");
-      doc.setFontSize(7);
-      doc.setFont("helvetica", skill.type === "role" ? "bold" : "normal");
-      doc.setTextColor(...white);
-      doc.text(label, sx + 5, y);
-      sx += tw + 4;
+      </div>
+
+      <!-- Footer -->
+      <div style="
+        position: absolute; bottom: 0; left: 0; right: 0;
+        background: #191923; border-top: 2px solid #FFD600;
+        padding: 12px 40px; display: flex; justify-content: space-between; align-items: center;
+      ">
+        <div style="font-size: 10px; color: #666;">CodeArena — платформа для разработчиков</div>
+        <div style="font-size: 10px; color: #FFD600;">xehrf-github-io.vercel.app</div>
+      </div>
+    </div>
+  `;
+
+  // Render HTML to canvas
+  const container = document.createElement("div");
+  container.style.cssText = "position:fixed;left:-9999px;top:-9999px;z-index:-1;";
+  container.innerHTML = html;
+  document.body.appendChild(container);
+
+  try {
+    const canvas = await html2canvas.default(container.firstChild, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: "#0f0f14",
+      logging: false,
     });
-    y += 14;
-  }
 
-  // ── Completed tasks ──
-  if (completedTasks.length > 0) {
-    y = sectionHeader("ВЫПОЛНЕННЫЕ ЗАДАЧИ", y);
-    completedTasks.slice(0, 15).forEach((task, i) => {
-      if (y > 270) return;
-      // Row bg alternating
-      if (i % 2 === 0) {
-        doc.setFillColor(25, 25, 35);
-        doc.rect(15, y - 4, W - 30, 8, "F");
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pdfW = 210;
+    const pdfH = (canvas.height * pdfW) / canvas.width;
+
+    if (pdfH <= 297) {
+      pdf.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
+    } else {
+      // Multi-page
+      const pageH = 297;
+      const ratio = canvas.width / pdfW;
+      let srcY = 0;
+      while (srcY < canvas.height) {
+        const srcH = Math.min(pageH * ratio, canvas.height - srcY);
+        const pageCanvas = document.createElement("canvas");
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = srcH;
+        pageCanvas.getContext("2d").drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+        pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", 0, 0, pdfW, srcH / ratio);
+        srcY += srcH;
+        if (srcY < canvas.height) pdf.addPage();
       }
-      // Green checkmark
-      doc.setFillColor(...green);
-      doc.circle(21, y, 2.5, "F");
-      doc.setFontSize(7);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...dark);
-      doc.text("✓", 19.5, y + 1);
-      // Task title
-      doc.setFontSize(8.5);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(...white);
-      const title = doc.splitTextToSize(task.title, W - 50)[0];
-      doc.text(title, 27, y + 1);
-      // Task number
-      doc.setFontSize(7);
-      doc.setTextColor(...light);
-      doc.text(`#${task.taskId}`, W - 15, y + 1, { align: "right" });
-      y += 9;
-    });
-    if (completedTasks.length > 15) {
-      doc.setFontSize(8);
-      doc.setTextColor(...light);
-      doc.text(`+ ещё ${completedTasks.length - 15} задач`, 15, y + 4);
-      y += 10;
     }
+
+    const filename = `resume_${(profile.nickname || profile.display_name || "user").replace(/\s+/g, "_")}.pdf`;
+    pdf.save(filename);
+  } finally {
+    document.body.removeChild(container);
   }
-
-  // ── Footer ──
-  doc.setFillColor(...mid);
-  doc.rect(0, 285, W, 12, "F");
-  doc.setFillColor(...gold);
-  doc.rect(0, 285, W, 1, "F");
-  doc.setFontSize(7);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...light);
-  doc.text("CodeArena — платформа для разработчиков", 15, 292);
-  doc.setTextColor(...gold);
-  doc.text("xehrf-github-io.vercel.app", W - 15, 292, { align: "right" });
-
-  const filename = `resume_${(profile.nickname || profile.display_name || "user").replace(/\s+/g, "_")}.pdf`;
-  doc.save(filename);
 }
 
 export function ProfilePage() {
@@ -356,12 +329,9 @@ export function ProfilePage() {
             className="h-12 justify-center rounded-[12px] px-5 py-2.5 text-sm font-semibold transition-opacity hover:opacity-85 disabled:opacity-50"
             style={{ background: "#FFD600", color: "#111" }}
           >
-            {generatingPdf ? "Генерируем..." : "⬇ Скачать резюме"}
+            {generatingPdf ? "Генерируем PDF..." : "⬇ Скачать резюме"}
           </button>
-          <LinkButton
-            to="/profile/edit"
-            className="h-12 justify-center rounded-[12px] px-5 py-2.5 text-sm"
-          >
+          <LinkButton to="/profile/edit" className="h-12 justify-center rounded-[12px] px-5 py-2.5 text-sm">
             Редактировать профиль
           </LinkButton>
         </div>
@@ -488,3 +458,4 @@ export function ProfilePage() {
     </div>
   );
 }
+
