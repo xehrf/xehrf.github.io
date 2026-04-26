@@ -166,17 +166,19 @@ async function generateResumePDF(profile, completedTasks, skillChips) {
 
   // Render HTML to canvas
   const container = document.createElement("div");
-  container.style.cssText = "position:fixed;left:-9999px;top:-9999px;z-index:-1;";
+  container.style.cssText = "position:absolute;left:0;top:0;z-index:-9999;opacity:0;pointer-events:none;width:794px;";
   container.innerHTML = html;
   document.body.appendChild(container);
 
   try {
-    const canvas = await html2canvas.default(container.firstChild, {
+    await new Promise(r => setTimeout(r, 300));
+  const canvas = await html2canvas.default(container.firstElementChild, {
       scale: 2,
       useCORS: true,
       allowTaint: true,
       backgroundColor: "#0f0f14",
       logging: false,
+      windowWidth: 794,
     });
 
     const imgData = canvas.toDataURL("image/png");
@@ -458,4 +460,3 @@ export function ProfilePage() {
     </div>
   );
 }
-
