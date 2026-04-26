@@ -58,9 +58,9 @@ async def join_queue(user: User = Depends(get_current_user), db: Session = Depen
 
     if match is None:
         await manager.send_event(
-    user.id,
-    "queue_update",
-    {"queue_size": q_size, "queue_position": q_pos, "status": "queued", "total": 2},
+            user.id,
+            "queue_update",
+            {"queue_size": q_size, "queue_position": q_pos, "status": "queued", "total": 2},
         )
 
         return MatchmakingJoinResponse(
@@ -70,17 +70,25 @@ async def join_queue(user: User = Depends(get_current_user), db: Session = Depen
             message="Waiting for players with similar rating.",
         )
 
-    opponent = _opponent_payload(db, match, user.id)
     participant_ids = [p.user_id for p in match.participants]
+
+    # 🔥 FIX ЗДЕСЬ
     for uid in participant_ids:
-        await manager.send_event(uid, "match_found", _match_found_payload(match))
+        await manager.send_event(
+            uid,
+            "match_found",
+            {
+                **_match_found_payload(match),
+                "opponent": _opponent_payload(db, match, uid),
+            },
+        )
 
     return MatchmakingJoinResponse(
         status="matched",
         match_id=match.id,
         task_id=match.task_id,
         ends_at=match.ends_at.isoformat() if match.ends_at else None,
-        opponent=opponent,
+        opponent=_opponent_payload(db, match, user.id),
     )
 
 
@@ -211,8 +219,17 @@ async def request_rematch(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to create rematch")
 
     rematch_participants = [p.user_id for p in rematch_match.participants]
+
+    # 🔥 FIX ЗДЕСЬ ТОЖЕ
     for uid in rematch_participants:
-        await manager.send_event(uid, "match_found", _match_found_payload(rematch_match))
+        await manager.send_event(
+            uid,
+            "match_found",
+            {
+                **_match_found_payload(rematch_match),
+                "opponent": _opponent_payload(db, rematch_match, uid),
+            },
+        )
 
     return MatchmakingJoinResponse(
         status="matched",
@@ -282,6 +299,7 @@ async def matchmaking_socket(websocket: WebSocket, db: Session = Depends(get_db)
                     "task_id": active.task_id,
                     "ends_at": active.ends_at.isoformat() if active.ends_at else None,
                     "status": active.status.value,
+                    "opponent": _opponent_payload(db, active, user.id),  # 👈 можно сразу и тут
                 },
             )
         else:
