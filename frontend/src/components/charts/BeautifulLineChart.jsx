@@ -35,8 +35,8 @@ const BeautifulLineChart = ({ data = {}, height = 400, className = '' }) => {
 
   // Default data if not provided
   const chartData = data.labels && data.values ? data : {
-    labels: ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'],
-    values: [45000, 52000, 48000, 61000, 58000, 67000, 72000, 69000, 75000, 82000, 79000, 88000]
+    labels: ['24 апр', '25 апр'],
+    values: [110, 135]
   };
 
   // Theme detection
@@ -77,10 +77,10 @@ const BeautifulLineChart = ({ data = {}, height = 400, className = '' }) => {
     
     if (isDark) {
       gradient.addColorStop(0, 'rgba(255, 215, 0, 0.3)');
-      gradient.addColorStop(1, 'rgba(255, 215, 0, 0.01)');
+      gradient.addColorStop(1, 'rgba(59, 130, 246, 0.01)');
     } else {
       gradient.addColorStop(0, 'rgba(255, 215, 0, 0.4)');
-      gradient.addColorStop(1, 'rgba(255, 215, 0, 0.02)');
+      gradient.addColorStop(1, 'rgba(59, 130, 246, 0.02)');
     }
     
     return gradient;
@@ -124,8 +124,8 @@ const BeautifulLineChart = ({ data = {}, height = 400, className = '' }) => {
             const label = chartData.labels[dataIndex];
 
             tooltipEl.innerHTML = `
-              <div class="tooltip-value">${value.toLocaleString('ru-RU')} ₽</div>
-              <div class="tooltip-label">${label} 2024</div>
+              <div class="tooltip-value">${value.toLocaleString('ru-RU')} PTS</div>
+              <div class="tooltip-label">${label} 2026</div>
             `;
           }
 
@@ -171,7 +171,7 @@ const BeautifulLineChart = ({ data = {}, height = 400, className = '' }) => {
             weight: '500'
           },
           callback: function(value) {
-            return value.toLocaleString('ru-RU') + ' ₽';
+            return value.toLocaleString('ru-RU') + ' PTS';
           }
         }
       }
@@ -181,7 +181,7 @@ const BeautifulLineChart = ({ data = {}, height = 400, className = '' }) => {
   const chartDataConfig = {
     labels: chartData.labels,
     datasets: [{
-      label: 'Доход',
+      label: 'PTS',
       data: chartData.values,
       borderColor: '#FFD700',
       backgroundColor: function(context) {
@@ -219,21 +219,21 @@ const BeautifulLineChart = ({ data = {}, height = 400, className = '' }) => {
         <div className="rounded-card border border-border bg-elevated/50 p-4 transition-all hover:shadow-sm">
           <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">Начальное значение</div>
           <div className="mb-1 text-2xl font-bold text-foreground">
-            {metrics.initial.toLocaleString('ru-RU')} ₽
+            {metrics.initial.toLocaleString('ru-RU')} PTS
           </div>
-          <div className="text-xs text-muted">Янв 2024</div>
+          <div className="text-xs text-muted">24 апр 2026</div>
         </div>
         <div className="rounded-card border border-border bg-elevated/50 p-4 transition-all hover:shadow-sm">
           <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">Текущее значение</div>
           <div className="mb-1 text-2xl font-bold text-foreground">
-            {metrics.final.toLocaleString('ru-RU')} ₽
+            {metrics.final.toLocaleString('ru-RU')} PTS
           </div>
-          <div className="text-xs text-muted">Дек 2024</div>
+          <div className="text-xs text-muted">25 апр 2026</div>
         </div>
         <div className="rounded-card border border-border bg-elevated/50 p-4 transition-all hover:shadow-sm">
           <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">Прирост</div>
           <div className="mb-1 text-2xl font-bold text-foreground">
-            {metrics.growth > 0 ? '+' : ''}{metrics.growth.toLocaleString('ru-RU')} ₽
+            {metrics.growth > 0 ? '+' : ''}{metrics.growth.toLocaleString('ru-RU')} PTS
           </div>
           <div className={`text-xs ${metrics.growth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {metrics.growth >= 0 ? '↑' : '↓'} {Math.abs(metrics.growthPercent).toFixed(1)}%
