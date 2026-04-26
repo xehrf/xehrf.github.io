@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { TaskCard } from "../components/tasks/TaskCard.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
-import { BeautifulLineChart } from "../components/charts/BeautifulLineChart.jsx";
+import { HistoryChart } from "../components/charts/HistoryChart.jsx";
 import { apiFetch } from "../api/client";
 import { useNavigate } from "react-router-dom";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
@@ -23,6 +23,12 @@ export function DashboardPage() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const isMobile = useMediaQuery("(max-width: 767px)");
+
+  // Sample data for HistoryChart (matching the image)
+  const sampleHistoryData = [
+    { date: "24 апр", total_delta: 110 },
+    { date: "25 апр", total_delta: 25 }
+  ];
 
   useEffect(() => {
     let mounted = true;
@@ -60,7 +66,7 @@ export function DashboardPage() {
             <p className="mt-1 text-sm text-muted">Ваша динамика роста</p>
           </div>
         </div>
-        <BeautifulLineChart height={300} />
+        <HistoryChart points={sampleHistoryData} />
       </div>
 
       {/* Tasks Section */}
