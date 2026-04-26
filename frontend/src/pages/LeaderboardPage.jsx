@@ -3,6 +3,38 @@ import { Card } from "../components/ui/Card.jsx";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Tooltip,
+  Filler,
+} from "chart.js";
+import { Line } from "react-chartjs-2";
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
+
+// Crosshair plugin — vertical dashed line on hover
+const crosshairPlugin = {
+  id: "crosshair",
+  afterDatasetsDraw(chart) {
+    const { ctx, tooltip, chartArea } = chart;
+    if (!tooltip._active?.length) return;
+    const x = tooltip._active[0].element.x;
+    ctx.save();
+    ctx.beginPath();
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = "rgba(255, 214, 0, 0.35)";
+    ctx.lineWidth = 1.5;
+    ctx.moveTo(x, chartArea.top);
+    ctx.lineTo(x, chartArea.bottom);
+    ctx.stroke();
+    ctx.restore();
+  },
+};
+ChartJS.register(crosshairPlugin);
 
 function formatNumber(value) {
   return new Intl.NumberFormat("ru-RU").format(Number(value || 0));
@@ -12,65 +44,176 @@ function formatPercent(value) {
   return `${Number(value || 0).toFixed(1)}%`;
 }
 
-function pointsToPath(points, width, height, padding) {
-  if (!points.length) return "";
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y);
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-  const spanX = Math.max(1, maxX - minX);
-  const spanY = Math.max(1, maxY - minY);
-  const toCanvasX = (x) => padding + ((x - minX) / spanX) * (width - padding * 2);
-  const toCanvasY = (y) => height - padding - ((y - minY) / spanY) * (height - padding * 2);
-
-  return points
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${toCanvasX(point.x).toFixed(2)} ${toCanvasY(point.y).toFixed(2)}`)
-    .join(" ");
-}
-
 function HistoryChart({ points }) {
-  const width = 800;
-  const height = 260;
-  const padding = 24;
+  const chartRef = useRef(null);
+  const [tooltipData, setTooltipData] = useState(null);
 
-  const chartPoints = useMemo(() => {
+  const { labels, values } = useMemo(() => {
     let cumulative = 0;
-    return (points || []).map((point, index) => {
+    const processed = (points || []).map((point) => {
       cumulative += Number(point.total_delta || 0);
-      return { x: index, y: cumulative, label: point.date };
+      return { y: cumulative, label: point.date };
     });
+    return {
+      labels: processed.map((p) => p.label),
+      values: processed.map((p) => p.y),
+    };
   }, [points]);
 
-  const path = useMemo(() => pointsToPath(chartPoints, width, height, padding), [chartPoints]);
-  const min = chartPoints.length ? Math.min(...chartPoints.map((p) => p.y)) : 0;
-  const max = chartPoints.length ? Math.max(...chartPoints.map((p) => p.y)) : 0;
+  const min = values.length ? Math.min(...values) : 0;
+  const max = values.length ? Math.max(...values) : 0;
+  const isPositive = values.length >= 2 ? values[values.length - 1] >= values[0] : true;
+  const growth = values.length >= 2 ? values[values.length - 1] - values[0] : 0;
 
-  if (!chartPoints.length) {
+  if (!values.length) {
     return <p className="text-sm text-muted">Нет данных для графика за выбранный период.</p>;
   }
 
+  const chartDataConfig = {
+    labels,
+    datasets: [{
+      data: values,
+      borderColor: "#FFD700",
+      backgroundColor(context) {
+        const { ctx, chartArea } = context.chart;
+        if (!chartArea) return "rgba(255,215,0,0.08)";
+        const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+        gradient.addColorStop(0, "rgba(255,215,0,0.20)");
+        gradient.addColorStop(0.6, "rgba(255,215,0,0.05)");
+        gradient.addColorStop(1, "rgba(255,215,0,0)");
+        return gradient;
+      },
+      borderWidth: 2,
+      fill: true,
+      tension: 0.4,
+      pointRadius: 0,
+      pointHoverRadius: 6,
+      pointHoverBackgroundColor: "#FFD700",
+      pointHoverBorderColor: "#111",
+      pointHoverBorderWidth: 2.5,
+    }],
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 800, easing: "easeInOutQuart" },
+    interaction: { intersect: false, mode: "index" },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        enabled: false,
+        external(context) {
+          const model = context.tooltip;
+          if (model.opacity === 0) { setTooltipData(null); return; }
+          if (model.dataPoints?.length) {
+            const idx = model.dataPoints[0].dataIndex;
+            setTooltipData({ value: values[idx], label: labels[idx], x: model.caretX, y: model.caretY });
+          }
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        border: { display: false },
+        ticks: {
+          color: "rgba(255,255,255,0.35)",
+          font: { size: 11, family: "ui-monospace, monospace" },
+          maxTicksLimit: 6,
+          maxRotation: 0,
+        },
+      },
+      y: {
+        grid: { color: "rgba(255,255,255,0.06)", drawBorder: false },
+        border: { display: false },
+        ticks: {
+          color: "rgba(255,255,255,0.35)",
+          font: { size: 11, family: "ui-monospace, monospace" },
+          callback: (v) => formatNumber(v),
+        },
+      },
+    },
+  };
+
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between text-xs text-muted">
+      {/* Range header */}
+      <div className="mb-4 flex items-center justify-between text-xs text-muted">
         <span>Диапазон дельты</span>
-        <span>
-          {formatNumber(min)} .. {formatNumber(max)}
-        </span>
+        <span>{formatNumber(min)} .. {formatNumber(max)}</span>
       </div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-[240px] w-full rounded-btn border border-border bg-canvas">
-        <defs>
-          <linearGradient id="ratingLine" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#f8d553" />
-            <stop offset="100%" stopColor="#7dd3fc" />
-          </linearGradient>
-        </defs>
-        <path d={path} fill="none" stroke="url(#ratingLine)" strokeWidth="3" />
-      </svg>
+
+      {/* Metric cards */}
+      <div className="mb-5 grid grid-cols-3 gap-3">
+        {[
+          { label: "Начало", value: formatNumber(values[0]) + " PTS", sub: labels[0] || "—", accent: false },
+          { label: "Сейчас", value: formatNumber(values[values.length - 1]) + " PTS", sub: labels[labels.length - 1] || "—", accent: false },
+          {
+            label: "Прирост",
+            value: (growth >= 0 ? "+" : "") + formatNumber(growth) + " PTS",
+            sub: (isPositive ? "↑" : "↓") + " за период",
+            accent: true,
+            positive: isPositive,
+          },
+        ].map((card, i) => (
+          <div
+            key={i}
+            style={{
+              borderRadius: 12,
+              padding: "12px 14px",
+              background: card.accent ? "rgba(255,215,0,0.07)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${card.accent ? "rgba(255,215,0,0.25)" : "rgba(255,255,255,0.08)"}`,
+            }}
+          >
+            <div style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", marginBottom: 6, fontFamily: "ui-monospace, monospace" }}>
+              {card.label}
+            </div>
+            <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.02em", color: card.accent ? "#FFD700" : "rgba(255,255,255,0.9)", marginBottom: 3, lineHeight: 1 }}>
+              {card.value}
+            </div>
+            <div style={{ fontSize: 11, fontFamily: "ui-monospace, monospace", color: card.accent ? (card.positive ? "#4ade80" : "#f87171") : "rgba(255,255,255,0.3)" }}>
+              {card.sub}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Chart */}
+      <div style={{ position: "relative", height: 240, borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", padding: "16px 12px 10px", background: "rgba(255,255,255,0.02)" }}>
+        <Line ref={chartRef} data={chartDataConfig} options={chartOptions} />
+
+        {/* React tooltip */}
+        {tooltipData && (
+          <div style={{
+            position: "absolute",
+            left: tooltipData.x,
+            top: tooltipData.y - 52,
+            transform: "translateX(-50%)",
+            pointerEvents: "none",
+            zIndex: 10,
+            background: "rgba(18,18,18,0.92)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid rgba(255,215,0,0.3)",
+            borderRadius: 10,
+            padding: "8px 14px",
+            textAlign: "center",
+            minWidth: 110,
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#FFD700", fontFamily: "ui-monospace, monospace", marginBottom: 2 }}>
+              {formatNumber(tooltipData.value)} PTS
+            </div>
+            <div style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", color: "rgba(255,255,255,0.4)", letterSpacing: "0.04em" }}>
+              {tooltipData.label}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Date labels */}
       <div className="mt-2 flex items-center justify-between text-[11px] text-muted">
-        <span>{chartPoints[0]?.label}</span>
-        <span>{chartPoints[chartPoints.length - 1]?.label}</span>
+        <span>{labels[0]}</span>
+        <span>{labels[labels.length - 1]}</span>
       </div>
     </div>
   );
@@ -156,10 +299,7 @@ function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onT
         ) : (
           <div className="h-full w-full bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900" />
         )}
-      </div>
-
-      <div className="p-4">
-        <div className="-mt-10 flex items-end gap-3">
+        <div className="absolute bottom-0 left-4 translate-y-1/2">
           <div className="h-16 w-16 overflow-hidden rounded-full border-[3px] border-canvas bg-elevated">
             {avatarUrl ? (
               <img src={avatarUrl} alt={`Аватар ${displayName}`} className="h-full w-full object-cover" />
@@ -169,7 +309,12 @@ function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onT
               </div>
             )}
           </div>
-          <div className="min-w-0 pb-1">
+        </div>
+      </div>
+
+      <div className="p-4 pt-12">
+        <div className="flex items-end gap-3">
+          <div className="min-w-0">
             <p className="truncate text-base font-semibold text-foreground">{displayName}</p>
             <p className="truncate text-xs text-muted">@{nickname}</p>
           </div>
@@ -214,15 +359,12 @@ function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onT
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <Button onClick={onTogglePin} variant={pinned ? "secondary" : "primary"} className="h-10 rounded-[10px] px-3">
-            {pinned ? "Открепить" : "Закрепить"}
-          </Button>
+        <div className="mt-4">
           <Button
             onClick={onCompare}
             variant="secondary"
             disabled={isSelf}
-            className="h-10 rounded-[10px] px-3"
+            className="h-10 w-full rounded-[10px] px-3"
             title={isSelf ? "Сравнение с самим собой не требуется" : "Сравнить этого игрока"}
           >
             Сравнить
@@ -259,8 +401,22 @@ export function LeaderboardContent({ embedded = false }) {
   const [profileByUserId, setProfileByUserId] = useState({});
   const [profileLoadingByUserId, setProfileLoadingByUserId] = useState({});
   const [anchorRect, setAnchorRect] = useState(null);
+  const tableRef = useRef(null);
 
   const compareSectionRef = useRef(null);
+
+  // Close pinned popup on click outside the table
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (tableRef.current && !tableRef.current.contains(e.target)) {
+        setPinnedUserId(null);
+        setHoveredUserId(null);
+        setAnchorRect(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const compareCandidates = useMemo(() => {
     return (leaderboard.items || []).filter((item) => Number(item.user_id) !== Number(user?.id));
@@ -396,21 +552,30 @@ export function LeaderboardContent({ embedded = false }) {
   }
 
   function handleLeaderboardRowHover(row, rect) {
-    setHoveredUserId(row.user_id);
-    if (rect) setAnchorRect(rect);
-    ensureProfileLoaded(row.user_id);
+    // Only show hover preview if nothing is pinned
+    if (pinnedUserId == null) {
+      setHoveredUserId(row.user_id);
+      if (rect) setAnchorRect(rect);
+      ensureProfileLoaded(row.user_id);
+    }
   }
 
-  function handleLeaderboardRowClick(row) {
+  function handleLeaderboardRowClick(row, rect) {
     const rowId = Number(row.user_id);
     const alreadyPinned = Number(pinnedUserId) === rowId;
 
-    setPinnedUserId(alreadyPinned ? null : rowId);
-    setHoveredUserId(rowId);
-    ensureProfileLoaded(rowId);
-
-    if (!alreadyPinned) {
-      selectUserForCompare(rowId, { scroll: true });
+    if (alreadyPinned) {
+      // Unpin on second click
+      setPinnedUserId(null);
+      setHoveredUserId(null);
+      setAnchorRect(null);
+    } else {
+      // Pin this row
+      setPinnedUserId(rowId);
+      setHoveredUserId(rowId);
+      if (rect) setAnchorRect(rect);
+      ensureProfileLoaded(rowId);
+      selectUserForCompare(rowId, { scroll: false });
     }
   }
 
@@ -444,7 +609,7 @@ export function LeaderboardContent({ embedded = false }) {
               <p className="mt-1 text-2xl font-semibold text-foreground">{formatPercent(position?.percentile || 0)}</p>
             </Card>
             <Card className="p-4">
-              <p className="text-xs uppercase tracking-wide text-muted">Дельта периода</p>
+              <p className="text-xs uppercase tracking-wide text-muted">PTS за период</p>
               <p className="mt-1 text-2xl font-semibold text-foreground">{formatNumber(position?.pts_period || 0)}</p>
             </Card>
           </div>
@@ -457,7 +622,7 @@ export function LeaderboardContent({ embedded = false }) {
             {(leaderboard.items || []).length === 0 ? (
               <p className="mt-3 text-sm text-muted">По этим фильтрам нет игроков.</p>
             ) : (
-              <div className="mt-3 overflow-x-auto rounded-btn border border-border/70">
+              <div ref={tableRef} className="mt-3 overflow-x-auto rounded-btn border border-border/70">
                   <table className="min-w-full text-left text-sm">
                     <thead>
                       <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
@@ -468,7 +633,13 @@ export function LeaderboardContent({ embedded = false }) {
                         <th className="py-2 pr-4">Серия</th>
                       </tr>
                     </thead>
-                    <tbody onMouseLeave={() => { setHoveredUserId(null); setAnchorRect(null); }}>
+                    <tbody onMouseLeave={() => {
+                      // Only clear hover preview, pinned stays
+                      if (pinnedUserId == null) {
+                        setHoveredUserId(null);
+                        setAnchorRect(null);
+                      }
+                    }}>
                       {leaderboard.items.map((row) => {
                         const rowId = Number(row.user_id);
                         const isActive = Number(activePreviewUserId) === rowId;
@@ -487,7 +658,11 @@ export function LeaderboardContent({ embedded = false }) {
                               const rect = avatarEl ? avatarEl.getBoundingClientRect() : e.currentTarget.getBoundingClientRect();
                               handleLeaderboardRowHover(row, rect);
                             }}
-                            onClick={() => handleLeaderboardRowClick(row)}
+                            onClick={(e) => {
+                              const avatarEl = e.currentTarget.querySelector(".avatar-anchor");
+                              const rect = avatarEl ? avatarEl.getBoundingClientRect() : e.currentTarget.getBoundingClientRect();
+                              handleLeaderboardRowClick(row, rect);
+                            }}
                             onKeyDown={(event) => {
                               if (event.key === "Enter" || event.key === " ") {
                                 event.preventDefault();
@@ -498,8 +673,10 @@ export function LeaderboardContent({ embedded = false }) {
                             aria-label={`Игрок ${row.display_name}`}
                           >
                             <td className="py-2 pl-3 pr-4 font-semibold">
-                              <span>#{row.rank}</span>
-                              {isPinned ? <span className="ml-2 text-[10px] uppercase tracking-wide text-accent">pin</span> : null}
+                              <div className="flex items-center gap-2">
+                                <span>#{row.rank}</span>
+                                {isPinned ? <span className="h-2 w-2 rounded-full bg-accent" title="Закреплён" /> : null}
+                              </div>
                             </td>
 
                             <td className="py-2 pr-4">
@@ -564,8 +741,11 @@ export function LeaderboardContent({ embedded = false }) {
 
           <div ref={compareSectionRef}>
             <Card className="p-5">
-              <h2 className="text-lg font-semibold text-foreground">Сравнение с другим игроком</h2>
-              <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(220px,320px)_1fr] sm:items-start">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Сравнение игроков</h2>
+                  <p className="mt-0.5 text-xs text-muted">Выберите соперника для сравнения PTS</p>
+                </div>
                 <select
                   value={compareUserId}
                   onChange={(e) => {
@@ -576,39 +756,99 @@ export function LeaderboardContent({ embedded = false }) {
                   }}
                   className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
                 >
-                  <option value="">Выберите игрока из таблицы</option>
+                  <option value="">Выберите игрока...</option>
                   {compareCandidates.map((item) => (
                     <option key={item.user_id} value={item.user_id}>
                       {item.display_name} (#{item.rank})
                     </option>
                   ))}
                 </select>
+              </div>
 
-                {compareError ? <p className="text-sm text-accent">{compareError}</p> : null}
+              {compareError ? <p className="mt-3 text-sm text-accent">{compareError}</p> : null}
 
-                {compareData ? (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="rounded-btn border border-border bg-canvas p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted">{compareData.left.display_name}</p>
-                      <p className="mt-1 text-sm text-foreground">Общий: {formatNumber(compareData.left.pts_total)}</p>
-                      <p className="text-sm text-foreground">Период: {formatNumber(compareData.left.pts_period)}</p>
-                      <p className="text-sm text-muted">Место: {compareData.left.rank ?? "-"}</p>
+              {compareData ? (() => {
+                const leftPts = Number(compareData.left.pts_total) || 0;
+                const rightPts = Number(compareData.right.pts_total) || 0;
+                const total = leftPts + rightPts || 1;
+                const leftPct = Math.round((leftPts / total) * 100);
+                const rightPct = 100 - leftPct;
+                const diff = Number(compareData.pts_total_diff) || 0;
+                const diffPeriod = Number(compareData.pts_period_diff) || 0;
+                const leftWins = leftPts >= rightPts;
+
+                return (
+                  <div className="mt-5">
+                    {/* Player headers */}
+                    <div className="grid grid-cols-[1fr_48px_1fr] items-center gap-2">
+                      <div className={`rounded-2xl border p-4 ${leftWins ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-canvas"}`}>
+                        <p className="text-[11px] uppercase tracking-wider text-muted">Вы</p>
+                        <p className="mt-1 truncate text-base font-bold text-foreground">{compareData.left.display_name}</p>
+                        <p className="mt-1 text-2xl font-bold text-foreground">{formatNumber(leftPts)}</p>
+                        <p className="text-xs text-muted">PTS общий</p>
+                        {leftWins && <p className="mt-2 text-xs font-semibold text-yellow-400">👑 Лидер</p>}
+                      </div>
+
+                      <div className="flex items-center justify-center">
+                        <span className="rounded-full bg-elevated px-2 py-1 text-xs font-bold text-muted">VS</span>
+                      </div>
+
+                      <div className={`rounded-2xl border p-4 ${!leftWins ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-canvas"}`}>
+                        <p className="text-[11px] uppercase tracking-wider text-muted">Соперник</p>
+                        <p className="mt-1 truncate text-base font-bold text-foreground">{compareData.right.display_name}</p>
+                        <p className="mt-1 text-2xl font-bold text-foreground">{formatNumber(rightPts)}</p>
+                        <p className="text-xs text-muted">PTS общий</p>
+                        {!leftWins && <p className="mt-2 text-xs font-semibold text-yellow-400">👑 Лидер</p>}
+                      </div>
                     </div>
-                    <div className="rounded-btn border border-border bg-canvas p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted">{compareData.right.display_name}</p>
-                      <p className="mt-1 text-sm text-foreground">Общий: {formatNumber(compareData.right.pts_total)}</p>
-                      <p className="text-sm text-foreground">Период: {formatNumber(compareData.right.pts_period)}</p>
-                      <p className="text-sm text-muted">Место: {compareData.right.rank ?? "-"}</p>
+
+                    {/* Progress bar */}
+                    <div className="mt-4">
+                      <div className="flex overflow-hidden rounded-full" style={{ height: 8 }}>
+                        <div
+                          className="bg-yellow-400 transition-all duration-500"
+                          style={{ width: `${leftPct}%` }}
+                        />
+                        <div
+                          className="bg-slate-600 transition-all duration-500"
+                          style={{ width: `${rightPct}%` }}
+                        />
+                      </div>
+                      <div className="mt-1 flex justify-between text-[11px] text-muted">
+                        <span>{leftPct}%</span>
+                        <span>{rightPct}%</span>
+                      </div>
                     </div>
-                    <div className="rounded-btn border border-border bg-canvas p-3 sm:col-span-2">
-                      <p className="text-xs uppercase tracking-wide text-muted">Разница (вы - соперник)</p>
-                      <p className="mt-1 text-sm text-foreground">
-                        Общий: {formatNumber(compareData.pts_total_diff)} | Период: {formatNumber(compareData.pts_period_diff)}
-                      </p>
+
+                    {/* Stats row */}
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <div className="rounded-2xl border border-border bg-canvas p-3 text-center">
+                        <p className="text-[11px] uppercase tracking-wider text-muted">Место</p>
+                        <p className="mt-1 text-lg font-bold text-foreground">#{compareData.left.rank ?? "-"}</p>
+                        <p className="text-xs text-muted">vs #{compareData.right.rank ?? "-"}</p>
+                      </div>
+                      <div className="rounded-2xl border border-border bg-canvas p-3 text-center">
+                        <p className="text-[11px] uppercase tracking-wider text-muted">Разница</p>
+                        <p className={`mt-1 text-lg font-bold ${diff >= 0 ? "text-green-400" : "text-red-400"}`}>
+                          {diff >= 0 ? "+" : ""}{formatNumber(diff)}
+                        </p>
+                        <p className="text-xs text-muted">PTS общий</p>
+                      </div>
+                      <div className="rounded-2xl border border-border bg-canvas p-3 text-center">
+                        <p className="text-[11px] uppercase tracking-wider text-muted">Период</p>
+                        <p className={`mt-1 text-lg font-bold ${diffPeriod >= 0 ? "text-green-400" : "text-red-400"}`}>
+                          {diffPeriod >= 0 ? "+" : ""}{formatNumber(diffPeriod)}
+                        </p>
+                        <p className="text-xs text-muted">Разница</p>
+                      </div>
                     </div>
                   </div>
-                ) : null}
-              </div>
+                );
+              })() : (
+                <div className="mt-4 flex items-center justify-center rounded-2xl border border-dashed border-border bg-elevated/30 py-8 text-sm text-muted">
+                  Выберите игрока для сравнения
+                </div>
+              )}
             </Card>
           </div>
         </>
