@@ -15,6 +15,18 @@
 }
 
 @layer utilities {
+  .btn-play {
+    display: none;
+  }
+  .is-authenticated .btn-login {
+    display: none;
+  }
+  .is-authenticated .btn-play {
+    display: inline-flex;
+  }
+  .is-authenticated .home-login-prompt {
+    display: none;
+  }
   .text-gradient-accent {
     @apply bg-gradient-to-r from-accent to-accent-hover bg-clip-text text-transparent;
   }

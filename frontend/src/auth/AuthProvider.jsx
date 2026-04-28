@@ -32,11 +32,13 @@ export function AuthProvider({ children }) {
         });
         setUser(me);
         setShowOnboarding(Boolean(me && !me.onboarding_completed));
+        document.documentElement.classList.add("is-authenticated");
       } catch {
         localStorage.removeItem("access_token");
         setToken(null);
         setUser(null);
         setShowOnboarding(false);
+        document.documentElement.classList.remove("is-authenticated");
       }
     },
     [token],
@@ -65,6 +67,7 @@ export function AuthProvider({ children }) {
         body: { email, password },
       });
       localStorage.setItem("access_token", data.access_token);
+      document.documentElement.classList.add("is-authenticated");
       setToken(data.access_token);
       await refreshMe(data.access_token);
       return data;
@@ -80,6 +83,7 @@ export function AuthProvider({ children }) {
         body: { email, password, display_name },
       });
       localStorage.setItem("access_token", data.access_token);
+      document.documentElement.classList.add("is-authenticated");
       setToken(data.access_token);
       await refreshMe(data.access_token);
       return data;
@@ -89,6 +93,7 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem("access_token");
+    document.documentElement.classList.remove("is-authenticated");
     setToken(null);
     setUser(null);
     setShowOnboarding(false);

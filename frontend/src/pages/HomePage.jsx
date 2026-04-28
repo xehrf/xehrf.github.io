@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { useAuth } from "../auth/AuthProvider.jsx";
 import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
@@ -12,8 +11,6 @@ const highlightsDesktop = [
 
 export function HomePage() {
   const isMobile = useMediaQuery("(max-width: 767px)");
-  const { user } = useAuth();
-  const isAuthenticated = Boolean(user);
   const highlights = useMemo(() => {
     if (!isMobile) return highlightsDesktop;
     return highlightsDesktop.map(([title, desc]) =>
@@ -39,8 +36,11 @@ export function HomePage() {
            Докажи чего ты <span className="text-accent">СТОИШЬ</span>
         </p>
         <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <LinkButton to={isAuthenticated ? "/matchmaking" : "/login"} className="min-w-[160px] px-8 py-3 text-base font-semibold">
-            {isAuthenticated ? "Играть" : "Войти"}
+          <LinkButton to="/login" className="btn-login min-w-[160px] px-8 py-3 text-base font-semibold">
+            Войти
+          </LinkButton>
+          <LinkButton to="/matchmaking" className="btn-play min-w-[160px] px-8 py-3 text-base font-semibold">
+            Играть
           </LinkButton>
           <LinkButton to="/dashboard" variant="secondary" className="min-w-[160px] px-8 py-3 text-base">
             К задачам
@@ -57,14 +57,12 @@ export function HomePage() {
         ))}
       </div>
 
-      {!isAuthenticated ? (
-        <p className="mt-16 text-center text-xs text-muted">
-          Уже есть аккаунт?{" "}
-          <LinkButton to="/login" variant="ghost" className="inline-flex px-2 py-1 text-xs text-accent">
-            Login
-          </LinkButton>
-        </p>
-      ) : null}
+      <p className="home-login-prompt mt-16 text-center text-xs text-muted">
+        Уже есть аккаунт?{" "}
+        <LinkButton to="/login" variant="ghost" className="inline-flex px-2 py-1 text-xs text-accent">
+          Login
+        </LinkButton>
+      </p>
     </div>
   );
 }
