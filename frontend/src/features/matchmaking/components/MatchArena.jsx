@@ -3,9 +3,25 @@ import { apiFetch, getWebSocketBaseUrl, resolveAssetUrl } from "../../../api/cli
 import { useGameEngine } from "../useGameEngine.js";
 import { GameStageView, ScoreBar } from "./GameStageView.jsx";
 
+const GAME_EVENT_NAMES = new Set([
+  "game_start",
+  "game_answer_submitted",
+  "game_round_result",
+  "game_next_round",
+  "game_finished",
+]);
+
 function getMatchRoomSocketUrl(matchId, token) {
   const wsOrigin = getWebSocketBaseUrl();
   return `${wsOrigin}/matchmaking/match/${matchId}/ws?token=${encodeURIComponent(token)}`;
+}
+
+function normalizeUserId(userId) {
+  if (userId == null) {
+    return null;
+  }
+
+  return String(userId);
 }
 
 function formatCountdown(totalSeconds) {
@@ -27,21 +43,62 @@ function getOpponentFromParticipants(participants, myUserId) {
   return participants.find((item) => item.user_id !== myUserId) ?? null;
 }
 
-function resolveHostUserId({ participants, activeMatch, myUserId }) {
-  const candidateIds = [];
-
-  if (Array.isArray(participants) && participants.length > 0) {
-    candidateIds.push(...participants.map((participant) => participant.user_id));
-  } else if (Array.isArray(activeMatch?.participants) && activeMatch.participants.length > 0) {
-    candidateIds.push(...activeMatch.participants.map((participant) => participant.user_id));
-  } else {
-    candidateIds.push(myUserId);
-    candidateIds.push(activeMatch?.opponent?.user_id);
+function addParticipantUserIds(target, source) {
+  if (!Array.isArray(source)) {
+    return;
   }
 
-  const uniqueIds = [...new Set(candidateIds.filter((userId) => userId != null).map((userId) => String(userId)))];
-  uniqueIds.sort((left, right) => left.localeCompare(right));
-  return uniqueIds[0] ?? null;
+  source.forEach((participant) => {
+    const normalizedUserId = normalizeUserId(participant?.user_id);
+    if (normalizedUserId !== null) {
+      target.add(normalizedUserId);
+    }
+  });
+}
+
+export function resolveHostUserId({ participants, activeMatch, myUserId }) {
+  const candidateIds = new Set();
+
+  addParticipantUserIds(candidateIds, activeMatch?.participants);
+  addParticipantUserIds(candidateIds, participants);
+
+  const normalizedMyUserId = normalizeUserId(myUserId);
+  if (normalizedMyUserId !== null) {
+    candidateIds.add(normalizedMyUserId);
+  }
+
+  const normalizedOpponentUserId = normalizeUserId(activeMatch?.opponent?.user_id);
+  if (normalizedOpponentUserId !== null) {
+    candidateIds.add(normalizedOpponentUserId);
+  }
+
+  if (candidateIds.size < 2) {
+    return null;
+  }
+
+  const sortedIds = [...candidateIds].sort((left, right) => left.localeCompare(right));
+  return sortedIds[0] ?? null;
+}
+
+function resolveGameEventSenderUserId(eventName, envelopeData, gameData) {
+  return normalizeUserId(
+    envelopeData?.user_id
+    ?? envelopeData?.userId
+    ?? gameData?.senderUserId
+    ?? (eventName === "game_answer_submitted" ? gameData?.userId : null)
+    ?? (eventName === "game_start" ? gameData?.host : null),
+  );
+}
+
+export function shouldHandleIncomingGameEvent({ eventName, envelopeData, gameData, myUserId }) {
+  const normalizedMyUserId = normalizeUserId(myUserId);
+  const senderUserId = resolveGameEventSenderUserId(eventName, envelopeData, gameData);
+
+  if (normalizedMyUserId === null || senderUserId === null) {
+    return true;
+  }
+
+  return senderUserId !== normalizedMyUserId;
 }
 
 const ROLE_BADGE_PALETTES = {
@@ -228,6 +285,10 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
   const [secondsRemaining, setSecondsRemaining] = useState(activeMatch?.seconds_remaining ?? null);
   const [showChat, setShowChat] = useState(false);
   const wsRef = useRef(null);
+  const hostUserId = useMemo(
+    () => resolveHostUserId({ participants, activeMatch, myUserId }),
+    [activeMatch, myUserId, participants],
+  );
 
   const {
     gameState,
@@ -251,7 +312,7 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
   } = useGameEngine({
     wsRef,
     myUserId,
-    hostUserId: resolveHostUserId({ participants, activeMatch, myUserId }),
+    hostUserId,
   });
 
   useEffect(() => {
@@ -286,6 +347,13 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
       const payload = JSON.parse(event.data);
       const data = payload.data ?? {};
 
+      if (GAME_EVENT_NAMES.has(payload.event)) {
+        if (shouldHandleIncomingGameEvent({ eventName: payload.event, envelopeData: data, gameData: data, myUserId })) {
+          handleGameEvent(payload.event, data);
+        }
+        return;
+      }
+
       if (payload.event === "room_state") {
         setParticipants(data.participants ?? []);
         setOnlineIds(data.online ?? []);
@@ -305,7 +373,7 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
         if (text.startsWith("__GAME__:")) {
           try {
             const { event: gameEvent, data: gameData } = JSON.parse(text.slice(9));
-            if (data.user_id !== myUserId) {
+            if (GAME_EVENT_NAMES.has(gameEvent) && shouldHandleIncomingGameEvent({ eventName: gameEvent, envelopeData: data, gameData, myUserId })) {
               handleGameEvent(gameEvent, gameData);
             }
           } catch {}

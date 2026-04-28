@@ -25,6 +25,22 @@ function normalizeUserId(userId) {
   return String(userId);
 }
 
+function attachSenderUserId(data, myUserId) {
+  if (data == null || typeof data !== "object" || Array.isArray(data)) {
+    return data;
+  }
+
+  const senderUserId = normalizeUserId(myUserId);
+  if (senderUserId === null) {
+    return data;
+  }
+
+  return {
+    ...data,
+    senderUserId,
+  };
+}
+
 function sortAnswerEvents(events) {
   return [...events].sort((left, right) => {
     const leftId = normalizeUserId(left?.userId) ?? "";
@@ -84,11 +100,11 @@ export function useGameEngine({
       wsRef.current.send(
         JSON.stringify({
           event: "chat",
-          text: `__GAME__:${JSON.stringify({ event, data })}`,
+          text: `__GAME__:${JSON.stringify({ event, data: attachSenderUserId(data, myUserId) })}`,
         }),
       );
     },
-    [wsRef],
+    [myUserId, wsRef],
   );
 
   const applyEventLocally = useCallback(
