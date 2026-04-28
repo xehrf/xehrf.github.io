@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch, getWebSocketBaseUrl } from "../api/client.js";
+import { useAuth } from "../auth/AuthProvider.jsx";
 import { MatchArena } from "../features/matchmaking/components/MatchArena.jsx";
 import { LeaderboardContent } from "./LeaderboardPage.jsx";
 
@@ -9,20 +10,6 @@ const PARTY_SIZE = 2;
 function getMatchmakingSocketUrl(token) {
   const wsOrigin = getWebSocketBaseUrl();
   return `${wsOrigin}/matchmaking/ws?token=${encodeURIComponent(token)}`;
-}
-
-function getMyUserIdFromToken() {
-  try {
-    const token = localStorage.getItem("access_token");
-    if (!token) {
-      return null;
-    }
-
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload.sub_id ?? payload.user_id ?? null;
-  } catch {
-    return null;
-  }
 }
 
 function translateQuestTitle(title) {
@@ -127,9 +114,10 @@ function QuestPanel({ quests, onClaim, claimingQuestKey }) {
 
 export function MatchmakingPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") === "leaderboard" ? "leaderboard" : "duel";
-  const myUserId = useMemo(() => getMyUserIdFromToken(), []);
+  const myUserId = user?.id ?? null;
   const [activeMatch, setActiveMatch] = useState(null);
   const [queueInfo, setQueueInfo] = useState({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
   const [searching, setSearching] = useState(false);
