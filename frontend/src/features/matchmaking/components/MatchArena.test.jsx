@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveHostUserId, resolveStartControlState, shouldHandleIncomingGameEvent } from "./MatchArena.jsx";
+import { resolveHostUserId, resolveReadinessState, resolveStartControlState, shouldHandleIncomingGameEvent } from "./MatchArena.jsx";
 
 describe("MatchArena host resolution", () => {
   it("uses activeMatch data while room_state participants are still empty", () => {
@@ -114,6 +114,48 @@ describe("MatchArena start readiness", () => {
     });
 
     expect(state.canStartGame).toBe(false);
-    expect(state.startButtonLabel).toBe("⏳ Соперник запускает");
+    expect(state.startButtonLabel).toBe("Ожидаем готовность");
+  });
+});
+
+describe("MatchArena readiness state", () => {
+  it("resolves both player statuses from websocket room readiness", () => {
+    const state = resolveReadinessState({
+      myUserId: 12,
+      opponentUserId: 7,
+      roomSocketOpen: true,
+      readiness: {
+        all_ready: false,
+        participants: [
+          { user_id: 12, nickname: "You", ready: true },
+          { user_id: 7, nickname: "izi_500", ready: false },
+        ],
+      },
+    });
+
+    expect(state.myReady).toBe(true);
+    expect(state.opponentReady).toBe(false);
+    expect(state.allReady).toBe(false);
+    expect(state.canToggleReady).toBe(true);
+    expect(state.opponentLabel).toBe("izi_500");
+  });
+
+  it("marks the room ready only when the server says both players are ready", () => {
+    const state = resolveReadinessState({
+      myUserId: 12,
+      opponentUserId: 7,
+      roomSocketOpen: true,
+      readiness: {
+        all_ready: true,
+        participants: [
+          { user_id: 12, nickname: "You", ready: true },
+          { user_id: 7, nickname: "izi_500", ready: true },
+        ],
+      },
+    });
+
+    expect(state.allReady).toBe(true);
+    expect(state.myReady).toBe(true);
+    expect(state.opponentReady).toBe(true);
   });
 });

@@ -150,7 +150,7 @@ export function useGameEngine({
     (event, data) => {
       const snapshot = gameRef.current;
 
-      if (event === "game_start") {
+      if (event === "game_start" || event === "game_start_cancelled") {
         clearActiveTimer();
         resetRoundLedger();
         roundStartRef.current = null;

@@ -7,7 +7,7 @@ import {
   createInitialGameState,
   resolveNextRound,
 } from "./gameEngine.js";
-import { buildQuestionDeck } from "./questionBank.js";
+import { COUNTDOWN_SECONDS, buildQuestionDeck } from "./questionBank.js";
 
 const questions = [
   {
@@ -64,6 +64,20 @@ describe("gameEngine", () => {
     expect(nextState.opponentAnswered).toBe(false);
     expect(nextState.roundResult).toBeNull();
     expect(nextState.questions[0].question).toBe("Two");
+  });
+
+  it("returns to waiting when readiness cancels the start countdown", () => {
+    const state = createInitialGameState({
+      questions,
+      totalRounds: 2,
+    });
+    const countingDown = applyRemoteGameEvent(state, "game_start", { questions }, { myUserId: "me" });
+
+    const cancelled = applyRemoteGameEvent(countingDown, "game_start_cancelled", {}, { myUserId: "me" });
+
+    expect(cancelled.gameState).toBe("waiting");
+    expect(cancelled.countdown).toBe(COUNTDOWN_SECONDS);
+    expect(cancelled.roundIndex).toBe(0);
   });
 
   it("stores the local answer without finishing the round immediately", () => {

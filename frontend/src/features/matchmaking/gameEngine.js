@@ -87,6 +87,25 @@ export function resetForGameStart(
   };
 }
 
+export function resetToWaiting(
+  state,
+  {
+    roundSeconds = ROUND_SECONDS,
+    countdownSeconds = COUNTDOWN_SECONDS,
+  } = {},
+) {
+  return {
+    ...state,
+    gameState: "waiting",
+    roundIndex: 0,
+    myAnswer: null,
+    opponentAnswered: false,
+    roundResult: null,
+    timeLeft: roundSeconds,
+    countdown: countdownSeconds,
+  };
+}
+
 export function beginRound(state, { roundSeconds = ROUND_SECONDS } = {}) {
   return {
     ...state,
@@ -268,6 +287,11 @@ export function applyRemoteGameEvent(
         roundSeconds,
         countdownSeconds,
         totalRounds: Array.isArray(data?.questions) ? data.questions.length : state.totalRounds,
+      });
+    case "game_start_cancelled":
+      return resetToWaiting(state, {
+        roundSeconds,
+        countdownSeconds,
       });
     case "game_answer_submitted":
       if (shouldIgnoreRoundEvent(state, data?.roundIndex)) {

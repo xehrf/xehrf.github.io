@@ -89,7 +89,21 @@ function RoundTypeBadge({ type }) {
   );
 }
 
-function GameWaiting({ onStart, opponentName, totalRounds, canStartGame, startButtonLabel }) {
+function ReadyStatusRow({ label, ready }) {
+  return (
+    <p className="flex items-center justify-between gap-3">
+      <span className="truncate">{ready ? "✅" : "⏳"} {label}:</span>
+      <span className={ready ? "font-semibold text-emerald-300" : "font-semibold text-white/55"}>
+        {ready ? "Готов" : "Не готов"}
+      </span>
+    </p>
+  );
+}
+
+function GameWaiting({ opponentName, totalRounds, readinessState, onToggleReady }) {
+  const ready = Boolean(readinessState?.myReady);
+  const canToggleReady = Boolean(readinessState?.canToggleReady);
+
   return (
     <div className="flex flex-col items-center justify-center gap-6 py-10 text-center">
       <div className="text-5xl">⚔️</div>
@@ -106,20 +120,30 @@ function GameWaiting({ onStart, opponentName, totalRounds, canStartGame, startBu
         <p>🧠 <b>Quiz</b> — быстрый вопрос по разработке</p>
         <p className="pt-1 text-xs text-white/45">{totalRounds} раундов · {ROUND_SECONDS}с на ответ · кто быстрее и точнее</p>
       </div>
+      <div className="w-full max-w-xs space-y-2 rounded-2xl border border-white/10 bg-black/25 px-5 py-4 text-left text-sm text-white/75">
+        <ReadyStatusRow label={readinessState?.myLabel || "Вы"} ready={readinessState?.myReady} />
+        <ReadyStatusRow label={readinessState?.opponentLabel || opponentName || "Соперник"} ready={readinessState?.opponentReady} />
+      </div>
       <button
         type="button"
-        onClick={onStart}
-        disabled={!canStartGame}
+        onClick={onToggleReady}
+        disabled={!canToggleReady}
         className="h-12 rounded-xl px-8 text-sm font-black tracking-wide transition-all hover:scale-105 active:scale-95"
-        style={{ background: "#FFD600", color: "#111", boxShadow: "0 0 28px rgba(255,214,0,0.45)", opacity: canStartGame ? 1 : 0.55 }}
+        style={{
+          background: ready ? "rgba(239,68,68,0.18)" : "#22c55e",
+          color: ready ? "#fecaca" : "#07130b",
+          border: ready ? "1px solid rgba(239,68,68,0.45)" : "1px solid rgba(34,197,94,0.75)",
+          boxShadow: ready ? "none" : "0 0 28px rgba(34,197,94,0.35)",
+          opacity: canToggleReady ? 1 : 0.55,
+        }}
       >
-        {startButtonLabel ?? (canStartGame ? "🚀 Начать игру!" : "⏳ Соперник запускает")}
+        {ready ? "Не готов" : "Готов"}
       </button>
     </div>
   );
 }
 
-function GameCountdown({ countdown }) {
+function GameCountdown({ countdown, readinessState, onToggleReady }) {
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
       <p className="text-sm uppercase tracking-widest text-white/50">Приготовьтесь...</p>
@@ -133,6 +157,24 @@ function GameCountdown({ countdown }) {
       >
         {countdown === 0 ? "GO!" : countdown}
       </div>
+      <div className="w-full max-w-xs space-y-2 rounded-2xl border border-white/10 bg-black/25 px-5 py-4 text-left text-sm text-white/75">
+        <ReadyStatusRow label={readinessState?.myLabel || "Вы"} ready={readinessState?.myReady} />
+        <ReadyStatusRow label={readinessState?.opponentLabel || "Соперник"} ready={readinessState?.opponentReady} />
+      </div>
+      <button
+        type="button"
+        onClick={onToggleReady}
+        disabled={!readinessState?.canToggleReady}
+        className="h-11 rounded-xl px-6 text-sm font-bold transition-all hover:scale-105 active:scale-95"
+        style={{
+          background: "rgba(239,68,68,0.18)",
+          color: "#fecaca",
+          border: "1px solid rgba(239,68,68,0.45)",
+          opacity: readinessState?.canToggleReady ? 1 : 0.55,
+        }}
+      >
+        Не готов
+      </button>
       <style>{`
         @keyframes countdownPop {
           0% { transform: scale(1.8); opacity: 0.4; }
@@ -324,21 +366,20 @@ export function GameStageView({
   myScore,
   opponentScore,
   opponentName,
-  onStartGame,
   onAnswer,
   onNextRound,
   onPlayAgain,
   onSurrender,
-  canStartGame,
   canAdvanceRound,
   canPlayAgain,
-  startButtonLabel,
+  readinessState,
+  onToggleReady,
 }) {
   switch (gameState) {
     case "waiting":
-      return <GameWaiting onStart={onStartGame} opponentName={opponentName} totalRounds={totalRounds} canStartGame={canStartGame} startButtonLabel={startButtonLabel} />;
+      return <GameWaiting opponentName={opponentName} totalRounds={totalRounds} readinessState={readinessState} onToggleReady={onToggleReady} />;
     case "countdown":
-      return <GameCountdown countdown={countdown} />;
+      return <GameCountdown countdown={countdown} readinessState={readinessState} onToggleReady={onToggleReady} />;
     case "playing":
       return (
         <GamePlaying

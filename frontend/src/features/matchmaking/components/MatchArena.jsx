@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, getWebSocketBaseUrl, resolveAssetUrl } from "../../../api/client.js";
 import { useGameEngine } from "../useGameEngine.js";
 import { GameStageView, ScoreBar } from "./GameStageView.jsx";
 
 const GAME_EVENT_NAMES = new Set([
   "game_start",
+  "game_start_cancelled",
   "game_answer_submitted",
   "game_round_result",
   "game_next_round",
@@ -120,7 +121,7 @@ export function resolveStartControlState({ myUserId, hostUserId, opponentUserId,
   const opponentOnline = hasOnlineUser(onlineIds, opponentUserId);
   const canStartGame = isHost && roomSocketOpen && meOnline && opponentOnline;
 
-  let startButtonLabel = "⏳ Соперник запускает";
+  let startButtonLabel = "Ожидаем готовность";
   if (canStartGame) {
     startButtonLabel = "🚀 Начать игру!";
   } else if (isHost && !roomSocketOpen) {
@@ -133,6 +134,25 @@ export function resolveStartControlState({ myUserId, hostUserId, opponentUserId,
     canStartGame,
     opponentOnline,
     startButtonLabel,
+  };
+}
+
+function findReadyParticipant(readiness, userId) {
+  const participants = Array.isArray(readiness?.participants) ? readiness.participants : [];
+  return participants.find((participant) => isSameUserId(participant.user_id, userId)) ?? null;
+}
+
+export function resolveReadinessState({ myUserId, opponentUserId, readiness, roomSocketOpen }) {
+  const myParticipant = findReadyParticipant(readiness, myUserId);
+  const opponentParticipant = findReadyParticipant(readiness, opponentUserId);
+
+  return {
+    myReady: Boolean(myParticipant?.ready),
+    opponentReady: Boolean(opponentParticipant?.ready),
+    allReady: Boolean(readiness?.all_ready),
+    canToggleReady: Boolean(roomSocketOpen),
+    myLabel: myParticipant?.nickname || myParticipant?.display_name || "Вы",
+    opponentLabel: opponentParticipant?.nickname || opponentParticipant?.display_name || "Соперник",
   };
 }
 
@@ -320,6 +340,7 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
   const [secondsRemaining, setSecondsRemaining] = useState(activeMatch?.seconds_remaining ?? null);
   const [showChat, setShowChat] = useState(false);
   const [roomSocketOpen, setRoomSocketOpen] = useState(false);
+  const [readiness, setReadiness] = useState({ participants: [], all_ready: false });
   const wsRef = useRef(null);
   const hostUserId = useMemo(
     () => resolveHostUserId({ participants, activeMatch, myUserId }),
@@ -401,10 +422,15 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
       if (payload.event === "room_state") {
         setParticipants(data.participants ?? []);
         setOnlineIds(data.online ?? []);
+        setReadiness(data.readiness ?? { participants: [], all_ready: false });
       }
 
       if (payload.event === "user_joined" || payload.event === "user_left") {
         setOnlineIds(data.online ?? []);
+      }
+
+      if (payload.event === "readiness_update") {
+        setReadiness(data);
       }
 
       if (payload.event === "chat") {
@@ -464,7 +490,7 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
   }, [activeMatch, myUserId]);
 
   const opponent = opponentFromParticipants ?? opponentFromMatch ?? null;
-  const { canStartGame: canStartCurrentMatch, opponentOnline, startButtonLabel } = useMemo(
+  const { canStartGame: canStartCurrentMatch, opponentOnline } = useMemo(
     () => resolveStartControlState({
       myUserId,
       hostUserId,
@@ -476,6 +502,40 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
   );
   const myName = participants.find((participant) => participant.user_id === myUserId)?.nickname ?? "Вы";
   const opponentName = opponent?.nickname ?? opponent?.display_name ?? "Соперник";
+
+  const readinessState = useMemo(
+    () => resolveReadinessState({
+      myUserId,
+      opponentUserId: opponent?.user_id ?? null,
+      readiness,
+      roomSocketOpen,
+    }),
+    [myUserId, opponent?.user_id, readiness, roomSocketOpen],
+  );
+
+  const sendReadyToggle = useCallback(() => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    wsRef.current.send(JSON.stringify({ event: "ready_toggle", ready: !readinessState.myReady }));
+  }, [readinessState.myReady]);
+
+  useEffect(() => {
+    if (gameState !== "waiting" || !readinessState.allReady || !canStartCurrentMatch) {
+      return;
+    }
+
+    startGame();
+  }, [canStartCurrentMatch, gameState, readinessState.allReady, startGame]);
+
+  useEffect(() => {
+    if (gameState !== "countdown" || readinessState.allReady) {
+      return;
+    }
+
+    handleGameEvent("game_start_cancelled", { senderUserId: "readiness" });
+  }, [gameState, handleGameEvent, readinessState.allReady]);
 
   function sendChatMessage(text) {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -555,15 +615,14 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
             myScore={myScore}
             opponentScore={opponentScore}
             opponentName={opponentName !== "Соперник" ? opponentName : null}
-            onStartGame={startGame}
             onAnswer={submitAnswer}
             onNextRound={nextRound}
             onPlayAgain={startGame}
             onSurrender={onSurrender}
-            canStartGame={canStartCurrentMatch}
             canAdvanceRound={canAdvanceRound}
             canPlayAgain={canPlayAgain}
-            startButtonLabel={startButtonLabel}
+            readinessState={readinessState}
+            onToggleReady={sendReadyToggle}
           />
         </div>
       )}

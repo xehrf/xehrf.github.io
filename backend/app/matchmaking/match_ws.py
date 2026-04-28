@@ -24,6 +24,7 @@ from app.db.session import get_db
 match_ws_router = APIRouter(prefix="/matchmaking", tags=["matchmaking"])
 GAME_EVENT_NAMES = {
     "game_start",
+    "game_start_cancelled",
     "game_answer_submitted",
     "game_round_result",
     "game_next_round",
@@ -37,6 +38,10 @@ def _room_channel(match_id: int) -> str:
 
 def _room_presence_key(match_id: int) -> str:
     return f"mm:match_room:{match_id}:presence"
+
+
+def _room_ready_key(match_id: int) -> str:
+    return f"mm:match_room:{match_id}:ready"
 
 
 async def _publish_room_event(redis_client, match_id: int, payload: dict[str, Any]) -> None:
@@ -67,6 +72,26 @@ async def _mark_offline(redis_client, match_id: int, user_id: int) -> list[int]:
     if remaining <= 0:
         await redis_client.hdel(_room_presence_key(match_id), str(user_id))
     return await _get_online_user_ids(redis_client, match_id)
+
+
+async def _get_ready_state(redis_client, match_id: int, participants_info: list[dict[str, Any]]) -> dict[str, Any]:
+    ready_map = await redis_client.hgetall(_room_ready_key(match_id))
+    participants = []
+
+    for participant in participants_info:
+        user_id = participant["user_id"]
+        participants.append({
+            "user_id": user_id,
+            "display_name": participant["display_name"],
+            "nickname": participant["nickname"],
+            "ready": ready_map.get(str(user_id)) == "1",
+        })
+
+    all_ready = len(participants) >= 2 and all(participant["ready"] for participant in participants)
+    return {
+        "participants": participants,
+        "all_ready": all_ready,
+    }
 
 
 async def _relay_room_events(pubsub, websocket: WebSocket, user_id: int) -> None:
@@ -157,11 +182,13 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
         relay_task = asyncio.create_task(_relay_room_events(pubsub, websocket, user.id))
 
         online_ids = await _mark_online(redis_client, match_id, user.id)
+        readiness = await _get_ready_state(redis_client, match_id, participants_info)
         await websocket.send_json({
             "event": "room_state",
             "data": {
                 "participants": participants_info,
                 "online": online_ids,
+                "readiness": readiness,
             },
         })
 
@@ -203,12 +230,34 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
                 if not isinstance(event_data, dict):
                     event_data = {}
 
+                if event == "game_start":
+                    await redis_client.delete(_room_ready_key(match_id))
+
                 await _publish_room_event(
                     redis_client,
                     match_id,
                     {
                         "event": event,
                         "data": event_data,
+                    },
+                )
+
+            elif event == "ready_toggle":
+                ready = bool(data.get("ready"))
+                ready_key = _room_ready_key(match_id)
+                if ready:
+                    await redis_client.hset(ready_key, str(user.id), "1")
+                    await redis_client.expire(ready_key, 3600)
+                else:
+                    await redis_client.hset(ready_key, str(user.id), "0")
+
+                readiness = await _get_ready_state(redis_client, match_id, participants_info)
+                await _publish_room_event(
+                    redis_client,
+                    match_id,
+                    {
+                        "event": "readiness_update",
+                        "data": readiness,
                     },
                 )
 
@@ -247,6 +296,8 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
     finally:
         try:
             online_ids = await _mark_offline(redis_client, match_id, user.id)
+            await redis_client.hset(_room_ready_key(match_id), str(user.id), "0")
+            readiness = await _get_ready_state(redis_client, match_id, participants_info)
             await _publish_room_event(
                 redis_client,
                 match_id,
@@ -256,6 +307,14 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
                         "user_id": user.id,
                         "online": online_ids,
                     },
+                },
+            )
+            await _publish_room_event(
+                redis_client,
+                match_id,
+                {
+                    "event": "readiness_update",
+                    "data": readiness,
                 },
             )
         except Exception:
