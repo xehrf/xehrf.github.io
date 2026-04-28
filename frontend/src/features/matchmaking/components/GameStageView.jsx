@@ -89,7 +89,7 @@ function RoundTypeBadge({ type }) {
   );
 }
 
-function GameWaiting({ onStart, opponentName, totalRounds, canStartGame }) {
+function GameWaiting({ onStart, opponentName, totalRounds, canStartGame, startButtonLabel }) {
   return (
     <div className="flex flex-col items-center justify-center gap-6 py-10 text-center">
       <div className="text-5xl">⚔️</div>
@@ -113,7 +113,7 @@ function GameWaiting({ onStart, opponentName, totalRounds, canStartGame }) {
         className="h-12 rounded-xl px-8 text-sm font-black tracking-wide transition-all hover:scale-105 active:scale-95"
         style={{ background: "#FFD600", color: "#111", boxShadow: "0 0 28px rgba(255,214,0,0.45)", opacity: canStartGame ? 1 : 0.55 }}
       >
-        {canStartGame ? "🚀 Начать игру!" : "⏳ Соперник запускает"}
+        {startButtonLabel ?? (canStartGame ? "🚀 Начать игру!" : "⏳ Соперник запускает")}
       </button>
     </div>
   );
@@ -332,10 +332,11 @@ export function GameStageView({
   canStartGame,
   canAdvanceRound,
   canPlayAgain,
+  startButtonLabel,
 }) {
   switch (gameState) {
     case "waiting":
-      return <GameWaiting onStart={onStartGame} opponentName={opponentName} totalRounds={totalRounds} canStartGame={canStartGame} />;
+      return <GameWaiting onStart={onStartGame} opponentName={opponentName} totalRounds={totalRounds} canStartGame={canStartGame} startButtonLabel={startButtonLabel} />;
     case "countdown":
       return <GameCountdown countdown={countdown} />;
     case "playing":

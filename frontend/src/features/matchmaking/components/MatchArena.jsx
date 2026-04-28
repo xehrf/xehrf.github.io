@@ -24,6 +24,19 @@ function normalizeUserId(userId) {
   return String(userId);
 }
 
+function isSameUserId(left, right) {
+  const normalizedLeft = normalizeUserId(left);
+  return normalizedLeft !== null && normalizedLeft === normalizeUserId(right);
+}
+
+function hasOnlineUser(onlineIds, userId) {
+  if (!Array.isArray(onlineIds)) {
+    return false;
+  }
+
+  return onlineIds.some((candidateUserId) => isSameUserId(candidateUserId, userId));
+}
+
 function formatCountdown(totalSeconds) {
   if (totalSeconds == null || totalSeconds < 0) {
     return "--:--";
@@ -99,6 +112,28 @@ export function shouldHandleIncomingGameEvent({ eventName, envelopeData, gameDat
   }
 
   return senderUserId !== normalizedMyUserId;
+}
+
+export function resolveStartControlState({ myUserId, hostUserId, opponentUserId, onlineIds, roomSocketOpen }) {
+  const isHost = isSameUserId(myUserId, hostUserId);
+  const meOnline = hasOnlineUser(onlineIds, myUserId);
+  const opponentOnline = hasOnlineUser(onlineIds, opponentUserId);
+  const canStartGame = isHost && roomSocketOpen && meOnline && opponentOnline;
+
+  let startButtonLabel = "⏳ Соперник запускает";
+  if (canStartGame) {
+    startButtonLabel = "🚀 Начать игру!";
+  } else if (isHost && !roomSocketOpen) {
+    startButtonLabel = "⏳ Подключаем комнату";
+  } else if (isHost && !opponentOnline) {
+    startButtonLabel = "⏳ Ждём соперника";
+  }
+
+  return {
+    canStartGame,
+    opponentOnline,
+    startButtonLabel,
+  };
 }
 
 const ROLE_BADGE_PALETTES = {
@@ -284,6 +319,7 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
   const [onlineIds, setOnlineIds] = useState([]);
   const [secondsRemaining, setSecondsRemaining] = useState(activeMatch?.seconds_remaining ?? null);
   const [showChat, setShowChat] = useState(false);
+  const [roomSocketOpen, setRoomSocketOpen] = useState(false);
   const wsRef = useRef(null);
   const hostUserId = useMemo(
     () => resolveHostUserId({ participants, activeMatch, myUserId }),
@@ -302,7 +338,6 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
     timeLeft,
     countdown,
     totalRounds,
-    canStartGame,
     canAdvanceRound,
     canPlayAgain,
     startGame,
@@ -314,6 +349,11 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
     myUserId,
     hostUserId,
   });
+  const handleGameEventRef = useRef(handleGameEvent);
+
+  useEffect(() => {
+    handleGameEventRef.current = handleGameEvent;
+  }, [handleGameEvent]);
 
   useEffect(() => {
     if (activeMatch?.seconds_remaining != null) {
@@ -337,11 +377,15 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
   useEffect(() => {
     const token = localStorage.getItem("access_token");
     if (!token || !activeMatch?.match_id) {
+      setRoomSocketOpen(false);
       return undefined;
     }
 
     const ws = new WebSocket(getMatchRoomSocketUrl(activeMatch.match_id, token));
     wsRef.current = ws;
+    ws.addEventListener("open", () => {
+      setRoomSocketOpen(true);
+    });
 
     ws.addEventListener("message", (event) => {
       const payload = JSON.parse(event.data);
@@ -349,7 +393,7 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
 
       if (GAME_EVENT_NAMES.has(payload.event)) {
         if (shouldHandleIncomingGameEvent({ eventName: payload.event, envelopeData: data, gameData: data, myUserId })) {
-          handleGameEvent(payload.event, data);
+          handleGameEventRef.current(payload.event, data);
         }
         return;
       }
@@ -374,7 +418,7 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
           try {
             const { event: gameEvent, data: gameData } = JSON.parse(text.slice(9));
             if (GAME_EVENT_NAMES.has(gameEvent) && shouldHandleIncomingGameEvent({ eventName: gameEvent, envelopeData: data, gameData, myUserId })) {
-              handleGameEvent(gameEvent, gameData);
+              handleGameEventRef.current(gameEvent, gameData);
             }
           } catch {}
           return;
@@ -384,11 +428,19 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
       }
     });
 
+    ws.addEventListener("close", () => {
+      setRoomSocketOpen(false);
+    });
+    ws.addEventListener("error", () => {
+      setRoomSocketOpen(false);
+    });
+
     return () => {
       ws.close();
       wsRef.current = null;
+      setRoomSocketOpen(false);
     };
-  }, [activeMatch?.match_id, handleGameEvent, myUserId]);
+  }, [activeMatch?.match_id, myUserId]);
 
   const opponentFromParticipants = useMemo(
     () => getOpponentFromParticipants(participants, myUserId),
@@ -412,7 +464,16 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
   }, [activeMatch, myUserId]);
 
   const opponent = opponentFromParticipants ?? opponentFromMatch ?? null;
-  const opponentOnline = opponent ? onlineIds.includes(opponent.user_id) : false;
+  const { canStartGame: canStartCurrentMatch, opponentOnline, startButtonLabel } = useMemo(
+    () => resolveStartControlState({
+      myUserId,
+      hostUserId,
+      opponentUserId: opponent?.user_id ?? null,
+      onlineIds,
+      roomSocketOpen,
+    }),
+    [hostUserId, myUserId, onlineIds, opponent?.user_id, roomSocketOpen],
+  );
   const myName = participants.find((participant) => participant.user_id === myUserId)?.nickname ?? "Вы";
   const opponentName = opponent?.nickname ?? opponent?.display_name ?? "Соперник";
 
@@ -499,9 +560,10 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
             onNextRound={nextRound}
             onPlayAgain={startGame}
             onSurrender={onSurrender}
-            canStartGame={canStartGame}
+            canStartGame={canStartCurrentMatch}
             canAdvanceRound={canAdvanceRound}
             canPlayAgain={canPlayAgain}
+            startButtonLabel={startButtonLabel}
           />
         </div>
       )}

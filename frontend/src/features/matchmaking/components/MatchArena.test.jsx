@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveHostUserId, shouldHandleIncomingGameEvent } from "./MatchArena.jsx";
+import { resolveHostUserId, resolveStartControlState, shouldHandleIncomingGameEvent } from "./MatchArena.jsx";
 
 describe("MatchArena host resolution", () => {
   it("uses activeMatch data while room_state participants are still empty", () => {
@@ -72,5 +72,48 @@ describe("MatchArena game event filtering", () => {
     });
 
     expect(shouldHandle).toBe(false);
+  });
+});
+
+describe("MatchArena start readiness", () => {
+  it("keeps host start disabled until both players are online in the match room", () => {
+    const state = resolveStartControlState({
+      myUserId: 12,
+      hostUserId: "12",
+      opponentUserId: 7,
+      onlineIds: [12],
+      roomSocketOpen: true,
+    });
+
+    expect(state.canStartGame).toBe(false);
+    expect(state.opponentOnline).toBe(false);
+    expect(state.startButtonLabel).toBe("⏳ Ждём соперника");
+  });
+
+  it("allows the host to start once both players are online", () => {
+    const state = resolveStartControlState({
+      myUserId: 12,
+      hostUserId: "12",
+      opponentUserId: 7,
+      onlineIds: [12, 7],
+      roomSocketOpen: true,
+    });
+
+    expect(state.canStartGame).toBe(true);
+    expect(state.opponentOnline).toBe(true);
+    expect(state.startButtonLabel).toBe("🚀 Начать игру!");
+  });
+
+  it("keeps the non-host in waiting mode even when both players are online", () => {
+    const state = resolveStartControlState({
+      myUserId: 7,
+      hostUserId: "12",
+      opponentUserId: 12,
+      onlineIds: [12, 7],
+      roomSocketOpen: true,
+    });
+
+    expect(state.canStartGame).toBe(false);
+    expect(state.startButtonLabel).toBe("⏳ Соперник запускает");
   });
 });
