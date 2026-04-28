@@ -1,91 +1,112 @@
 """
 app/matchmaking/match_ws.py
- 
+
 WebSocket endpoint for real-time collaboration inside a match:
   - chat messages
   - shared code editor (last-write-wins)
   - participant presence
+
+This room transport is backed by Redis so players connected through
+different API processes still receive the same room events.
 """
- 
-from collections import defaultdict
+
+import asyncio
+import json
 from typing import Any
- 
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
- 
+
 from app.auth.security import decode_token
-from app.db.models import Match, MatchParticipant, MatchStatus, User
+from app.core.redis_client import get_async_redis
+from app.db.models import Match, MatchParticipant, User
 from app.db.session import get_db
- 
+
 match_ws_router = APIRouter(prefix="/matchmaking", tags=["matchmaking"])
- 
- 
-class MatchRoomManager:
-    def __init__(self) -> None:
-        # match_id -> list of (user_id, websocket)
-        self._rooms: dict[int, list[tuple[int, WebSocket]]] = defaultdict(list)
- 
-    def _room(self, match_id: int) -> list[tuple[int, WebSocket]]:
-        return self._rooms[match_id]
- 
-    async def join(self, match_id: int, user_id: int, ws: WebSocket) -> None:
-        self._rooms[match_id].append((user_id, ws))
- 
-    def leave(self, match_id: int, user_id: int, ws: WebSocket) -> None:
-        room = self._rooms.get(match_id, [])
-        self._rooms[match_id] = [(uid, w) for uid, w in room if w is not ws]
-        if not self._rooms[match_id]:
-            self._rooms.pop(match_id, None)
- 
-    def participants(self, match_id: int) -> list[int]:
-        return [uid for uid, _ in self._rooms.get(match_id, [])]
- 
-    async def broadcast(self, match_id: int, payload: dict[str, Any], exclude_ws: WebSocket | None = None) -> None:
-        for uid, ws in list(self._rooms.get(match_id, [])):
-            if ws is exclude_ws:
-                continue
-            try:
-                await ws.send_json(payload)
-            except Exception:
-                self.leave(match_id, uid, ws)
- 
-    async def send_to(self, match_id: int, user_id: int, payload: dict[str, Any]) -> None:
-        for uid, ws in list(self._rooms.get(match_id, [])):
-            if uid == user_id:
-                try:
-                    await ws.send_json(payload)
-                except Exception:
-                    self.leave(match_id, uid, ws)
- 
- 
-match_room_manager = MatchRoomManager()
- 
- 
+
+
+def _room_channel(match_id: int) -> str:
+    return f"mm:match_room:{match_id}:events"
+
+
+def _room_presence_key(match_id: int) -> str:
+    return f"mm:match_room:{match_id}:presence"
+
+
+async def _publish_room_event(redis_client, match_id: int, payload: dict[str, Any]) -> None:
+    await redis_client.publish(_room_channel(match_id), json.dumps(payload))
+
+
+async def _get_online_user_ids(redis_client, match_id: int) -> list[int]:
+    online_map = await redis_client.hgetall(_room_presence_key(match_id))
+    online_ids: list[int] = []
+    for raw_user_id, raw_count in online_map.items():
+        try:
+            if int(raw_count) > 0:
+                online_ids.append(int(raw_user_id))
+        except (TypeError, ValueError):
+            continue
+
+    online_ids.sort()
+    return online_ids
+
+
+async def _mark_online(redis_client, match_id: int, user_id: int) -> list[int]:
+    await redis_client.hincrby(_room_presence_key(match_id), str(user_id), 1)
+    return await _get_online_user_ids(redis_client, match_id)
+
+
+async def _mark_offline(redis_client, match_id: int, user_id: int) -> list[int]:
+    remaining = await redis_client.hincrby(_room_presence_key(match_id), str(user_id), -1)
+    if remaining <= 0:
+        await redis_client.hdel(_room_presence_key(match_id), str(user_id))
+    return await _get_online_user_ids(redis_client, match_id)
+
+
+async def _relay_room_events(pubsub, websocket: WebSocket, user_id: int) -> None:
+    async for message in pubsub.listen():
+        if message.get("type") != "message":
+            continue
+
+        raw_data = message.get("data")
+        if raw_data is None:
+            continue
+
+        try:
+            payload = json.loads(raw_data)
+        except json.JSONDecodeError:
+            continue
+
+        excluded_user_id = payload.pop("_exclude_user_id", None)
+        if excluded_user_id is not None and str(excluded_user_id) == str(user_id):
+            continue
+
+        await websocket.send_json(payload)
+
+
 @match_ws_router.websocket("/match/{match_id}/ws")
 async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
-    # Auth via query token
     token = websocket.query_params.get("token")
     if not token:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
- 
+
     sub = decode_token(token)
     if not sub:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
- 
+
     db = next(get_db())
     try:
         user = db.query(User).filter(User.email == sub, User.is_active.is_(True)).first()
         if user is None:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
- 
+
         match = db.query(Match).filter(Match.id == match_id).first()
         if match is None:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
- 
-        # Verify user is a participant
+
         is_participant = (
             db.query(MatchParticipant)
             .filter(
@@ -95,12 +116,9 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
             .first()
         )
         if is_participant is None:
-            print(f"DEBUG 403: user_id={user.id} match_id={match_id}")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
-        print(f"DEBUG OK: user_id={user.id} match_id={match_id}")
- 
-        # Load all participants info
+
         participants_q = (
             db.query(User)
             .join(MatchParticipant, MatchParticipant.user_id == User.id)
@@ -109,51 +127,56 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
         )
         participants_info = [
             {
-                "user_id": p.id,
-                "display_name": p.display_name or p.nickname or p.email,
-                "nickname": p.nickname or p.email,
-                "pts": p.pts or 0,
-                "avatar_url": p.avatar_url,
-                "level": p.level or "beginner",
+                "user_id": participant.id,
+                "display_name": participant.display_name or participant.nickname or participant.email,
+                "nickname": participant.nickname or participant.email,
+                "pts": participant.pts or 0,
+                "avatar_url": participant.avatar_url,
+                "level": participant.level or "beginner",
             }
-            for p in participants_q
+            for participant in participants_q
         ]
     finally:
         db.close()
- 
+
+    redis_client = get_async_redis()
+    pubsub = redis_client.pubsub()
+    relay_task: asyncio.Task | None = None
+
     await websocket.accept()
-    await match_room_manager.join(match_id, user.id, websocket)
- 
-    # Send initial state to the joining user
-    await websocket.send_json({
-        "event": "room_state",
-        "data": {
-            "participants": participants_info,
-            "online": match_room_manager.participants(match_id),
-        },
-    })
- 
-    # Notify others that user joined
-    await match_room_manager.broadcast(
-        match_id,
-        {
-            "event": "user_joined",
-            "data": {
-                "user_id": user.id,
-                "online": match_room_manager.participants(match_id),
-            },
-        },
-        exclude_ws=websocket,
-    )
- 
+
     try:
+        await pubsub.subscribe(_room_channel(match_id))
+        relay_task = asyncio.create_task(_relay_room_events(pubsub, websocket, user.id))
+
+        online_ids = await _mark_online(redis_client, match_id, user.id)
+        await websocket.send_json({
+            "event": "room_state",
+            "data": {
+                "participants": participants_info,
+                "online": online_ids,
+            },
+        })
+
+        await _publish_room_event(
+            redis_client,
+            match_id,
+            {
+                "event": "user_joined",
+                "data": {
+                    "user_id": user.id,
+                    "online": online_ids,
+                },
+            },
+        )
+
         while True:
             data = await websocket.receive_json()
             event = data.get("event")
- 
+
             if event == "chat":
-                # Broadcast chat message to everyone including sender
-                await match_room_manager.broadcast(
+                await _publish_room_event(
+                    redis_client,
                     match_id,
                     {
                         "event": "chat",
@@ -165,47 +188,73 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
                         },
                     },
                 )
- 
+
             elif event == "code_update":
-                # Broadcast code change to all OTHER participants (not sender)
-                await match_room_manager.broadcast(
+                await _publish_room_event(
+                    redis_client,
                     match_id,
                     {
                         "event": "code_update",
+                        "_exclude_user_id": user.id,
                         "data": {
                             "user_id": user.id,
                             "code": data.get("code", ""),
                             "language": data.get("language", "python"),
                         },
                     },
-                    exclude_ws=websocket,
                 )
- 
+
             elif event == "cursor":
-                # Broadcast cursor position
-                await match_room_manager.broadcast(
+                await _publish_room_event(
+                    redis_client,
                     match_id,
                     {
                         "event": "cursor",
+                        "_exclude_user_id": user.id,
                         "data": {
                             "user_id": user.id,
                             "line": data.get("line", 0),
                             "col": data.get("col", 0),
                         },
                     },
-                    exclude_ws=websocket,
                 )
- 
+
     except WebSocketDisconnect:
-        match_room_manager.leave(match_id, user.id, websocket)
-        await match_room_manager.broadcast(
-            match_id,
-            {
-                "event": "user_left",
-                "data": {
-                    "user_id": user.id,
-                    "online": match_room_manager.participants(match_id),
+        pass
+    finally:
+        try:
+            online_ids = await _mark_offline(redis_client, match_id, user.id)
+            await _publish_room_event(
+                redis_client,
+                match_id,
+                {
+                    "event": "user_left",
+                    "data": {
+                        "user_id": user.id,
+                        "online": online_ids,
+                    },
                 },
-            },
-        )
- 
+            )
+        except Exception:
+            pass
+
+        if relay_task is not None:
+            relay_task.cancel()
+            try:
+                await relay_task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                pass
+
+        try:
+            await pubsub.unsubscribe(_room_channel(match_id))
+        except Exception:
+            pass
+
+        try:
+            await pubsub.close()
+        except Exception:
+            pass
+
+        await redis_client.close()
