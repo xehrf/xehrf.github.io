@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
- 
+import logging
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
@@ -13,7 +14,6 @@ from app.team_matchmaking.schemas import (
     TeamCurrentResponse,
     TeamDetailOut,
     TeamHistoryItemOut,
-    TeamInviteActionBody,
     TeamInviteCreateBody,
     TeamInviteOut,
     TeamMatchmakingJoinResponse,
@@ -24,9 +24,11 @@ from app.team_matchmaking.schemas import (
     TeamUpdateBody,
 )
 from app.team_matchmaking.ws import manager
- 
+
 router = APIRouter(prefix="/team-matchmaking", tags=["team-matchmaking"])
 team_router = APIRouter(prefix="/teams", tags=["teams"])
+
+logger = logging.getLogger(__name__)
 
 
 def _team_member_payload(member, *, online: bool) -> TeamMemberOut:
@@ -53,83 +55,61 @@ def _team_payload(team) -> TeamOut:
         member_count=len(team.members),
         team_rating=(sum(member.user.pts for member in team.members) // len(team.members)) if team.members else 0,
     )
- 
- 
+
+
 @router.post("/join", response_model=TeamMatchmakingJoinResponse)
 async def join_team(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> TeamMatchmakingJoinResponse:
-    try:
-        print(f"User {user.id} attempting to join team matchmaking")
-        
-        active_team = tm_service.get_current_team(db, user.id)
-        if active_team is not None:
-            return TeamMatchmakingJoinResponse(
-                status="already_in_team",
-                team_id=active_team.id,
-                task_id=active_team.tasks[0].task_id if active_team.tasks else None,
-                message="Você já está em uma equipe.",
-            )
- 
-        result = tm_service.join_queue(db, user)
-        print(f"Join queue result: {result}")
-        db.commit()
-        
-        if result.get("status") == "matched":
-            await manager.broadcast(
-                result["team_id"],
-                "team_formed",
-                {
-                    "team_id": result["team_id"],
-                    "task_id": result["task_id"],
-                    "message": "Equipe formada!",
-                },
-            )
-            await manager.broadcast(
-                result["team_id"],
-                "task_assigned",
-                {
-                    "team_id": result["team_id"],
-                    "task_id": result["task_id"],
-                    "status": "active",
-                    "assigned_at": datetime.now(timezone.utc).isoformat(),
-                },
-            )
- 
-        # Ensure result has all required fields for response model
-        response_data = {
-            "status": result.get("status", "unknown"),
-            "team_id": result.get("team_id"),
-            "task_id": result.get("task_id"),
-            "queue_size": result.get("queue_size"),
-            "queue_position": result.get("queue_position"),
-            "members_found": result.get("members_found"),
-            "message": result.get("message", ""),
-            "ends_at": result.get("ends_at"),
-        }
-        
-        return TeamMatchmakingJoinResponse(**response_data)
-        
-    except Exception as e:
-        print(f"Error in join_team: {e}")
-        import traceback
-        traceback.print_exc()
-        db.rollback()
-        
-        # Return a safe response instead of crashing
+    active_team = tm_service.get_current_team(db, user.id)
+    if active_team is not None:
         return TeamMatchmakingJoinResponse(
-            status="error",
-            message="An error occurred while joining the queue",
-            queue_size=0,
-            queue_position=None,
-            members_found=0,
+            status="already_in_team",
+            team_id=active_team.id,
+            task_id=active_team.tasks[0].task_id if active_team.tasks else None,
+            message="You are already in a team.",
         )
- 
- 
+
+    result = tm_service.join_queue(db, user)
+    db.commit()
+
+    if result.get("status") == "matched":
+        await manager.broadcast(
+            result["team_id"],
+            "team_formed",
+            {
+                "team_id": result["team_id"],
+                "task_id": result["task_id"],
+                "message": "Team formed.",
+            },
+        )
+        await manager.broadcast(
+            result["team_id"],
+            "task_assigned",
+            {
+                "team_id": result["team_id"],
+                "task_id": result["task_id"],
+                "status": "active",
+                "assigned_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+    response_data = {
+        "status": result.get("status", "unknown"),
+        "team_id": result.get("team_id"),
+        "task_id": result.get("task_id"),
+        "members_found": result.get("members_found"),
+        "message": result.get("message", ""),
+    }
+
+    logger.debug("Team matchmaking join result for user_id=%s: %s", user.id, response_data)
+    return TeamMatchmakingJoinResponse(**response_data)
+
+
 @router.post("/leave")
 async def leave_team(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     if tm_service.leave_queue(db, user.id):
         db.commit()
         return {"status": "left_queue"}
- 
+
     team_id = tm_service.leave_team(db, user.id)
     if team_id is not None:
         db.commit()
@@ -143,21 +123,21 @@ async def leave_team(user: User = Depends(get_current_user), db: Session = Depen
             },
         )
         return {"status": "left_team", "team_id": team_id}
- 
+
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is not in queue or team.")
- 
- 
-@team_router.get("/current", response_model=TeamCurrentResponse | None)  # STATIC — must be before /{team_id}
+
+
+@team_router.get("/current", response_model=TeamCurrentResponse | None)
 def current_team(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> TeamCurrentResponse | None:
     team = tm_service.get_current_team(db, user.id)
     if team is None:
         return None
- 
+
     online_members = manager.get_online_members(team.id)
     member_rows = []
     for member in team.members:
         member_rows.append(_team_member_payload(member, online=member.user.id in online_members))
- 
+
     active_task = next((task for task in team.tasks if task.status == "active"), None)
     task_payload = None
     if active_task is not None:
@@ -166,7 +146,7 @@ def current_team(user: User = Depends(get_current_user), db: Session = Depends(g
             "status": active_task.status.value,
             "assigned_at": active_task.assigned_at,
         }
- 
+
     return TeamCurrentResponse(
         team_id=team.id,
         name=team.name,
@@ -179,21 +159,21 @@ def current_team(user: User = Depends(get_current_user), db: Session = Depends(g
         captain_user_id=tm_service.get_team_captain_user_id(team),
         ready_votes=tm_service.get_team_ready_votes(db, team.id),
     )
- 
- 
+
+
 @team_router.get("", response_model=list[TeamOut])
 def list_teams(search: str | None = None, db: Session = Depends(get_db)) -> list[TeamOut]:
     teams = tm_service.list_teams(db, search)
     return [_team_payload(team) for team in teams]
- 
- 
+
+
 @team_router.post("", response_model=TeamOut)
 def create_team(body: TeamCreateBody, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> TeamOut:
     team = tm_service.create_team(db, user, body.name, body.description or "")
     db.commit()
     return _team_payload(team)
- 
- 
+
+
 @team_router.get("/invites", response_model=list[TeamInviteOut])
 def my_invites(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[TeamInviteOut]:
     invites = tm_service.list_invitations_for_user(db, user.id)
@@ -208,8 +188,8 @@ def my_invites(user: User = Depends(get_current_user), db: Session = Depends(get
         )
         for inv in invites
     ]
- 
- 
+
+
 @team_router.post("/invites/{invitation_id}/accept")
 async def accept_invite(
     invitation_id: int,
@@ -229,8 +209,8 @@ async def accept_invite(
         {"user_id": user.id, "invitation_id": invitation_id},
     )
     return {"status": "accepted", "team_id": team.id}
- 
- 
+
+
 @team_router.post("/invites/{invitation_id}/decline")
 async def decline_invite(
     invitation_id: int,
@@ -245,8 +225,8 @@ async def decline_invite(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     db.commit()
     return {"status": "declined"}
- 
- 
+
+
 @team_router.get("/{team_id}", response_model=TeamDetailOut)
 def get_team(team_id: int, db: Session = Depends(get_db)) -> TeamDetailOut:
     team = tm_service.get_team_by_id(db, team_id)
@@ -263,24 +243,18 @@ def get_team(team_id: int, db: Session = Depends(get_db)) -> TeamDetailOut:
         captain_user_id=tm_service.get_team_captain_user_id(team),
         member_count=len(team.members),
         team_rating=(sum(member.user.pts for member in team.members) // len(team.members)) if team.members else 0,
-        members=[
-            _team_member_payload(member, online=False)
-            for member in team.members
-        ],
+        members=[_team_member_payload(member, online=False) for member in team.members],
     )
- 
- 
+
+
 @team_router.get("/{team_id}/members", response_model=list[TeamMemberOut])
 def get_team_members(team_id: int, db: Session = Depends(get_db)) -> list[TeamMemberOut]:
     members = tm_service.get_team_members(db, team_id)
     if members is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
-    return [
-        _team_member_payload(member, online=False)
-        for member in members
-    ]
- 
- 
+    return [_team_member_payload(member, online=False) for member in members]
+
+
 @team_router.patch("/{team_id}", response_model=TeamOut)
 def update_team(
     team_id: int,
@@ -330,8 +304,8 @@ def upload_team_banner(
     team = tm_service.update_team(db, team, banner=file)
     db.commit()
     return _team_payload(team)
- 
- 
+
+
 @team_router.delete("/{team_id}")
 def delete_team(team_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     team = tm_service.get_team_by_id(db, team_id)
@@ -342,8 +316,8 @@ def delete_team(team_id: int, user: User = Depends(get_current_user), db: Sessio
     tm_service.delete_team(db, team)
     db.commit()
     return {"status": "deleted"}
- 
- 
+
+
 @team_router.post("/{team_id}/leave")
 def leave_team(team_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     team = tm_service.get_team_by_id(db, team_id)
@@ -354,8 +328,8 @@ def leave_team(team_id: int, user: User = Depends(get_current_user), db: Session
     tm_service.leave_team(db, user.id)
     db.commit()
     return {"status": "left"}
- 
- 
+
+
 @team_router.post("/{team_id}/kick/{user_id}")
 def kick_member(team_id: int, user_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     team = tm_service.get_team_by_id(db, team_id)
@@ -369,14 +343,14 @@ def kick_member(team_id: int, user_id: int, user: User = Depends(get_current_use
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unable to kick member")
     db.commit()
     return {"status": "kicked", "user_id": user_id}
- 
- 
+
+
 @team_router.get("/{team_id}/stats", response_model=TeamStatsOut)
 def team_stats(team_id: int, db: Session = Depends(get_db)) -> TeamStatsOut:
     stats = tm_service.get_team_stats(db, team_id)
     return TeamStatsOut(**stats)
- 
- 
+
+
 @team_router.get("/{team_id}/matches", response_model=list[TeamHistoryItemOut])
 def team_matches(team_id: int, db: Session = Depends(get_db)) -> list[TeamHistoryItemOut]:
     rows = tm_service.get_team_match_history(db, team_id)
@@ -390,8 +364,8 @@ def team_matches(team_id: int, db: Session = Depends(get_db)) -> list[TeamHistor
         )
         for row in rows
     ]
- 
- 
+
+
 @team_router.post("/{team_id}/invite", response_model=TeamInviteOut)
 async def create_invite(
     team_id: int,
@@ -426,8 +400,8 @@ async def create_invite(
         status=inv.status.value,
         created_at=inv.created_at,
     )
- 
- 
+
+
 @team_router.post("/{team_id}/ready")
 async def ready_vote(
     team_id: int,
@@ -444,8 +418,8 @@ async def ready_vote(
     db.commit()
     await manager.broadcast(team_id, "team_ready_update", {"team_id": team_id, "votes": votes})
     return {"status": "ok", "votes": votes}
- 
- 
+
+
 @team_router.websocket("/ws/{team_id}")
 async def team_socket(
     team_id: int,
@@ -464,12 +438,12 @@ async def team_socket(
     if user is None:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
- 
+
     team = tm_service.get_current_team(db, user.id)
     if team is None or team.id != team_id:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
- 
+
     await websocket.accept()
     await manager.connect(team_id, user.id, websocket)
     await manager.broadcast(
@@ -481,7 +455,7 @@ async def team_socket(
             "nickname": user.nickname,
         },
     )
- 
+
     try:
         while True:
             payload = await websocket.receive_json()
@@ -517,18 +491,3 @@ async def team_socket(
                 "nickname": user.nickname,
             },
         )
- 
- 
-# TODO: Add tournament system endpoints
-# @team_router.post("/tournaments", ...)
-# @team_router.get("/tournaments/{tournament_id}", ...)
-# @team_router.post("/tournaments/{tournament_id}/join", ...)
- 
-# TODO: Add advanced roles (leader, admin)
-# Update TeamMemberRole enum in models.py
- 
-# TODO: Integrate with Redis for team queues
-# Use Redis for matchmaking queues instead of DB
- 
-# TODO: Add team rooms system
-# WebSocket rooms for team communication during matches

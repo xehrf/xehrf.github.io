@@ -1,10 +1,18 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.submissions.limits import validate_code_size
 
 
 class SubmissionCreate(BaseModel):
     task_id: int
     match_id: int | None = None
     code: str = Field(min_length=1)
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, value: str) -> str:
+        validate_code_size(value)
+        return value
 
 
 class SubmissionOut(BaseModel):

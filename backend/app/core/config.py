@@ -1,7 +1,14 @@
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+INSECURE_JWT_SECRETS = frozenset(
+    {
+        "change-me-in-production-use-openssl-rand-hex-32",
+        "dev-change-me",
+    }
+)
 
 
 class Settings(BaseSettings):
@@ -14,7 +21,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://red-d7htv8hkh4rs73aluag0:6379"
 
     secret_key: str | None = None
-    jwt_secret: str = "change-me-in-production-use-openssl-rand-hex-32"
+    jwt_secret: str | None = None
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7
 
@@ -40,17 +47,33 @@ class Settings(BaseSettings):
                 return False
         return value
 
-    @field_validator("database_url", "redis_url", "cors_origins", "cors_origin_regex", "api_url", mode="before")
+    @field_validator(
+        "database_url",
+        "redis_url",
+        "cors_origins",
+        "cors_origin_regex",
+        "api_url",
+        "secret_key",
+        "jwt_secret",
+        mode="before",
+    )
     @classmethod
     def strip_string_settings(cls, value: object) -> object:
         if isinstance(value, str):
             return value.strip()
         return value
 
+    @model_validator(mode="after")
+    def validate_jwt_secret(self) -> "Settings":
+        resolved_secret = self.secret_key or self.jwt_secret
+        if not resolved_secret:
+            raise ValueError("JWT_SECRET or SECRET_KEY must be set.")
+        if resolved_secret in INSECURE_JWT_SECRETS:
+            raise ValueError("JWT secret uses an insecure placeholder value.")
+        self.jwt_secret = resolved_secret
+        return self
+
 
 @lru_cache
 def get_settings() -> Settings:
-    settings = Settings()
-    if settings.secret_key:
-        settings.jwt_secret = settings.secret_key
-    return settings
+    return Settings()

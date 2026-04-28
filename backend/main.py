@@ -1,17 +1,20 @@
 from contextlib import asynccontextmanager
+from http import HTTPStatus
+import logging
 import os
 import re
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import text
 
 from app.auth.router import router as auth_router
 from app.core.config import get_settings
-from app.db.base import Base
+from app.core.errors import ApiError, build_error_body
 from app.db.bootstrap import seed_if_empty
-from app.db.session import SessionLocal, engine
+from app.db.session import SessionLocal
 from app.uploads.service import UPLOAD_DIR
 from app.freelance.router import router as freelance_router
 from app.matchmaking.router import router as mm_router
@@ -23,85 +26,11 @@ from app.tasks.router import router as tasks_router
 from app.users.router import router as users_router
 from app.matchmaking.match_ws import match_ws_router
 
-
-def _run_migration(conn, sql: str) -> None:
-    """Execute a single migration statement, ignoring errors (column already exists, etc.)."""
-    try:
-        conn.execute(text(sql))
-    except Exception as e:
-        print(f"[migration] skipped (already applied or error): {e}")
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    Base.metadata.create_all(bind=engine)
-
-    # --- users table migrations ---
-    users_migrations = [
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname VARCHAR",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name VARCHAR",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS banner_url VARCHAR",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS bio VARCHAR",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS pts INTEGER DEFAULT 0",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS level VARCHAR DEFAULT 'beginner'",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(100)",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS technologies TEXT DEFAULT '[]'",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT FALSE",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS pvp_win_streak INTEGER DEFAULT 0",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS pvp_best_win_streak INTEGER DEFAULT 0",
-    ]
-    for sql in users_migrations:
-        try:
-            with engine.begin() as conn:
-                conn.execute(text(sql))
-        except Exception as e:
-            print(f"[migration] users skip: {e}")
-
-    # --- rating_history table migrations (each in own transaction) ---
-    rating_migrations = [
-        "ALTER TABLE rating_history ADD COLUMN IF NOT EXISTS season_code VARCHAR(16)",
-        "ALTER TABLE rating_history ADD COLUMN IF NOT EXISTS language_key VARCHAR(64)",
-        "ALTER TABLE rating_history ADD COLUMN IF NOT EXISTS topic_key VARCHAR(64)",
-        "CREATE INDEX IF NOT EXISTS ix_rating_history_season_code ON rating_history (season_code)",
-        "CREATE INDEX IF NOT EXISTS ix_rating_history_language_key ON rating_history (language_key)",
-        "CREATE INDEX IF NOT EXISTS ix_rating_history_topic_key ON rating_history (topic_key)",
-    ]
-    for sql in rating_migrations:
-        try:
-            with engine.begin() as conn:
-                conn.execute(text(sql))
-        except Exception as e:
-            print(f"[migration] rating_history skip: {e}")
-
-    # --- fix NULL onboarding ---
-    try:
-        with engine.begin() as conn:
-            conn.execute(text("""
-                UPDATE users 
-                SET onboarding_completed = FALSE 
-                WHERE onboarding_completed IS NULL OR role IS NULL
-            """))
-    except Exception as e:
-        print(f"[migration] onboarding update skip: {e}")
-
-    # --- teams / team_members / team_match_history migrations ---
-    teams_migrations = [
-        "ALTER TABLE teams ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(1024)",
-        "ALTER TABLE teams ADD COLUMN IF NOT EXISTS banner_url VARCHAR(1024)",
-        "ALTER TABLE teams ADD COLUMN IF NOT EXISTS description VARCHAR DEFAULT ''",
-        "ALTER TABLE teams ADD COLUMN IF NOT EXISTS owner_id INTEGER",
-        "ALTER TABLE teams ADD COLUMN IF NOT EXISTS rating INTEGER DEFAULT 0",
-        "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS role VARCHAR DEFAULT 'member'",
-        "ALTER TABLE team_match_history ADD COLUMN IF NOT EXISTS ptc_earned INTEGER DEFAULT 0",
-    ]
-    for sql in teams_migrations:
-        try:
-            with engine.begin() as conn:
-                conn.execute(text(sql))
-        except Exception as e:
-            print(f"[migration] teams skip: {e}")
-
     db = SessionLocal()
     try:
         seed_if_empty(db)
@@ -113,6 +42,54 @@ async def lifespan(_: FastAPI):
 settings = get_settings()
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+
+
+def _default_error_code(status_code: int) -> str:
+    try:
+        return HTTPStatus(status_code).name.lower()
+    except ValueError:
+        return f"http_{status_code}"
+
+
+def _json_error_response(status_code: int, code: str, message: str, *, details: object = None) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content=build_error_body(code, message, details=details),
+    )
+
+
+@app.exception_handler(ApiError)
+async def api_error_handler(_: Request, exc: ApiError) -> JSONResponse:
+    return _json_error_response(exc.status_code, exc.code, exc.message, details=exc.details)
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(_: Request, exc: HTTPException) -> JSONResponse:
+    if isinstance(exc.detail, dict):
+        code = str(exc.detail.get("code") or _default_error_code(exc.status_code))
+        message = str(exc.detail.get("message") or exc.detail.get("detail") or HTTPStatus(exc.status_code).phrase)
+        details = exc.detail.get("details")
+    else:
+        code = _default_error_code(exc.status_code)
+        message = str(exc.detail)
+        details = None
+    return _json_error_response(exc.status_code, code, message, details=details)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+    return _json_error_response(
+        422,
+        "validation_error",
+        "Request validation failed.",
+        details=exc.errors(),
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled application error", exc_info=exc)
+    return _json_error_response(500, "internal_server_error", "An unexpected error occurred.")
 
 
 def _normalize_origin(value: str) -> str:

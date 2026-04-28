@@ -9,9 +9,14 @@
    ```
 3. Make sure environment variables are set:
    - `DATABASE_URL`
-   - `SECRET_KEY`
+   - `SECRET_KEY` or `JWT_SECRET`
    - `REDIS_URL`
-4. Verify after deploy:
+4. Run database migrations before starting the app:
+   ```bash
+   cd backend && python -m app.db.upgrade
+   ```
+5. The backend now fails fast during startup if the JWT secret is missing, empty, or left on an insecure placeholder value.
+6. Verify after deploy:
    - `GET /health` returns `{"status":"ok"}`
    - `GET /matchmaking/quests` returns `401` (without token) or `200` (with token), not `404`
 
@@ -26,10 +31,14 @@
 4. Add the PostgreSQL plugin and copy the generated `DATABASE_URL` into Railway environment variables.
 5. Add required env vars:
    - `DATABASE_URL`
-   - `SECRET_KEY`
+   - `SECRET_KEY` or `JWT_SECRET`
    - `API_URL` (e.g. `https://your-backend-url`)
    - `REDIS_URL` if using Redis
-6. Railway will expose a public backend URL; save it for frontend configuration.
+6. Run migrations before routing traffic to the service:
+   ```bash
+   cd backend && python -m app.db.upgrade
+   ```
+7. Railway will expose a public backend URL; save it for frontend configuration.
 
 ### Notes
 - `backend/app/core/config.py` now supports `SECRET_KEY` via environment variable.
@@ -58,6 +67,12 @@
 - `backend/.env.example` shows backend env vars for local development.
 - `frontend/.env.example` shows frontend prod env var format.
 
+## Migrations
+
+- Alembic configuration lives in `backend/alembic.ini` and `backend/alembic/`.
+- Apply the current schema with `cd backend && python -m app.db.upgrade`.
+- The app startup no longer performs runtime `ALTER TABLE` fixes.
+
 ## HTTPS and custom domains
 
 - Vercel provides HTTPS automatically for frontend.
@@ -70,5 +85,5 @@
 - [ ] Frontend deploys successfully to Vercel
 - [ ] `VITE_API_URL` points to the Railway backend URL
 - [ ] `DATABASE_URL` is set and PostgreSQL is connected
-- [ ] `SECRET_KEY` is set securely
+- [ ] `SECRET_KEY` or `JWT_SECRET` is set securely
 - [ ] Public URL is accessible and API works

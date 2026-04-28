@@ -1,8 +1,9 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.db.models import TaskType
+from app.submissions.limits import validate_code_size, validate_tests_json_limits
 
 
 class TaskCreate(BaseModel):
@@ -14,6 +15,12 @@ class TaskCreate(BaseModel):
     tests_json: dict | None = None
     starter_code: str | None = None
     is_published: bool = True
+
+    @field_validator("tests_json")
+    @classmethod
+    def validate_tests_json(cls, value: dict | None) -> dict | None:
+        validate_tests_json_limits(value)
+        return value
 
 
 class TaskOut(BaseModel):
@@ -46,6 +53,12 @@ class TaskAttemptOut(BaseModel):
 class TaskSubmitBody(BaseModel):
     code: str = Field(min_length=1)
     match_id: int | None = None
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, value: str) -> str:
+        validate_code_size(value)
+        return value
 
 
 class TaskSubmitResultOut(BaseModel):
