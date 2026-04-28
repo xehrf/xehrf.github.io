@@ -99,8 +99,8 @@ export function useGameEngine({
 
       wsRef.current.send(
         JSON.stringify({
-          event: "chat",
-          text: `__GAME__:${JSON.stringify({ event, data: attachSenderUserId(data, myUserId) })}`,
+          event,
+          data: attachSenderUserId(data, myUserId),
         }),
       );
     },

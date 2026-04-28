@@ -22,6 +22,13 @@ from app.db.models import Match, MatchParticipant, User
 from app.db.session import get_db
 
 match_ws_router = APIRouter(prefix="/matchmaking", tags=["matchmaking"])
+GAME_EVENT_NAMES = {
+    "game_start",
+    "game_answer_submitted",
+    "game_round_result",
+    "game_next_round",
+    "game_finished",
+}
 
 
 def _room_channel(match_id: int) -> str:
@@ -175,6 +182,8 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
             event = data.get("event")
 
             if event == "chat":
+                raw_text = str(data.get("text", ""))
+                text = raw_text if raw_text.startswith("__GAME__:") else raw_text[:1000]
                 await _publish_room_event(
                     redis_client,
                     match_id,
@@ -184,8 +193,22 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
                             "user_id": user.id,
                             "nickname": user.nickname or user.email,
                             "display_name": user.display_name or user.nickname or user.email,
-                            "text": str(data.get("text", ""))[:1000],
+                            "text": text,
                         },
+                    },
+                )
+
+            elif event in GAME_EVENT_NAMES:
+                event_data = data.get("data", {})
+                if not isinstance(event_data, dict):
+                    event_data = {}
+
+                await _publish_room_event(
+                    redis_client,
+                    match_id,
+                    {
+                        "event": event,
+                        "data": event_data,
                     },
                 )
 
