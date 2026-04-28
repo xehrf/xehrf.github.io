@@ -321,4 +321,6 @@ async def matchmaking_socket(websocket: WebSocket, db: Session = Depends(get_db)
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        manager.disconnect(user.id, websocket)
+        pass
+    finally:
+        await manager.disconnect(user.id, websocket)

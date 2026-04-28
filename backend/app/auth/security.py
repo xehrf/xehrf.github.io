@@ -31,5 +31,6 @@ def decode_token(token: str) -> str | None:
         if sub is None:
             return None
         return str(sub)
-    except JWTError:
+    except JWTError as e:
+        print(f"[decode_token] JWTError: {type(e).__name__}: {e}")
         return None
