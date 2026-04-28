@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveHostUserId, resolveReadinessState, resolveStartControlState, shouldHandleIncomingGameEvent } from "./MatchArena.jsx";
+import { resolveHostUserId, resolveReadinessState, resolveStartControlState, shouldHandleIncomingGameEvent, updateReadinessParticipant } from "./MatchArena.jsx";
 
 describe("MatchArena host resolution", () => {
   it("uses activeMatch data while room_state participants are still empty", () => {
@@ -72,6 +72,17 @@ describe("MatchArena game event filtering", () => {
     });
 
     expect(shouldHandle).toBe(false);
+  });
+
+  it("always accepts start cancellation events, including local cancellations", () => {
+    const shouldHandle = shouldHandleIncomingGameEvent({
+      eventName: "game_start_cancelled",
+      envelopeData: { user_id: 12 },
+      gameData: { user_id: 12 },
+      myUserId: "12",
+    });
+
+    expect(shouldHandle).toBe(true);
   });
 });
 
@@ -157,5 +168,23 @@ describe("MatchArena readiness state", () => {
     expect(state.allReady).toBe(true);
     expect(state.myReady).toBe(true);
     expect(state.opponentReady).toBe(true);
+  });
+
+  it("updates the current player's status optimistically", () => {
+    const readiness = updateReadinessParticipant(
+      {
+        all_ready: false,
+        participants: [
+          { user_id: 12, nickname: "You", ready: false },
+          { user_id: 7, nickname: "izi_500", ready: true },
+        ],
+      },
+      "12",
+      true,
+    );
+
+    expect(readiness.participants[0].ready).toBe(true);
+    expect(readiness.participants[1].ready).toBe(true);
+    expect(readiness.all_ready).toBe(true);
   });
 });

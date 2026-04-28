@@ -105,6 +105,10 @@ function resolveGameEventSenderUserId(eventName, envelopeData, gameData) {
 }
 
 export function shouldHandleIncomingGameEvent({ eventName, envelopeData, gameData, myUserId }) {
+  if (eventName === "game_start_cancelled") {
+    return true;
+  }
+
   const normalizedMyUserId = normalizeUserId(myUserId);
   const senderUserId = resolveGameEventSenderUserId(eventName, envelopeData, gameData);
 
@@ -153,6 +157,21 @@ export function resolveReadinessState({ myUserId, opponentUserId, readiness, roo
     canToggleReady: Boolean(roomSocketOpen),
     myLabel: myParticipant?.nickname || myParticipant?.display_name || "Вы",
     opponentLabel: opponentParticipant?.nickname || opponentParticipant?.display_name || "Соперник",
+  };
+}
+
+export function updateReadinessParticipant(readiness, userId, ready) {
+  const participants = Array.isArray(readiness?.participants) ? readiness.participants : [];
+  const updatedParticipants = participants.map((participant) => (
+    isSameUserId(participant.user_id, userId)
+      ? { ...participant, ready }
+      : participant
+  ));
+
+  return {
+    ...readiness,
+    participants: updatedParticipants,
+    all_ready: updatedParticipants.length === 2 && updatedParticipants.every((participant) => participant.ready),
   };
 }
 
@@ -371,10 +390,16 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
     hostUserId,
   });
   const handleGameEventRef = useRef(handleGameEvent);
+  const startGameRef = useRef(startGame);
+  const canStartCurrentMatchRef = useRef(false);
 
   useEffect(() => {
     handleGameEventRef.current = handleGameEvent;
   }, [handleGameEvent]);
+
+  useEffect(() => {
+    startGameRef.current = startGame;
+  }, [startGame]);
 
   useEffect(() => {
     if (activeMatch?.seconds_remaining != null) {
@@ -431,6 +456,13 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
 
       if (payload.event === "readiness_update") {
         setReadiness(data);
+      }
+
+      if (payload.event === "match_start") {
+        if (canStartCurrentMatchRef.current) {
+          startGameRef.current();
+        }
+        return;
       }
 
       if (payload.event === "chat") {
@@ -518,16 +550,14 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
       return;
     }
 
-    wsRef.current.send(JSON.stringify({ event: "ready_toggle", ready: !readinessState.myReady }));
-  }, [readinessState.myReady]);
+    const ready = !readinessState.myReady;
+    setReadiness((prev) => updateReadinessParticipant(prev, myUserId, ready));
+    wsRef.current.send(JSON.stringify({ event: "ready_toggle", ready }));
+  }, [myUserId, readinessState.myReady]);
 
   useEffect(() => {
-    if (gameState !== "waiting" || !readinessState.allReady || !canStartCurrentMatch) {
-      return;
-    }
-
-    startGame();
-  }, [canStartCurrentMatch, gameState, readinessState.allReady, startGame]);
+    canStartCurrentMatchRef.current = canStartCurrentMatch;
+  }, [canStartCurrentMatch]);
 
   useEffect(() => {
     if (gameState !== "countdown" || readinessState.allReady) {

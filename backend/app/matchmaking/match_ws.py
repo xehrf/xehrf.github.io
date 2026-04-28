@@ -44,6 +44,10 @@ def _room_ready_key(match_id: int) -> str:
     return f"mm:match_room:{match_id}:ready"
 
 
+def _room_start_key(match_id: int) -> str:
+    return f"mm:match_room:{match_id}:start"
+
+
 async def _publish_room_event(redis_client, match_id: int, payload: dict[str, Any]) -> None:
     await redis_client.publish(_room_channel(match_id), json.dumps(payload))
 
@@ -87,11 +91,48 @@ async def _get_ready_state(redis_client, match_id: int, participants_info: list[
             "ready": ready_map.get(str(user_id)) == "1",
         })
 
-    all_ready = len(participants) >= 2 and all(participant["ready"] for participant in participants)
+    all_ready = len(participants) == 2 and all(participant["ready"] for participant in participants)
     return {
+        "match_id": match_id,
         "participants": participants,
         "all_ready": all_ready,
     }
+
+
+async def _reset_room_readiness(redis_client, match_id: int, participants_info: list[dict[str, Any]]) -> dict[str, Any]:
+    ready_key = _room_ready_key(match_id)
+    participant_ids = [str(participant["user_id"]) for participant in participants_info]
+    if participant_ids:
+        await redis_client.hset(ready_key, mapping={user_id: "0" for user_id in participant_ids})
+        await redis_client.expire(ready_key, 3600)
+    await redis_client.delete(_room_start_key(match_id))
+    return await _get_ready_state(redis_client, match_id, participants_info)
+
+
+async def _maybe_publish_match_start(redis_client, match_id: int, readiness: dict[str, Any], online_ids: list[int]) -> None:
+    participants = readiness.get("participants")
+    if not readiness.get("all_ready") or not isinstance(participants, list) or len(participants) != 2:
+        return
+
+    participant_ids = [participant["user_id"] for participant in participants]
+    if len(online_ids) != 2 or {str(user_id) for user_id in online_ids} != {str(user_id) for user_id in participant_ids}:
+        return
+
+    start_created = await redis_client.set(_room_start_key(match_id), "1", ex=30, nx=True)
+    if not start_created:
+        return
+
+    await _publish_room_event(
+        redis_client,
+        match_id,
+        {
+            "event": "match_start",
+            "data": {
+                "match_id": match_id,
+                "participant_ids": participant_ids,
+            },
+        },
+    )
 
 
 async def _relay_room_events(pubsub, websocket: WebSocket, user_id: int) -> None:
@@ -232,6 +273,7 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
 
                 if event == "game_start":
                     await redis_client.delete(_room_ready_key(match_id))
+                    await redis_client.delete(_room_start_key(match_id))
 
                 await _publish_room_event(
                     redis_client,
@@ -250,6 +292,7 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
                     await redis_client.expire(ready_key, 3600)
                 else:
                     await redis_client.hset(ready_key, str(user.id), "0")
+                    await redis_client.delete(_room_start_key(match_id))
 
                 readiness = await _get_ready_state(redis_client, match_id, participants_info)
                 await _publish_room_event(
@@ -260,6 +303,22 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
                         "data": readiness,
                     },
                 )
+                if ready:
+                    online_ids = await _get_online_user_ids(redis_client, match_id)
+                    await _maybe_publish_match_start(redis_client, match_id, readiness, online_ids)
+                else:
+                    await _publish_room_event(
+                        redis_client,
+                        match_id,
+                        {
+                            "event": "game_start_cancelled",
+                            "data": {
+                                "match_id": match_id,
+                                "user_id": user.id,
+                                "reason": "not_ready",
+                            },
+                        },
+                    )
 
             elif event == "code_update":
                 await _publish_room_event(
@@ -296,8 +355,7 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
     finally:
         try:
             online_ids = await _mark_offline(redis_client, match_id, user.id)
-            await redis_client.hset(_room_ready_key(match_id), str(user.id), "0")
-            readiness = await _get_ready_state(redis_client, match_id, participants_info)
+            readiness = await _reset_room_readiness(redis_client, match_id, participants_info)
             await _publish_room_event(
                 redis_client,
                 match_id,
@@ -315,6 +373,18 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
                 {
                     "event": "readiness_update",
                     "data": readiness,
+                },
+            )
+            await _publish_room_event(
+                redis_client,
+                match_id,
+                {
+                    "event": "game_start_cancelled",
+                    "data": {
+                        "match_id": match_id,
+                        "user_id": user.id,
+                        "reason": "disconnect",
+                    },
                 },
             )
         except Exception:
