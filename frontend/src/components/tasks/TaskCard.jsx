@@ -52,7 +52,7 @@ export function TaskCard({ task, onSolve, actionLabel = "Решить", showPts 
           )}
         </div>
       </div>
-      <div className="mt-auto flex flex-col gap-4 border-t border-[#2B2B3C] pt-4">
+      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4 border-t border-[#2B2B3C] pt-4">
         <div className="text-sm text-slate-300">
           Лимит:{" "}
           <span className="font-semibold text-white tabular-nums">
@@ -68,7 +68,7 @@ export function TaskCard({ task, onSolve, actionLabel = "Решить", showPts 
         <Button
           type="button"
           onClick={onSolve}
-          className="w-full rounded-[16px] bg-[#FFD600] px-4 py-2 text-sm font-semibold text-black shadow-[0_10px_30px_rgba(255,214,0,0.3)] transition-colors duration-200 hover:bg-[#f9d400] md:w-auto"
+          className="mt-auto w-full rounded-[16px] bg-[#FFD600] px-4 py-2 text-sm font-semibold text-black shadow-[0_10px_30px_rgba(255,214,0,0.3)] transition-colors duration-200 hover:bg-[#f9d400] md:w-auto"
         >
           {actionLabel}
         </Button>
