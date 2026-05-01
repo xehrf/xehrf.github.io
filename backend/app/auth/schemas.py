@@ -26,6 +26,15 @@ class OAuthStartResponse(BaseModel):
     authorize_url: str
 
 
+class OAuthProviderStatus(BaseModel):
+    configured: bool
+
+
+class OAuthProvidersResponse(BaseModel):
+    google: OAuthProviderStatus
+    github: OAuthProviderStatus
+
+
 class AuthMeResponse(BaseModel):
     id: int
     email: EmailStr

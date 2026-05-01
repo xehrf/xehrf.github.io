@@ -5,7 +5,16 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user, get_optional_current_user
-from app.auth.schemas import AuthMeResponse, OAuthStartBody, OAuthStartResponse, TokenResponse, UserLogin, UserRegister
+from app.auth.schemas import (
+    AuthMeResponse,
+    OAuthProvidersResponse,
+    OAuthProviderStatus,
+    OAuthStartBody,
+    OAuthStartResponse,
+    TokenResponse,
+    UserLogin,
+    UserRegister,
+)
 from app.auth.security import create_access_token, create_oauth_state, decode_oauth_state, hash_password, verify_password
 from app.auth.service import (
     build_frontend_oauth_callback_url,
@@ -15,9 +24,11 @@ from app.auth.service import (
     fetch_oauth_identity,
     github_connected,
     google_connected,
+    is_oauth_provider_configured,
     normalize_next_path,
     normalize_oauth_mode,
     normalize_oauth_provider,
+    oauth_provider_label,
     password_login_enabled,
 )
 from app.core.config import get_settings
@@ -75,6 +86,14 @@ def login(body: UserLogin, db: Session = Depends(get_db)) -> TokenResponse:
     return TokenResponse(access_token=create_access_token(str(user.id)))
 
 
+@router.get("/oauth/providers", response_model=OAuthProvidersResponse)
+def oauth_providers() -> OAuthProvidersResponse:
+    return OAuthProvidersResponse(
+        google=OAuthProviderStatus(configured=is_oauth_provider_configured("google")),
+        github=OAuthProviderStatus(configured=is_oauth_provider_configured("github")),
+    )
+
+
 @router.post("/oauth/{provider}/start", response_model=OAuthStartResponse)
 def start_oauth(
     provider: str,
@@ -123,12 +142,12 @@ async def oauth_callback(
 
     if error:
         return _oauth_error_redirect(
-            f"{normalized_provider.capitalize()} authorization was cancelled or denied",
+            f"{oauth_provider_label(normalized_provider)} authorization was cancelled or denied",
             provider=normalized_provider,
         )
     if not code or not state:
         return _oauth_error_redirect(
-            f"{normalized_provider.capitalize()} OAuth callback is missing required parameters",
+            f"{oauth_provider_label(normalized_provider)} OAuth callback is missing required parameters",
             provider=normalized_provider,
         )
 
@@ -164,7 +183,7 @@ async def oauth_callback(
         return _oauth_error_redirect(str(exc), next_path=next_path, provider=normalized_provider, mode=mode)
     except Exception:
         return _oauth_error_redirect(
-            f"{normalized_provider.capitalize()} sign-in failed. Please try again.",
+            f"{oauth_provider_label(normalized_provider)} sign-in failed. Please try again.",
             next_path=next_path,
             provider=normalized_provider,
             mode=mode,

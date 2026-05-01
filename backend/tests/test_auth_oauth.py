@@ -1,5 +1,10 @@
 from app.auth.security import create_access_token, create_oauth_state, decode_oauth_state, decode_token
-from app.auth.service import build_frontend_oauth_callback_url, normalize_next_path
+from app.auth.service import (
+    build_frontend_oauth_callback_url,
+    is_oauth_provider_configured,
+    normalize_next_path,
+    oauth_provider_label,
+)
 from app.core.config import get_settings
 
 
@@ -50,3 +55,24 @@ def test_build_frontend_callback_url_uses_frontend_url_setting(monkeypatch) -> N
     assert "next=%2Fprofile%2Fedit" in url
     assert "provider=github" in url
     assert "mode=link" in url
+
+
+def test_oauth_provider_label_preserves_github_branding() -> None:
+    assert oauth_provider_label("github") == "GitHub"
+    assert oauth_provider_label("google") == "Google"
+
+
+def test_is_oauth_provider_configured_checks_required_settings(monkeypatch) -> None:
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "google-client")
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "google-secret")
+    monkeypatch.setenv("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8000/auth/oauth/google/callback")
+    monkeypatch.delenv("GITHUB_OAUTH_CLIENT_ID", raising=False)
+    monkeypatch.delenv("GITHUB_OAUTH_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("GITHUB_OAUTH_REDIRECT_URI", raising=False)
+    get_settings.cache_clear()
+
+    try:
+        assert is_oauth_provider_configured("google") is True
+        assert is_oauth_provider_configured("github") is False
+    finally:
+        get_settings.cache_clear()

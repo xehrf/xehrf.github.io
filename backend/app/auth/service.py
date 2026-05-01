@@ -23,6 +23,10 @@ GITHUB_EMAILS_URL = "https://api.github.com/user/emails"
 
 SUPPORTED_OAUTH_PROVIDERS = {"google", "github"}
 DEFAULT_OAUTH_NEXT_PATH = "/dashboard"
+OAUTH_PROVIDER_LABELS = {
+    "google": "Google",
+    "github": "GitHub",
+}
 
 
 @dataclass(frozen=True)
@@ -90,6 +94,11 @@ def normalize_oauth_provider(provider: str) -> str:
     if normalized not in SUPPORTED_OAUTH_PROVIDERS:
         raise ValueError("Unsupported OAuth provider")
     return normalized
+
+
+def oauth_provider_label(provider: str) -> str:
+    normalized = normalize_oauth_provider(provider)
+    return OAUTH_PROVIDER_LABELS[normalized]
 
 
 def normalize_oauth_mode(mode: str | None) -> str:
@@ -185,9 +194,18 @@ def get_oauth_provider_config(provider: str) -> OAuthProviderConfig:
         if not str(value or "").strip()
     ]
     if missing_fields:
-        provider_label = normalized_provider.capitalize()
+        provider_label = oauth_provider_label(normalized_provider)
         raise ValueError(f"{provider_label} OAuth is not configured on the server")
     return config
+
+
+def is_oauth_provider_configured(provider: str) -> bool:
+    normalized_provider = normalize_oauth_provider(provider)
+    config = _provider_config_from_settings(normalized_provider, get_settings())
+    return all(
+        str(value or "").strip()
+        for value in (config.client_id, config.client_secret, config.redirect_uri)
+    )
 
 
 def build_oauth_authorize_url(provider: str, state: str) -> str:
