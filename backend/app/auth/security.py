@@ -19,7 +19,7 @@ def hash_password(password: str) -> str:
 def create_access_token(subject: str) -> str:
     settings = get_settings()
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    payload = {"sub": subject, "exp": expire}
+    payload = {"sub": str(subject), "exp": expire, "type": "access"}
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
@@ -28,9 +28,31 @@ def decode_token(token: str) -> str | None:
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
         sub = payload.get("sub")
+        token_type = payload.get("type")
+        if token_type not in (None, "access"):
+            return None
         if sub is None:
             return None
         return str(sub)
     except JWTError as e:
         print(f"[decode_token] JWTError: {type(e).__name__}: {e}")
+        return None
+
+
+def create_oauth_state(payload: dict[str, object]) -> str:
+    settings = get_settings()
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.oauth_state_expire_minutes)
+    token_payload = {**payload, "exp": expire, "type": "oauth_state"}
+    return jwt.encode(token_payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def decode_oauth_state(token: str) -> dict[str, object] | None:
+    settings = get_settings()
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        if payload.get("type") != "oauth_state":
+            return None
+        return payload
+    except JWTError as e:
+        print(f"[decode_oauth_state] JWTError: {type(e).__name__}: {e}")
         return None

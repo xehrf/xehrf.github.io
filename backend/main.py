@@ -1,4 +1,6 @@
+import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from http import HTTPStatus
 import logging
 import os
@@ -14,10 +16,13 @@ from app.auth.router import router as auth_router
 from app.core.config import get_settings
 from app.core.errors import ApiError, build_error_body
 from app.db.bootstrap import seed_if_empty
+from app.db.models import Match, MatchStatus
 from app.db.session import SessionLocal
 from app.uploads.service import UPLOAD_DIR
 from app.freelance.router import router as freelance_router
 from app.matchmaking.router import router as mm_router
+from app.matchmaking import service as mm_service
+from app.matchmaking.ws import manager as matchmaking_manager
 from app.payments.router import router as payments_router
 from app.rating.router import router as rating_router
 from app.submissions.router import router as submissions_router
@@ -25,18 +30,82 @@ from app.team_matchmaking.router import router as team_matchmaking_router, team_
 from app.tasks.router import router as tasks_router
 from app.users.router import router as users_router
 from app.matchmaking.match_ws import match_ws_router
+from app.core.redis_client import get_redis
 
 logger = logging.getLogger(__name__)
+MATCH_TIMEOUT_SWEEP_LOCK_KEY = "mm:timeout_sweep_lock"
+MATCH_TIMEOUT_SWEEP_INTERVAL_SECONDS = 2
+
+
+async def _emit_match_finished(participant_ids: list[int], payload: dict) -> None:
+    for participant_id in participant_ids:
+        await matchmaking_manager.send_event(participant_id, "match_finished", payload)
+
+
+async def _match_timeout_sweeper() -> None:
+    while True:
+        pending_events: list[tuple[list[int], dict]] = []
+        db = SessionLocal()
+        r = get_redis()
+        lock_acquired = False
+
+        try:
+            lock_acquired = bool(r.set(MATCH_TIMEOUT_SWEEP_LOCK_KEY, "1", ex=30, nx=True))
+            if lock_acquired:
+                expired_matches = (
+                    db.query(Match)
+                    .filter(
+                        Match.status.in_([MatchStatus.pending, MatchStatus.active]),
+                        Match.ends_at.is_not(None),
+                        Match.ends_at <= datetime.now(timezone.utc),
+                    )
+                    .all()
+                )
+
+                for match in expired_matches:
+                    payload = mm_service.finalize_match_if_ready(db, match, r)
+                    if payload is None:
+                        continue
+                    participant_ids = [participant.user_id for participant in match.participants]
+                    pending_events.append((participant_ids, payload))
+        except Exception:
+            logger.exception("Failed to sweep expired matches")
+        finally:
+            if lock_acquired:
+                try:
+                    r.delete(MATCH_TIMEOUT_SWEEP_LOCK_KEY)
+                except Exception:
+                    pass
+            r.close()
+            db.close()
+
+        for participant_ids, payload in pending_events:
+            try:
+                await _emit_match_finished(participant_ids, payload)
+            except Exception:
+                logger.exception("Failed to emit match_finished for match_id=%s", payload.get("match_id"))
+
+        await asyncio.sleep(MATCH_TIMEOUT_SWEEP_INTERVAL_SECONDS)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     db = SessionLocal()
+    sweep_task: asyncio.Task | None = None
     try:
         seed_if_empty(db)
     finally:
         db.close()
-    yield
+    sweep_task = asyncio.create_task(_match_timeout_sweeper())
+    try:
+        yield
+    finally:
+        if sweep_task is not None:
+            sweep_task.cancel()
+            try:
+                await sweep_task
+            except asyncio.CancelledError:
+                pass
 
 
 settings = get_settings()

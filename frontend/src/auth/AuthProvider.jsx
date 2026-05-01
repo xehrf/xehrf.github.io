@@ -104,9 +104,36 @@ export function AuthProvider({ children }) {
     await refreshMe();
   }, [refreshMe]);
 
+  const acceptToken = useCallback(
+    async (accessToken) => {
+      localStorage.setItem("access_token", accessToken);
+      document.documentElement.classList.add("is-authenticated");
+      setToken(accessToken);
+      await refreshMe(accessToken);
+      return accessToken;
+    },
+    [refreshMe],
+  );
+
+  const beginOAuth = useCallback(
+    async (provider, { mode = "login", next = "/dashboard" } = {}) => {
+      const data = await apiFetch(`/auth/oauth/${provider}/start`, {
+        method: "POST",
+        auth: mode === "link",
+        body: { mode, next },
+      });
+      const authorizeUrl = String(data?.authorize_url ?? "").trim();
+      if (!authorizeUrl) {
+        throw new Error("OAuth URL is missing.");
+      }
+      window.location.assign(authorizeUrl);
+    },
+    [],
+  );
+
   const value = useMemo(
-    () => ({ token, user, loading, login, register, logout, refreshMe }),
-    [token, user, loading, login, register, logout, refreshMe],
+    () => ({ token, user, loading, login, register, logout, refreshMe, beginOAuth, acceptToken }),
+    [token, user, loading, login, register, logout, refreshMe, beginOAuth, acceptToken],
   );
 
   return (

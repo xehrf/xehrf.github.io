@@ -7,6 +7,7 @@ import { LoginPage } from "./pages/LoginPage.jsx";
 import { MatchmakingPage } from "./pages/MatchmakingPage.jsx";
 import { CreatePostPage } from "./pages/CreatePostPage.jsx";
 import { MyJobsPage } from "./pages/MyJobsPage.jsx";
+import { OAuthCallbackPage } from "./pages/OAuthCallbackPage.jsx";
 import { PostDetailsPage } from "./pages/PostDetailsPage.jsx";
 import { RegisterPage } from "./pages/RegisterPage.jsx";
 import { ProfilePage } from "./pages/ProfilePage.jsx";
@@ -24,6 +25,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
       <Route element={<AppShell />}>
         <Route path="/" element={<HomePage />} />
         <Route

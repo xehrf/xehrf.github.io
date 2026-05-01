@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user
-from app.auth.security import decode_token
+from app.auth.service import get_user_from_access_token
 from app.core.redis_client import get_redis
 from app.db.models import Match, MatchStatus, User
 from app.db.session import get_db
@@ -97,7 +97,11 @@ def active_match(user: User = Depends(get_current_user), db: Session = Depends(g
     m = mm_service.get_active_match_for_user(db, user.id)
     if m is None:
         return None
-    mm_service.finalize_match_if_ready(db, m)
+    r = get_redis()
+    try:
+        mm_service.finalize_match_if_ready(db, m, r)
+    finally:
+        r.close()
     db.refresh(m)
     if m.status not in (MatchStatus.pending, MatchStatus.active):
         return None
@@ -246,7 +250,11 @@ async def surrender_match(user: User = Depends(get_current_user), db: Session = 
     if active is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active match to surrender.")
 
-    mm_service.finalize_match_if_ready(db, active)
+    r = get_redis()
+    try:
+        mm_service.finalize_match_if_ready(db, active, r)
+    finally:
+        r.close()
     db.refresh(active)
     if active.status not in (MatchStatus.pending, MatchStatus.active):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Match is already finished.")
@@ -277,11 +285,7 @@ async def matchmaking_socket(websocket: WebSocket, db: Session = Depends(get_db)
     if not token:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
-    sub = decode_token(token)
-    if not sub:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
-    user = db.query(User).filter(User.email == sub, User.is_active.is_(True)).first()
+    user = get_user_from_access_token(db, token)
     if user is None:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return

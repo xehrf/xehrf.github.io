@@ -16,10 +16,12 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 
-from app.auth.security import decode_token
-from app.core.redis_client import get_async_redis
-from app.db.models import Match, MatchParticipant, User
-from app.db.session import get_db
+from app.auth.service import get_user_from_access_token
+from app.core.redis_client import get_async_redis, get_redis
+from app.db.models import Match, MatchParticipant, MatchStatus, User
+from app.db.session import SessionLocal, get_db
+from app.matchmaking import service as mm_service
+from app.matchmaking.ws import manager as matchmaking_manager
 
 match_ws_router = APIRouter(prefix="/matchmaking", tags=["matchmaking"])
 GAME_EVENT_NAMES = {
@@ -156,6 +158,41 @@ async def _relay_room_events(pubsub, websocket: WebSocket, user_id: int) -> None
         await websocket.send_json(payload)
 
 
+async def _emit_match_finished(participant_ids: list[int], payload: dict[str, Any]) -> None:
+    for participant_id in participant_ids:
+        await matchmaking_manager.send_event(participant_id, "match_finished", payload)
+
+
+async def _maybe_finalize_match_from_game(match_id: int) -> None:
+    db = SessionLocal()
+    r = get_redis()
+    try:
+        match = db.query(Match).filter(Match.id == match_id).first()
+        if match is None or match.status not in (MatchStatus.active, MatchStatus.pending):
+            return
+
+        winner_user_id = mm_service.resolve_match_winner_user_id(db, match, r)
+        if winner_user_id is None:
+            return
+
+        result = mm_service.complete_match_with_winner(db, match, winner_user_id)
+        if result is None:
+            return
+
+        participant_ids = [participant.user_id for participant in match.participants]
+        payload = {
+            "match_id": match.id,
+            "status": "completed",
+            "reason": "game_finished",
+            **result,
+        }
+    finally:
+        r.close()
+        db.close()
+
+    await _emit_match_finished(participant_ids, payload)
+
+
 @match_ws_router.websocket("/match/{match_id}/ws")
 async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
     token = websocket.query_params.get("token")
@@ -163,14 +200,9 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    sub = decode_token(token)
-    if not sub:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
-
     db = next(get_db())
     try:
-        user = db.query(User).filter(User.email == sub, User.is_active.is_(True)).first()
+        user = get_user_from_access_token(db, token)
         if user is None:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
@@ -274,6 +306,18 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
                 if event == "game_start":
                     await redis_client.delete(_room_ready_key(match_id))
                     await redis_client.delete(_room_start_key(match_id))
+                    blocking_redis = get_redis()
+                    try:
+                        mm_service.reset_match_round_results(blocking_redis, match_id)
+                    finally:
+                        blocking_redis.close()
+
+                if event == "game_round_result":
+                    blocking_redis = get_redis()
+                    try:
+                        mm_service.store_match_round_result(blocking_redis, match_id, event_data)
+                    finally:
+                        blocking_redis.close()
 
                 await _publish_room_event(
                     redis_client,
@@ -283,6 +327,9 @@ async def match_room_socket(websocket: WebSocket, match_id: int) -> None:
                         "data": event_data,
                     },
                 )
+
+                if event == "game_finished":
+                    await _maybe_finalize_match_from_game(match_id)
 
             elif event == "ready_toggle":
                 ready = bool(data.get("ready"))

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 
 import redis
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.db.models import Match, MatchParticipant, MatchStatus, Task, TaskType, User
+from app.db.models import Match, MatchParticipant, MatchStatus, Submission, Task, TaskType, User
 from app.rating.pts import apply_pts_delta, level_from_pts, pts_for_match_loss, pts_for_match_win
 from app.rating.service import add_rating_history
 
@@ -14,6 +15,7 @@ QUEUE_KEY = "mm:queue"
 USER_QUEUE_KEY = "mm:user_queue:{user_id}"
 REMATCH_OFFER_KEY = "mm:rematch_offer:{match_id}:{user_id}"
 REMATCH_LOCK_KEY = "mm:rematch_lock:{match_id}"
+MATCH_ROUND_RESULTS_KEY = "mm:match_room:{match_id}:round_results"
 
 PVP_QUESTS: dict[str, list[dict[str, object]]] = {
     "daily": [
@@ -68,6 +70,10 @@ def _rematch_offer_key(match_id: int, user_id: int) -> str:
 
 def _rematch_lock_key(match_id: int) -> str:
     return REMATCH_LOCK_KEY.format(match_id=match_id)
+
+
+def _match_round_results_key(match_id: int) -> str:
+    return MATCH_ROUND_RESULTS_KEY.format(match_id=match_id)
 
 
 def _streak_bonus_for_win(streak: int) -> int:
@@ -472,28 +478,158 @@ def get_match_opponent(db: Session, match_id: int, user_id: int) -> User | None:
     )
 
 
-def finalize_match_if_ready(db: Session, match: Match) -> bool:
+def reset_match_round_results(r: redis.Redis, match_id: int) -> None:
+    r.delete(_match_round_results_key(match_id))
+
+
+def store_match_round_result(r: redis.Redis, match_id: int, payload: dict) -> None:
+    round_index = payload.get("roundIndex")
+    if not isinstance(round_index, int):
+        return
+
+    key = _match_round_results_key(match_id)
+    r.hset(key, str(round_index), json.dumps(payload))
+    r.expire(key, 3600)
+
+
+def get_match_round_results(r: redis.Redis, match_id: int) -> list[dict]:
+    raw_rows = r.hgetall(_match_round_results_key(match_id))
+    parsed: list[tuple[int, dict]] = []
+
+    for raw_round_index, raw_payload in raw_rows.items():
+        try:
+            round_index = int(raw_round_index)
+            payload = json.loads(raw_payload)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        parsed.append((round_index, payload))
+
+    parsed.sort(key=lambda item: item[0])
+    return [payload for _, payload in parsed]
+
+
+def _normalize_user_id(user_id: object) -> int | None:
+    try:
+        return int(user_id)
+    except (TypeError, ValueError):
+        return None
+
+
+def _score_by_user_id_from_round_results(round_results: list[dict], participant_ids: list[int]) -> dict[int, int]:
+    scores = {participant_id: 0 for participant_id in participant_ids}
+
+    for payload in round_results:
+        results = payload.get("results")
+        if not isinstance(results, list):
+            continue
+
+        for result in results:
+            if not isinstance(result, dict):
+                continue
+            user_id = _normalize_user_id(result.get("userId"))
+            if user_id not in scores:
+                continue
+            if bool(result.get("correct")):
+                scores[user_id] += 1
+
+    return scores
+
+
+def resolve_match_winner_from_round_results(match: Match, round_results: list[dict]) -> int | None:
+    participant_ids = [participant.user_id for participant in match.participants]
+    if len(participant_ids) != 2:
+        return None
+
+    scores = _score_by_user_id_from_round_results(round_results, participant_ids)
+    left_id, right_id = participant_ids
+    left_score = scores.get(left_id, 0)
+    right_score = scores.get(right_id, 0)
+
+    if left_score == right_score:
+        return None
+    return left_id if left_score > right_score else right_id
+
+
+def resolve_match_winner_from_submissions(db: Session, match_id: int) -> int | None:
+    winner_submission = (
+        db.query(Submission)
+        .filter(
+            Submission.match_id == match_id,
+            Submission.auto_test_passed.is_(True),
+        )
+        .order_by(Submission.submitted_at.asc(), Submission.id.asc())
+        .first()
+    )
+    return winner_submission.user_id if winner_submission is not None else None
+
+
+def resolve_match_winner_user_id(db: Session, match: Match, r: redis.Redis | None = None) -> int | None:
+    winner_user_id = resolve_match_winner_from_submissions(db, match.id)
+    if winner_user_id is not None:
+        return winner_user_id
+
+    if r is None:
+        return None
+
+    round_results = get_match_round_results(r, match.id)
+    return resolve_match_winner_from_round_results(match, round_results)
+
+
+def complete_match_as_draw(db: Session, match: Match, *, reason: str) -> dict[str, object] | None:
     if match.status not in (MatchStatus.active, MatchStatus.pending):
-        return False
-    if not match.ends_at:
-        return False
+        return None
 
-    now = datetime.now(timezone.utc)
-    if now < match.ends_at:
-        return False
-
-    match.status = MatchStatus.completed
     participants = list(match.participants)
-    users = db.query(User).filter(User.id.in_([p.user_id for p in participants])).all()
-    users_by_id = {u.id: u for u in users}
+    users = db.query(User).filter(User.id.in_([participant.user_id for participant in participants])).all()
+    users_by_id = {user.id: user for user in users}
+
     for participant in participants:
         participant.placement = 1
         participant.pts_awarded = 0
         user_row = users_by_id.get(participant.user_id)
         if user_row is not None:
             user_row.pvp_win_streak = 0
+
+    match.status = MatchStatus.completed
     db.commit()
-    return True
+    return {
+        "match_id": match.id,
+        "status": "completed",
+        "reason": reason,
+        "winner_user_id": None,
+        "loser_user_id": None,
+        "winner_pts_delta": 0,
+        "loser_pts_delta": 0,
+        "winner_streak": 0,
+        "winner_streak_bonus": 0,
+    }
+
+
+def finalize_match_if_ready(db: Session, match: Match, r: redis.Redis | None = None) -> dict[str, object] | None:
+    if match.status not in (MatchStatus.active, MatchStatus.pending):
+        return None
+    if not match.ends_at:
+        return None
+
+    now = datetime.now(timezone.utc)
+    if now < match.ends_at:
+        return None
+
+    winner_user_id = resolve_match_winner_user_id(db, match, r)
+    if winner_user_id is not None:
+        result = complete_match_with_winner(db, match, winner_user_id)
+        if result is None:
+            return None
+        return {
+            "match_id": match.id,
+            "status": "completed",
+            "reason": "timeout",
+            **result,
+        }
+
+    return complete_match_as_draw(db, match, reason="timeout_draw")
 
 
 def complete_match_with_winner(db: Session, match: Match, winner_user_id: int) -> dict[str, int] | None:

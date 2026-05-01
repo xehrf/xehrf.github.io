@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { SocialAuthButtons } from "../components/auth/SocialAuthButtons.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { useAuth } from "../auth/AuthProvider.jsx";
@@ -24,7 +25,7 @@ export function EditProfilePage() {
   const [avatarPreviewError, setAvatarPreviewError] = useState(false);
   const [bannerPreviewError, setBannerPreviewError] = useState(false);
   const navigate = useNavigate();
-  const { refreshMe } = useAuth();
+  const { refreshMe, user } = useAuth();
 
   useEffect(() => {
     let mounted = true;
@@ -143,6 +144,40 @@ export function EditProfilePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        <Card className="p-6">
+          <div className="flex flex-col gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Быстрый вход</h2>
+              <p className="mt-1 text-sm text-muted">
+                Подключите Google или GitHub, чтобы новые входы были без отдельного пароля.
+              </p>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-2xl border border-border bg-canvas px-4 py-3">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-muted">Пароль</p>
+                <p className="mt-2 text-sm font-medium text-foreground">
+                  {user?.password_login_enabled ? "Доступен" : "Недоступен"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border bg-canvas px-4 py-3">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-muted">Google</p>
+                <p className="mt-2 text-sm font-medium text-foreground">
+                  {user?.google_connected ? "Подключен" : "Не подключен"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border bg-canvas px-4 py-3">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-muted">GitHub</p>
+                <p className="mt-2 text-sm font-medium text-foreground">
+                  {user?.github_connected ? "Подключен" : "Не подключен"}
+                </p>
+              </div>
+            </div>
+
+            <SocialAuthButtons mode="link" next="/profile/edit" title="Подключить провайдер" />
+          </div>
+        </Card>
+
         <Card className="overflow-hidden">
           <div className="relative h-52 bg-slate-950/80">
             {bannerPreview && !bannerPreviewError ? (

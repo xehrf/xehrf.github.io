@@ -66,6 +66,12 @@ def upgrade() -> None:
     _ensure_postgres_enum_types()
 
     if _has_table("users"):
+        if not _has_column("users", "google_sub"):
+            op.add_column("users", sa.Column("google_sub", sa.String(length=255), nullable=True))
+        if not _has_column("users", "github_user_id"):
+            op.add_column("users", sa.Column("github_user_id", sa.String(length=255), nullable=True))
+        if not _has_column("users", "github_login"):
+            op.add_column("users", sa.Column("github_login", sa.String(length=255), nullable=True))
         if not _has_column("users", "display_name"):
             op.add_column("users", sa.Column("display_name", sa.String(length=100), nullable=True))
         if not _has_column("users", "nickname"):
@@ -118,6 +124,10 @@ def upgrade() -> None:
                 "users",
                 sa.Column("pvp_best_win_streak", sa.Integer(), nullable=False, server_default="0"),
             )
+        if _has_column("users", "google_sub") and not _has_index("users", "ix_users_google_sub"):
+            op.create_index("ix_users_google_sub", "users", ["google_sub"], unique=True)
+        if _has_column("users", "github_user_id") and not _has_index("users", "ix_users_github_user_id"):
+            op.create_index("ix_users_github_user_id", "users", ["github_user_id"], unique=True)
 
         op.execute(
             sa.text(

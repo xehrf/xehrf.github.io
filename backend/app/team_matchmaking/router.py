@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status,
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_user
-from app.auth.security import decode_token
+from app.auth.service import get_user_from_access_token
 from app.db.models import User
 from app.db.session import get_db
 from app.team_matchmaking import service as tm_service
@@ -430,11 +430,7 @@ async def team_socket(
     if not token:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
-    sub = decode_token(token)
-    if not sub:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
-    user = db.query(User).filter(User.email == sub, User.is_active.is_(True)).first()
+    user = get_user_from_access_token(db, token)
     if user is None:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return

@@ -17,6 +17,15 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class OAuthStartBody(BaseModel):
+    mode: str = Field(default="login")
+    next: str | None = None
+
+
+class OAuthStartResponse(BaseModel):
+    authorize_url: str
+
+
 class AuthMeResponse(BaseModel):
     id: int
     email: EmailStr
@@ -29,3 +38,6 @@ class AuthMeResponse(BaseModel):
     onboarding_completed: bool
     pvp_win_streak: int
     pvp_best_win_streak: int
+    google_connected: bool
+    github_connected: bool
+    password_login_enabled: bool

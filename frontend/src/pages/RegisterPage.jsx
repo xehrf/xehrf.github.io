@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { SocialAuthButtons } from "../components/auth/SocialAuthButtons.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { useAuth } from "../auth/AuthProvider.jsx";
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { register } = useAuth();
 
   const [email, setEmail] = useState("");
@@ -13,6 +15,7 @@ export function RegisterPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const nextPath = location.state?.from || "/dashboard";
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -20,7 +23,7 @@ export function RegisterPage() {
     setError("");
     try {
       await register({ email, password, display_name: displayName });
-      navigate("/dashboard");
+      navigate(nextPath);
     } catch (e) {
       setError(e?.message || "Ошибка регистрации");
     } finally {
@@ -111,9 +114,13 @@ export function RegisterPage() {
             </Button>
           </form>
 
+          <div className="mt-6">
+            <SocialAuthButtons mode="login" next={nextPath} title="Или войдите в один клик" />
+          </div>
+
           <p className="mt-8 text-center text-xs text-muted">
             Уже есть аккаунт?{" "}
-            <Link to="/login" className="text-accent transition-colors hover:text-accent-hover">
+            <Link to="/login" state={{ from: nextPath }} className="text-accent transition-colors hover:text-accent-hover">
               Войти
             </Link>
           </p>

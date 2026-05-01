@@ -26,8 +26,17 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24 * 7
 
     api_url: str | None = None
+    frontend_url: str | None = None
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     cors_origin_regex: str = ""
+
+    oauth_state_expire_minutes: int = 10
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
+    google_oauth_redirect_uri: str = ""
+    github_oauth_client_id: str = ""
+    github_oauth_client_secret: str = ""
+    github_oauth_redirect_uri: str = ""
 
     default_pts: int = 0
     matchmaking_party_size: int = 4
@@ -53,8 +62,15 @@ class Settings(BaseSettings):
         "cors_origins",
         "cors_origin_regex",
         "api_url",
+        "frontend_url",
         "secret_key",
         "jwt_secret",
+        "google_oauth_client_id",
+        "google_oauth_client_secret",
+        "google_oauth_redirect_uri",
+        "github_oauth_client_id",
+        "github_oauth_client_secret",
+        "github_oauth_redirect_uri",
         mode="before",
     )
     @classmethod
