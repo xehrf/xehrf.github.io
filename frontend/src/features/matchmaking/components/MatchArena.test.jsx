@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveHostUserId, resolveReadinessState, resolveStartControlState, shouldHandleIncomingGameEvent, updateReadinessParticipant } from "./MatchArena.jsx";
+import { getOpponentFromParticipants, resolveHostUserId, resolveReadinessState, resolveStartControlState, shouldHandleIncomingGameEvent, updateReadinessParticipant } from "./MatchArena.jsx";
 
 describe("MatchArena host resolution", () => {
   it("uses activeMatch data while room_state participants are still empty", () => {
@@ -37,6 +37,20 @@ describe("MatchArena host resolution", () => {
     });
 
     expect(hostUserId).toBeNull();
+  });
+});
+
+describe("MatchArena opponent resolution", () => {
+  it("finds the opponent even when websocket ids and auth ids use different types", () => {
+    const opponent = getOpponentFromParticipants(
+      [
+        { user_id: 12, nickname: "You" },
+        { user_id: "7", nickname: "Opponent" },
+      ],
+      "12",
+    );
+
+    expect(opponent).toEqual({ user_id: "7", nickname: "Opponent" });
   });
 });
 

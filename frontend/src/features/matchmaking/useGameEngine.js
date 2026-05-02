@@ -49,6 +49,43 @@ function sortAnswerEvents(events) {
   });
 }
 
+export function resolveLocalAnswerSubmission({
+  state,
+  answerLedger,
+  userId,
+  answer,
+  timedOut = false,
+  roundStartedAt,
+  answeredAt = Date.now(),
+} = {}) {
+  const answerKey = normalizeUserId(userId) ?? "self";
+  const existingAnswer = answerLedger?.[answerKey] ?? null;
+
+  if (existingAnswer?.roundIndex === state?.roundIndex) {
+    return {
+      nextState: state,
+      answerEvent: null,
+      answerKey,
+      ignored: true,
+    };
+  }
+
+  const { nextState, answerEvent, ignored } = applyAnswer(state, {
+    userId,
+    answer,
+    timedOut,
+    roundStartedAt,
+    answeredAt,
+  });
+
+  return {
+    nextState,
+    answerEvent,
+    answerKey,
+    ignored,
+  };
+}
+
 export function useGameEngine({
   wsRef,
   myUserId,
@@ -219,7 +256,9 @@ export function useGameEngine({
   const submitAnswer = useCallback(
     (answer, timedOut = false) => {
       const snapshot = gameRef.current;
-      const { nextState, answerEvent, ignored } = applyAnswer(snapshot, {
+      const { nextState, answerEvent, answerKey, ignored } = resolveLocalAnswerSubmission({
+        state: snapshot,
+        answerLedger: answerLedgerRef.current,
         userId: myUserId,
         answer,
         timedOut,
@@ -232,7 +271,6 @@ export function useGameEngine({
       }
 
       clearActiveTimer();
-      const answerKey = normalizeUserId(myUserId) ?? "self";
       answerLedgerRef.current = {
         ...answerLedgerRef.current,
         [answerKey]: answerEvent,

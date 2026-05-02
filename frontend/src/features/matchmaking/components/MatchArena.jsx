@@ -11,10 +11,17 @@ const GAME_EVENT_NAMES = new Set([
   "game_next_round",
   "game_finished",
 ]);
+const ROOM_SOCKET_RECONNECT_MAX_DELAY_MS = 10000;
 
 function getMatchRoomSocketUrl(matchId, token) {
   const wsOrigin = getWebSocketBaseUrl();
   return `${wsOrigin}/matchmaking/match/${matchId}/ws?token=${encodeURIComponent(token)}`;
+}
+
+function logDevError(scope, error) {
+  if (import.meta.env.DEV) {
+    console.error(`[MatchArena] ${scope}`, error);
+  }
 }
 
 function normalizeUserId(userId) {
@@ -49,12 +56,16 @@ function formatCountdown(totalSeconds) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-function getOpponentFromParticipants(participants, myUserId) {
+function getRoomSocketReconnectDelayMs(attempt) {
+  return Math.min(1000 * (2 ** Math.max(0, attempt - 1)), ROOM_SOCKET_RECONNECT_MAX_DELAY_MS);
+}
+
+export function getOpponentFromParticipants(participants, myUserId) {
   if (!Array.isArray(participants)) {
     return null;
   }
 
-  return participants.find((item) => item.user_id !== myUserId) ?? null;
+  return participants.find((item) => !isSameUserId(item?.user_id, myUserId)) ?? null;
 }
 
 function addParticipantUserIds(target, source) {
@@ -225,7 +236,7 @@ function ChatPanel({ messages, myUserId, onSend }) {
       <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3" style={{ maxHeight: 260 }}>
         {messages.length === 0 ? <p className="text-sm text-white/45">Сообщений пока нет.</p> : null}
         {messages.map((message, index) => {
-          const mine = message.user_id === myUserId;
+          const mine = isSameUserId(message.user_id, myUserId);
 
           return (
             <div key={`${message.user_id}-${index}-${message.text}`} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
@@ -256,7 +267,7 @@ function ChatPanel({ messages, myUserId, onSend }) {
 function OpponentIntelPanel({ opponentUserId, online, myUserId }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
-  const safeId = opponentUserId && opponentUserId !== myUserId ? opponentUserId : null;
+  const safeId = opponentUserId != null && !isSameUserId(opponentUserId, myUserId) ? opponentUserId : null;
 
   useEffect(() => {
     if (!safeId) {
@@ -361,6 +372,8 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
   const [roomSocketOpen, setRoomSocketOpen] = useState(false);
   const [readiness, setReadiness] = useState({ participants: [], all_ready: false });
   const wsRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
+  const reconnectAttemptRef = useRef(0);
   const hostUserId = useMemo(
     () => resolveHostUserId({ participants, activeMatch, myUserId }),
     [activeMatch, myUserId, participants],
@@ -422,79 +435,153 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
+    const clearReconnectTimer = () => {
+      if (reconnectTimeoutRef.current != null) {
+        window.clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    };
+
     if (!token || !activeMatch?.match_id) {
+      clearReconnectTimer();
+      reconnectAttemptRef.current = 0;
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
       setRoomSocketOpen(false);
       return undefined;
     }
 
-    const ws = new WebSocket(getMatchRoomSocketUrl(activeMatch.match_id, token));
-    wsRef.current = ws;
-    ws.addEventListener("open", () => {
-      setRoomSocketOpen(true);
-    });
+    let disposed = false;
 
-    ws.addEventListener("message", (event) => {
-      const payload = JSON.parse(event.data);
-      const data = payload.data ?? {};
-
-      if (GAME_EVENT_NAMES.has(payload.event)) {
-        if (shouldHandleIncomingGameEvent({ eventName: payload.event, envelopeData: data, gameData: data, myUserId })) {
-          handleGameEventRef.current(payload.event, data);
-        }
+    const scheduleReconnect = () => {
+      if (disposed) {
         return;
       }
 
-      if (payload.event === "room_state") {
-        setParticipants(data.participants ?? []);
-        setOnlineIds(data.online ?? []);
-        setReadiness(data.readiness ?? { participants: [], all_ready: false });
-      }
+      clearReconnectTimer();
+      reconnectAttemptRef.current += 1;
+      reconnectTimeoutRef.current = window.setTimeout(() => {
+        reconnectTimeoutRef.current = null;
+        connect();
+      }, getRoomSocketReconnectDelayMs(reconnectAttemptRef.current));
+    };
 
-      if (payload.event === "user_joined" || payload.event === "user_left") {
-        setOnlineIds(data.online ?? []);
-      }
-
-      if (payload.event === "readiness_update") {
-        setReadiness(data);
-      }
-
-      if (payload.event === "match_start") {
-        if (canStartCurrentMatchRef.current) {
-          startGameRef.current();
-        }
+    const connect = () => {
+      if (disposed) {
         return;
       }
 
-      if (payload.event === "chat") {
-        const text = String(data.text ?? "").trim();
+      if (
+        wsRef.current
+        && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)
+      ) {
+        return;
+      }
 
-        if (!text) {
+      const ws = new WebSocket(getMatchRoomSocketUrl(activeMatch.match_id, token));
+      let disconnectHandled = false;
+      wsRef.current = ws;
+
+      const handleDisconnect = () => {
+        if (disconnectHandled || wsRef.current !== ws) {
           return;
         }
 
-        if (text.startsWith("__GAME__:")) {
-          try {
-            const { event: gameEvent, data: gameData } = JSON.parse(text.slice(9));
-            if (GAME_EVENT_NAMES.has(gameEvent) && shouldHandleIncomingGameEvent({ eventName: gameEvent, envelopeData: data, gameData, myUserId })) {
-              handleGameEventRef.current(gameEvent, gameData);
+        disconnectHandled = true;
+        wsRef.current = null;
+        setRoomSocketOpen(false);
+        scheduleReconnect();
+      };
+
+      ws.addEventListener("open", () => {
+        if (disposed || wsRef.current !== ws) {
+          ws.close();
+          return;
+        }
+
+        reconnectAttemptRef.current = 0;
+        clearReconnectTimer();
+        setRoomSocketOpen(true);
+      });
+
+      ws.addEventListener("message", (event) => {
+        const payload = JSON.parse(event.data);
+        const data = payload.data ?? {};
+
+        if (GAME_EVENT_NAMES.has(payload.event)) {
+          if (shouldHandleIncomingGameEvent({ eventName: payload.event, envelopeData: data, gameData: data, myUserId })) {
+            handleGameEventRef.current(payload.event, data);
+          }
+          return;
+        }
+
+        if (payload.event === "room_state") {
+          setParticipants(data.participants ?? []);
+          setOnlineIds(data.online ?? []);
+          setReadiness(data.readiness ?? { participants: [], all_ready: false });
+        }
+
+        if (payload.event === "user_joined" || payload.event === "user_left") {
+          setOnlineIds(data.online ?? []);
+        }
+
+        if (payload.event === "readiness_update") {
+          setReadiness(data);
+        }
+
+        if (payload.event === "match_start") {
+          if (canStartCurrentMatchRef.current) {
+            startGameRef.current();
+          }
+          return;
+        }
+
+        if (payload.event === "chat") {
+          const text = String(data.text ?? "").trim();
+
+          if (!text) {
+            return;
+          }
+
+          if (text.startsWith("__GAME__:")) {
+            try {
+              const { event: gameEvent, data: gameData } = JSON.parse(text.slice(9));
+              if (GAME_EVENT_NAMES.has(gameEvent) && shouldHandleIncomingGameEvent({ eventName: gameEvent, envelopeData: data, gameData, myUserId })) {
+                handleGameEventRef.current(gameEvent, gameData);
+              }
+            } catch (error) {
+              logDevError("Failed to parse game event from chat payload.", error);
             }
-          } catch {}
+            return;
+          }
+
+          setMessages((prev) => [...prev, { ...data, text }]);
+        }
+      });
+
+      ws.addEventListener("close", handleDisconnect);
+      ws.addEventListener("error", (error) => {
+        logDevError("Room websocket error.", error);
+        setRoomSocketOpen(false);
+        if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN) {
+          ws.close();
           return;
         }
+        handleDisconnect();
+      });
+    };
 
-        setMessages((prev) => [...prev, { ...data, text }]);
-      }
-    });
-
-    ws.addEventListener("close", () => {
-      setRoomSocketOpen(false);
-    });
-    ws.addEventListener("error", () => {
-      setRoomSocketOpen(false);
-    });
+    connect();
 
     return () => {
-      ws.close();
+      disposed = true;
+      clearReconnectTimer();
+      reconnectAttemptRef.current = 0;
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
       wsRef.current = null;
       setRoomSocketOpen(false);
     };
@@ -510,12 +597,12 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
       return null;
     }
 
-    if (activeMatch.opponent?.user_id && activeMatch.opponent.user_id !== myUserId) {
+    if (activeMatch.opponent?.user_id != null && !isSameUserId(activeMatch.opponent.user_id, myUserId)) {
       return activeMatch.opponent;
     }
 
     if (Array.isArray(activeMatch.participants)) {
-      return activeMatch.participants.find((participant) => participant.user_id !== myUserId) ?? null;
+      return activeMatch.participants.find((participant) => !isSameUserId(participant?.user_id, myUserId)) ?? null;
     }
 
     return null;
@@ -532,7 +619,7 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
     }),
     [hostUserId, myUserId, onlineIds, opponent?.user_id, roomSocketOpen],
   );
-  const myName = participants.find((participant) => participant.user_id === myUserId)?.nickname ?? "Вы";
+  const myName = participants.find((participant) => isSameUserId(participant?.user_id, myUserId))?.nickname ?? "Вы";
   const opponentName = opponent?.nickname ?? opponent?.display_name ?? "Соперник";
 
   const readinessState = useMemo(

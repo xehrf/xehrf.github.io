@@ -7,9 +7,28 @@ import { LeaderboardContent } from "./LeaderboardPage.jsx";
 
 const PARTY_SIZE = 2;
 
+function logDevError(scope, error) {
+  if (import.meta.env.DEV) {
+    console.error(`[MatchmakingPage] ${scope}`, error);
+  }
+}
+
 function getMatchmakingSocketUrl(token) {
   const wsOrigin = getWebSocketBaseUrl();
   return `${wsOrigin}/matchmaking/ws?token=${encodeURIComponent(token)}`;
+}
+
+function normalizeUserId(userId) {
+  if (userId == null) {
+    return null;
+  }
+
+  return String(userId);
+}
+
+function isSameUserId(left, right) {
+  const normalizedLeft = normalizeUserId(left);
+  return normalizedLeft !== null && normalizedLeft === normalizeUserId(right);
 }
 
 function translateQuestTitle(title) {
@@ -112,6 +131,57 @@ function QuestPanel({ quests, onClaim, claimingQuestKey }) {
   );
 }
 
+function SurrenderConfirmModal({ open, loading, error, onCancel, onConfirm }) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 px-4 py-8">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="surrender-modal-title"
+        className="w-full max-w-md rounded-3xl border p-6 sm:p-7"
+        style={{ background: "#111", borderColor: "rgba(255,214,0,0.15)" }}
+      >
+        <p className="text-xs uppercase tracking-[0.18em] text-[#FFD600]/80">Подтверждение</p>
+        <h2 id="surrender-modal-title" className="mt-2 text-2xl font-semibold text-white">Сдаться и потерять PTS?</h2>
+        <p className="mt-3 text-sm leading-6 text-white/70">
+          Матч завершится поражением, а рейтинг будет уменьшен. Если это случайный клик, лучше продолжить дуэль.
+        </p>
+
+        {error ? (
+          <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="h-11 rounded-xl border px-4 text-sm font-medium text-white/80 transition-colors hover:text-white disabled:opacity-50"
+            style={{ borderColor: "rgba(255,214,0,0.2)", background: "transparent" }}
+          >
+            Отмена
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="h-11 rounded-xl px-4 text-sm font-semibold transition-opacity hover:opacity-85 disabled:opacity-50"
+            style={{ background: "#ef4444", color: "white" }}
+          >
+            {loading ? "Сдаёмся..." : "Сдаться"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function MatchmakingPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -129,6 +199,8 @@ export function MatchmakingPage() {
   const [lastMatchResult, setLastMatchResult] = useState(null);
   const [rematchLoading, setRematchLoading] = useState(false);
   const [surrendering, setSurrendering] = useState(false);
+  const [showSurrenderModal, setShowSurrenderModal] = useState(false);
+  const [surrenderModalError, setSurrenderModalError] = useState("");
 
   const queueState = useMemo(() => {
     if (activeMatch) {
@@ -154,7 +226,9 @@ export function MatchmakingPage() {
     try {
       const payload = await apiFetch("/matchmaking/quests");
       setQuests(payload);
-    } catch {}
+    } catch (eventError) {
+      logDevError("Failed to load quests.", eventError);
+    }
   }, []);
 
   useEffect(() => {
@@ -172,7 +246,9 @@ export function MatchmakingPage() {
           setSearching(false);
           setStatusNote("Активная дуэль восстановлена.");
         }
-      } catch {}
+      } catch (eventError) {
+        logDevError("Failed to restore active match.", eventError);
+      }
     })();
 
     return () => {
@@ -189,7 +265,8 @@ export function MatchmakingPage() {
         if (mounted) {
           setTeamCurrent(currentTeam);
         }
-      } catch {
+      } catch (eventError) {
+        logDevError("Failed to load current team.", eventError);
         setTeamCurrent(null);
       }
     })();
@@ -227,12 +304,16 @@ export function MatchmakingPage() {
         setLastMatchResult(null);
         setSearching(false);
         setSurrendering(false);
+        setShowSurrenderModal(false);
+        setSurrenderModalError("");
         setStatusNote("Соперник найден. Переходим в дуэль.");
         apiFetch("/matchmaking/active").then((current) => {
           if (current) {
             setActiveMatch(current);
           }
-        }).catch(() => {});
+        }).catch((eventError) => {
+          logDevError("Failed to refresh active match after websocket update.", eventError);
+        });
       }
 
       if (payload.event === "match_finished") {
@@ -241,9 +322,11 @@ export function MatchmakingPage() {
         setSearching(false);
         setRematchLoading(false);
         setSurrendering(false);
+        setShowSurrenderModal(false);
+        setSurrenderModalError("");
         setQueueInfo({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
 
-        const iWon = data.winner_user_id === myUserId;
+        const iWon = isSameUserId(data.winner_user_id, myUserId);
         if (iWon) {
           const streak = Number(data.winner_streak ?? 0);
           const bonus = Number(data.winner_streak_bonus ?? 0);
@@ -266,6 +349,15 @@ export function MatchmakingPage() {
       ws.close();
     };
   }, [loadQuests, myUserId]);
+
+  useEffect(() => {
+    if (activeMatch) {
+      return;
+    }
+
+    setShowSurrenderModal(false);
+    setSurrenderModalError("");
+  }, [activeMatch]);
 
   async function runFindMatch() {
     if (queueState === "searching") {
@@ -304,7 +396,9 @@ export function MatchmakingPage() {
     setError("");
     try {
       await apiFetch("/matchmaking/queue", { method: "DELETE" });
-    } catch {}
+    } catch (eventError) {
+      logDevError("Failed to leave matchmaking queue.", eventError);
+    }
 
     setActiveMatch(null);
     setSearching(false);
@@ -312,17 +406,27 @@ export function MatchmakingPage() {
     setStatusNote("Поиск отменен.");
   }
 
-  async function runSurrender() {
+  function requestSurrender() {
     if (!activeMatch || surrendering) {
       return;
     }
 
-    const confirmed = window.confirm("Вы точно уверены? Вы потеряете PTS!");
-    if (!confirmed) {
+    setError("");
+    setSurrenderModalError("");
+    setShowSurrenderModal(true);
+  }
+
+  async function runSurrender() {
+    await confirmSurrenderFromModal();
+  }
+
+  async function confirmSurrenderFromModal() {
+    if (!activeMatch || surrendering) {
       return;
     }
 
     setError("");
+    setSurrenderModalError("");
     setSurrendering(true);
 
     try {
@@ -330,6 +434,7 @@ export function MatchmakingPage() {
       setLastMatchResult(payload);
       setActiveMatch(null);
       setSearching(false);
+      setShowSurrenderModal(false);
       setQueueInfo({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
       await loadQuests();
       setStatusNote("Вы сдались в матче. PTS были уменьшены.");
@@ -340,11 +445,13 @@ export function MatchmakingPage() {
       if (alreadyFinished) {
         setActiveMatch(null);
         setSearching(false);
+        setShowSurrenderModal(false);
         setQueueInfo({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
         setStatusNote("Матч уже завершён.");
         await loadQuests();
       } else {
         setError(message);
+        setSurrenderModalError(message || "Не удалось сдаться.");
       }
     }
 
@@ -425,7 +532,7 @@ export function MatchmakingPage() {
             ) : null}
 
             {queueState === "matched" ? (
-              <MatchArena activeMatch={activeMatch} myUserId={myUserId} onNavigateTask={(taskId) => navigate(`/tasks/${taskId}/solve`)} onSurrender={runSurrender} surrendering={surrendering} />
+              <MatchArena activeMatch={activeMatch} myUserId={myUserId} onNavigateTask={(taskId) => navigate(`/tasks/${taskId}/solve`)} onSurrender={requestSurrender} surrendering={surrendering} />
             ) : (
               <div className="mx-auto max-w-xl rounded-3xl border p-8" style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}>
                 <div className="mb-6 text-center">
@@ -465,6 +572,18 @@ export function MatchmakingPage() {
           </>
         )}
       </div>
+      <SurrenderConfirmModal
+        open={showSurrenderModal}
+        loading={surrendering}
+        error={surrenderModalError}
+        onCancel={() => {
+          if (!surrendering) {
+            setShowSurrenderModal(false);
+            setSurrenderModalError("");
+          }
+        }}
+        onConfirm={runSurrender}
+      />
     </div>
   );
 }
