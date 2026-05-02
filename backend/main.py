@@ -18,6 +18,7 @@ from app.core.errors import ApiError, build_error_body
 from app.db.bootstrap import seed_if_empty
 from app.db.models import Match, MatchStatus
 from app.db.session import SessionLocal
+from app.db.upgrade import upgrade_to_head
 from app.uploads.service import UPLOAD_DIR
 from app.freelance.router import router as freelance_router
 from app.matchmaking.router import router as mm_router
@@ -90,6 +91,7 @@ async def _match_timeout_sweeper() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    upgrade_to_head()
     db = SessionLocal()
     sweep_task: asyncio.Task | None = None
     try:

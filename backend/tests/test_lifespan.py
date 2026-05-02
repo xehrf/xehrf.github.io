@@ -20,8 +20,12 @@ def test_lifespan_runs_seed_and_closes_session(monkeypatch) -> None:
         assert db is dummy_session
         events.append("seed")
 
+    def fake_upgrade() -> None:
+        events.append("upgrade")
+
     monkeypatch.setattr(main, "SessionLocal", fake_session_local)
     monkeypatch.setattr(main, "seed_if_empty", fake_seed)
+    monkeypatch.setattr(main, "upgrade_to_head", fake_upgrade)
 
     async def run_lifespan() -> None:
         async with main.lifespan(main.app):
@@ -29,4 +33,4 @@ def test_lifespan_runs_seed_and_closes_session(monkeypatch) -> None:
 
     asyncio.run(run_lifespan())
 
-    assert events == ["session", "seed", "close", "inside"]
+    assert events == ["upgrade", "session", "seed", "close", "inside"]

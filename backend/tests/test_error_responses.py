@@ -28,6 +28,7 @@ class _RequestSession:
 
 @pytest.fixture
 def api_client(monkeypatch):
+    monkeypatch.setattr(main, "upgrade_to_head", lambda: None)
     monkeypatch.setattr(main, "SessionLocal", lambda: _StartupSession())
     monkeypatch.setattr(main, "seed_if_empty", lambda db: None)
     main.app.dependency_overrides.clear()
