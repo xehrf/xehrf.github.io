@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SocialAuthButtons } from "../components/auth/SocialAuthButtons.jsx";
 import { AsciiVideoBackground } from "../components/AsciiVideoBackground.jsx";
+import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { useAuth } from "../auth/AuthProvider.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
 
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+const ALLOWED_PROFILE_MEDIA_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 15 * 1024 * 1024;
 const BG_VARIANTS = [
@@ -193,12 +195,18 @@ export function EditProfilePage() {
       setter(null);
       return;
     }
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      setError("Неподдерживаемый формат. Используйте JPG, PNG или GIF.");
+    if (!ALLOWED_PROFILE_MEDIA_TYPES.includes(file.type)) {
+      setError("Неподдерживаемый формат. Используйте JPG, PNG, GIF, WEBP, MP4, WebM или MOV.");
       return;
     }
-    if (file.size > MAX_FILE_SIZE) {
-      setError(`Файл слишком большой. Максимум ${formatFileSize(MAX_FILE_SIZE)}.`);
+    const isVideo = ALLOWED_VIDEO_TYPES.includes(file.type);
+    const maxAllowedSize = isVideo ? MAX_VIDEO_SIZE : MAX_FILE_SIZE;
+    if (file.size > maxAllowedSize) {
+      setError(
+        isVideo
+          ? `Видео слишком большое. Максимум ${formatFileSize(MAX_VIDEO_SIZE)}.`
+          : `Файл слишком большой. Максимум ${formatFileSize(MAX_FILE_SIZE)}.`,
+      );
       return;
     }
     setError("");
@@ -383,8 +391,9 @@ export function EditProfilePage() {
         <Card className="overflow-hidden">
           <div className="relative h-52 bg-slate-950/80">
             {bannerPreview && !bannerPreviewError ? (
-              <img
+              <MediaAsset
                 src={bannerPreview}
+                mimeType={bannerFile?.type}
                 alt="Banner preview"
                 className="h-full w-full object-cover"
                 onError={() => setBannerPreviewError(true)}
@@ -397,8 +406,9 @@ export function EditProfilePage() {
             <div className="absolute left-6 bottom-[-30px]">
               <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-slate-950 bg-slate-900">
                 {avatarPreview && !avatarPreviewError ? (
-                  <img
+                  <MediaAsset
                     src={avatarPreview}
+                    mimeType={avatarFile?.type}
                     alt="Avatar preview"
                     className="h-full w-full object-cover"
                     onError={() => setAvatarPreviewError(true)}
@@ -439,22 +449,28 @@ export function EditProfilePage() {
 
             <div className="grid gap-6 md:grid-cols-2">
               <label className="block text-sm font-medium text-foreground">
-                Аватар (JPG, PNG)
+                Аватар (image или video)
                 <input
                   type="file"
-                  accept="image/jpeg,image/png,image/gif"
+                  accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime"
                   onChange={handleFile(setAvatarFile)}
                   className="mt-2 w-full text-sm text-foreground"
                 />
+                <span className="mt-1 block text-[11px] text-muted">
+                  JPG/PNG/GIF/WEBP или MP4/WebM/MOV
+                </span>
               </label>
               <label className="block text-sm font-medium text-foreground">
-                Баннер (GIF поддерживается)
+                Баннер (image или video)
                 <input
                   type="file"
-                  accept="image/jpeg,image/png,image/gif"
+                  accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime"
                   onChange={handleFile(setBannerFile)}
                   className="mt-2 w-full text-sm text-foreground"
                 />
+                <span className="mt-1 block text-[11px] text-muted">
+                  JPG/PNG/GIF/WEBP или MP4/WebM/MOV
+                </span>
               </label>
             </div>
 
@@ -466,7 +482,7 @@ export function EditProfilePage() {
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-muted">
-                Максимальный размер изображений: 5 МБ. Видео-фон — отдельно, до 15 МБ.
+                Изображения до 5 МБ. Видео для аватарки, баннера и фонового режима — до 15 МБ.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Button

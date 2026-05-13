@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
+import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
+import { isVideoAsset } from "../utils/media.js";
 import { jsPDF } from "jspdf";
 import * as html2canvasModule from "html2canvas";
 
@@ -113,6 +115,7 @@ function AchievementGrid({ achievements }) {
 async function generateResumePDF(profile, completedTasks, skillChips) {
 
   const avatarUrl = resolveAssetUrl(profile.avatar_url || "");
+  const canRenderAvatarImage = avatarUrl && !isVideoAsset(avatarUrl);
   const now = new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" });
 
   // Build HTML string for the resume
@@ -142,7 +145,7 @@ async function generateResumePDF(profile, completedTasks, skillChips) {
             display: flex; align-items: center; justify-content: center;
             font-size: 36px; font-weight: 700; color: #FFD600;
           ">
-            ${avatarUrl
+            ${canRenderAvatarImage
               ? `<img src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover;" crossorigin="anonymous" />`
               : (profile.nickname || profile.display_name || "?")[0].toUpperCase()
             }
@@ -386,9 +389,6 @@ export function ProfilePage() {
   }
 
   const u = profile;
-  const bannerBackground =
-    u.banner_url ||
-    "linear-gradient(135deg, rgba(30,41,59,0.9), rgba(15,23,42,0.95))";
   const bannerUrl = resolveAssetUrl(u.banner_url || "");
   const avatarUrl = resolveAssetUrl(u.avatar_url || "");
   const showBanner = bannerUrl && !bannerLoadError;
@@ -439,7 +439,7 @@ export function ProfilePage() {
       <Card className="overflow-hidden p-0">
         <div className="relative h-44 bg-canvas sm:h-56">
           {showBanner ? (
-            <img
+            <MediaAsset
               src={bannerUrl}
               alt="Banner"
               className="h-full w-full object-cover"
@@ -468,7 +468,7 @@ export function ProfilePage() {
             <div className="flex items-end gap-4">
               <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-canvas bg-elevated shadow-xl sm:h-32 sm:w-32">
                 {showAvatar ? (
-                  <img
+                  <MediaAsset
                     src={avatarUrl}
                     alt="Avatar"
                     className="h-full w-full object-cover"

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
+import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client.js";
 import { useArenaStats } from "../hooks/useArenaStats.js";
 
@@ -424,14 +425,14 @@ function LeaderboardPreview() {
                       {badge || `#${rank}`}
                     </span>
                     <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 overflow-hidden rounded-full border border-border bg-elevated">
-                        {avatar ? (
-                          <img
-                            src={avatar}
-                            alt={name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
+                        <div className="h-8 w-8 overflow-hidden rounded-full border border-border bg-elevated">
+                          {avatar ? (
+                            <MediaAsset
+                              src={avatar}
+                              alt={name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
                           <div className="flex h-full w-full items-center justify-center text-xs font-bold text-foreground">
                             {name[0]?.toUpperCase()}
                           </div>

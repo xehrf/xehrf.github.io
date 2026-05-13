@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Card } from "../components/ui/Card.jsx";
+import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { apiFetch, getWebSocketBaseUrl, resolveAssetUrl } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
 
@@ -21,7 +22,7 @@ function MemberCard({ member, isCaptain, captainId, currentUserId, readyVotes, o
       <div className="relative flex-shrink-0">
         <div className="h-10 w-10 overflow-hidden rounded-xl bg-elevated">
           {avatarUrl ? (
-            <img src={avatarUrl} alt={member.nickname} className="h-full w-full object-cover" />
+            <MediaAsset src={avatarUrl} alt={member.nickname} className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-sm font-bold text-foreground">
               {member.nickname?.[0]?.toUpperCase() ?? "?"}

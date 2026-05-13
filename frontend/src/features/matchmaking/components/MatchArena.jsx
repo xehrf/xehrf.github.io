@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, getWebSocketBaseUrl, resolveAssetUrl } from "../../../api/client.js";
+import { MediaAsset } from "../../../components/ui/MediaAsset.jsx";
 import { useGameEngine } from "../useGameEngine.js";
 import { GameStageView, ScoreBar } from "./GameStageView.jsx";
 
@@ -323,12 +324,12 @@ function OpponentIntelPanel({ opponentUserId, online, myUserId }) {
           <div className="space-y-4">
             <div className="overflow-hidden rounded-2xl border" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
               <div className="relative h-24">
-                {bannerUrl ? <img src={bannerUrl} alt="Баннер" className="h-full w-full object-cover" /> : <div className="h-full w-full" style={{ background: "linear-gradient(135deg, rgba(25,38,66,1) 0%, rgba(10,15,25,1) 100%)" }} />}
+                {bannerUrl ? <MediaAsset src={bannerUrl} alt="Баннер" className="h-full w-full object-cover" /> : <div className="h-full w-full" style={{ background: "linear-gradient(135deg, rgba(25,38,66,1) 0%, rgba(10,15,25,1) 100%)" }} />}
               </div>
               <div className="px-4 pb-4">
                 <div className="-mt-7 flex items-end gap-3">
                   <div className="relative h-16 w-16 shrink-0 rounded-full border-[3px] border-[#111] bg-slate-800">
-                    {avatarUrl ? <img src={avatarUrl} alt="Аватар" className="h-full w-full rounded-full object-cover" /> : <div className="flex h-full w-full items-center justify-center rounded-full text-xl font-bold text-[#FFD600]">{displayName[0]?.toUpperCase() || "?"}</div>}
+                    {avatarUrl ? <MediaAsset src={avatarUrl} alt="Аватар" className="h-full w-full rounded-full object-cover" /> : <div className="flex h-full w-full items-center justify-center rounded-full text-xl font-bold text-[#FFD600]">{displayName[0]?.toUpperCase() || "?"}</div>}
                     <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-[#111]" style={{ background: online ? "#22c55e" : "#6b7280", boxShadow: online ? "0 0 10px rgba(34,197,94,0.8)" : "none" }} />
                   </div>
                   <div className="min-w-0 pb-1">

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../components/ui/Card.jsx";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
+import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
 import {
@@ -296,14 +297,14 @@ function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onT
     >
       <div className="relative h-20">
         {bannerUrl ? (
-          <img src={bannerUrl} alt={`Баннер ${displayName}`} className="h-full w-full object-cover" />
+          <MediaAsset src={bannerUrl} alt={`Баннер ${displayName}`} className="h-full w-full object-cover" />
         ) : (
           <div className="h-full w-full bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900" />
         )}
         <div className="absolute bottom-0 left-4 translate-y-1/2">
           <div className="h-16 w-16 overflow-hidden rounded-full border-[3px] border-canvas bg-elevated">
             {avatarUrl ? (
-              <img src={avatarUrl} alt={`Аватар ${displayName}`} className="h-full w-full object-cover" />
+              <MediaAsset src={avatarUrl} alt={`Аватар ${displayName}`} className="h-full w-full object-cover" />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-xl font-bold text-foreground">
                 {displayName[0]?.toUpperCase() || "?"}
@@ -398,7 +399,7 @@ function PodiumStand({ player, place, height }) {
         ].join(" ")}
       >
         {avatar ? (
-          <img src={avatar} alt={name} className="h-full w-full object-cover" />
+          <MediaAsset src={avatar} alt={name} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-elevated text-2xl font-bold text-foreground">
             {name[0]?.toUpperCase() || "?"}
@@ -762,7 +763,7 @@ export function LeaderboardContent({ embedded = false }) {
                               <div className="flex items-center gap-3">
                                 <div className="avatar-anchor h-9 w-9 overflow-hidden rounded-full border border-border bg-elevated">
                                   {avatarUrl ? (
-                                    <img src={avatarUrl} alt={`Аватар ${row.display_name}`} className="h-full w-full object-cover" />
+                                    <MediaAsset src={avatarUrl} alt={`Аватар ${row.display_name}`} className="h-full w-full object-cover" />
                                   ) : (
                                     <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-foreground">
                                       {(row.display_name || "?")[0]?.toUpperCase() || "?"}
