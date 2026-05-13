@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { AsciiVideoBackground } from "../components/AsciiVideoBackground.jsx";
 import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
@@ -309,18 +308,8 @@ export function ProfilePage() {
 
   return (
     <div className="mx-auto w-full max-w-[900px] px-4 py-6 md:px-6 md:py-8">
-      {/* User's custom ASCII video background, if any. Renders fixed behind
-          the page content; falls through to the regular canvas background
-          when no video is set. Opacity dialed back so foreground text stays
-          legible. */}
-      {u.bg_video_url ? (
-        <AsciiVideoBackground
-          videoUrl={resolveAssetUrl(u.bg_video_url)}
-          variant="digits"
-          opacity={0.35}
-        />
-      ) : null}
-
+      {/* ASCII video background lives in <AppShell /> so it persists across
+          every page — no per-page wiring needed here. */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Профиль</h1>

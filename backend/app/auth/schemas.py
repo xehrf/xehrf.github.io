@@ -40,6 +40,7 @@ class AuthMeResponse(BaseModel):
     email: EmailStr
     display_name: str
     avatar_url: str | None
+    bg_video_url: str | None
     pts: int
     level: str
     role: str | None
