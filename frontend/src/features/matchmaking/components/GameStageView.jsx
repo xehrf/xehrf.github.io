@@ -299,17 +299,6 @@ function GameRoundResult({ result, question, roundIndex, totalRounds, onNext, ca
         <p className="mt-2 text-xs leading-5 text-white/60">{result.explanation}</p>
       </div>
 
-      <button
-        type="button"
-        onClick={onNext}
-        disabled={!canAdvanceRound}
-        className="h-11 w-full rounded-xl text-sm font-bold transition-all hover:opacity-90 active:scale-95"
-        style={{ background: "#FFD600", color: "#111", opacity: canAdvanceRound ? 1 : 0.55 }}
-      >
-        {canAdvanceRound
-          ? isLastRound ? "🏁 Финальный результат" : "Следующий раунд →"
-          : "⏳ Ждём соперника"}
-      </button>
     </div>
   );
 }
