@@ -4,7 +4,7 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.db.models import User
-from app.uploads.service import save_upload_file
+from app.uploads.service import save_upload_file, save_video_file
 
 
 def update_user_profile(
@@ -35,6 +35,25 @@ def update_user_profile(
     if banner is not None:
         user.banner_url = save_upload_file(banner, "banners")
 
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def set_bg_video(user: User, db: Session, video: UploadFile) -> User:
+    """Replace the user's background video. Old Cloudinary asset is left dangling
+    intentionally — Cloudinary's free plan doesn't make cleanup essential, and
+    we don't store public_ids separately."""
+    user.bg_video_url = save_video_file(video, "bg_videos")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def clear_bg_video(user: User, db: Session) -> User:
+    user.bg_video_url = None
     db.add(user)
     db.commit()
     db.refresh(user)

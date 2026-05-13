@@ -5,7 +5,14 @@ from app.auth.deps import get_current_user
 from app.db.models import User, UserSkill
 from app.db.session import get_db
 from app.users.schemas import ProfileOut, SkillIn, SkillOut, OnboardingIn
-from app.users.service import complete_onboarding, normalize_role, normalize_technologies, update_user_profile
+from app.users.service import (
+    clear_bg_video,
+    complete_onboarding,
+    normalize_role,
+    normalize_technologies,
+    set_bg_video,
+    update_user_profile,
+)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -75,3 +82,21 @@ def complete_user_onboarding(
     db: Session = Depends(get_db),
 ) -> User:
     return complete_onboarding(user, db, data.role, data.technologies)
+
+
+@router.post("/me/bg-video", response_model=ProfileOut)
+def upload_bg_video(
+    video: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """Upload a short looping video to use as ASCII/pixel background on the profile."""
+    return _get_profile(set_bg_video(user, db, video).id, db)
+
+
+@router.delete("/me/bg-video", response_model=ProfileOut)
+def remove_bg_video(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    return _get_profile(clear_bg_video(user, db).id, db)
