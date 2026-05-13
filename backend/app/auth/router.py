@@ -216,6 +216,7 @@ def me(user: User = Depends(get_current_user)) -> dict:
         "email": user.email,
         "display_name": user.display_name,
         "avatar_url": user.avatar_url,
+        "bg_video_url": user.bg_video_url,
         "pts": user.pts,
         "level": user.level.value,
         "role": role,
