@@ -16,16 +16,22 @@ export function AppShell() {
   const bgVideoUrl = user?.bg_video_url ? resolveAssetUrl(user.bg_video_url) : null;
 
   return (
-    <div className="flex min-h-screen flex-col bg-canvas text-foreground">
+    <div className="relative isolate flex min-h-screen flex-col bg-canvas text-foreground">
       {bgVideoUrl ? <AsciiVideoBackground videoUrl={bgVideoUrl} opacity={0.34} /> : null}
-      <div className="hidden md:block">
+      <div className="relative z-10 hidden md:block">
         <Navbar user={user} />
       </div>
-      <MobileHeader user={user} />
-      <main className="min-h-0 flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
+      <div className="relative z-10">
+        <MobileHeader user={user} />
+      </div>
+      <main className="relative z-10 min-h-0 flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
         <Outlet />
       </main>
-      {user ? <BottomNav /> : null}
+      {user ? (
+        <div className="relative z-10">
+          <BottomNav />
+        </div>
+      ) : null}
     </div>
   );
 }

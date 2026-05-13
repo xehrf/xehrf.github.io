@@ -4,8 +4,8 @@ import { useEffect, useRef } from "react";
  * Renders a user's uploaded video as a tightly packed symbol background.
  *
  * The source video is sampled into a tiny offscreen canvas and re-drawn onto
- * a visible canvas with a hybrid character ramp. Light pixels render in white
- * and darker pixels render in yellow for a clearer two-tone effect.
+ * a visible canvas with a hybrid character ramp. By default the symbols keep
+ * the original video colors so the effect feels more alive.
  */
 const HYBRID_CHAR_SET = " .,:-~=+*#0123456789%@";
 
@@ -16,10 +16,24 @@ const CHAR_SETS = {
   binary: HYBRID_CHAR_SET,
 };
 
+function clampByte(value) {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function getVideoSymbolColor(red, green, blue, luminance) {
+  // Dark pixels need a small lift so they stay visible on the canvas
+  // background, while brighter pixels keep most of the original color.
+  const boost = luminance < 0.35 ? 1.35 : 1.12;
+  const lift = luminance < 0.35 ? 24 : 12;
+
+  return `rgb(${clampByte(red * boost + lift)}, ${clampByte(green * boost + lift)}, ${clampByte(blue * boost + lift)})`;
+}
+
 export function AsciiVideoBackground({
   videoUrl,
   variant = "hybrid",
   cellPx = 10,
+  colorMode = "video",
   lightColor = "#FFFFFF",
   darkColor = "#FFD700",
   background = "#0D1117",
@@ -130,8 +144,10 @@ export function AsciiVideoBackground({
 
         for (let x = 0; x < cols; x++) {
           const idx = (y * cols + x) * 4;
-          const lum =
-            (pixels[idx] * 0.2126 + pixels[idx + 1] * 0.7152 + pixels[idx + 2] * 0.0722) / 255;
+          const red = pixels[idx];
+          const green = pixels[idx + 1];
+          const blue = pixels[idx + 2];
+          const lum = (red * 0.2126 + green * 0.7152 + blue * 0.0722) / 255;
           const charIdx = Math.min(charsLastIdx, Math.max(0, Math.round(lum * charsLastIdx)));
           const ch = chars[charIdx];
 
@@ -140,7 +156,12 @@ export function AsciiVideoBackground({
             continue;
           }
 
-          const symbolColor = lum >= lightThreshold ? lightColor : darkColor;
+          const symbolColor =
+            colorMode === "duotone"
+              ? lum >= lightThreshold
+                ? lightColor
+                : darkColor
+              : getVideoSymbolColor(red, green, blue, lum);
           if (!runText) {
             runText = ch;
             runColor = symbolColor;
@@ -183,12 +204,12 @@ export function AsciiVideoBackground({
         // ignore
       }
     };
-  }, [videoUrl, variant, cellPx, lightColor, darkColor, background, fps, lightThreshold]);
+  }, [videoUrl, variant, cellPx, colorMode, lightColor, darkColor, background, fps, lightThreshold]);
 
   if (!videoUrl) return null;
 
   const positionClasses = fullscreen
-    ? "pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+    ? "pointer-events-none fixed inset-0 z-0 overflow-hidden"
     : "pointer-events-none absolute inset-0 overflow-hidden";
 
   return (
