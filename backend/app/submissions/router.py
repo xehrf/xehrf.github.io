@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
+
+from app.core.limiter import limiter
 
 from app.auth.deps import get_current_user
 from app.db.models import Match, MatchParticipant, MatchStatus, Submission, SubmissionStatus, Task, User
@@ -24,7 +26,9 @@ def _penalty_points(difficulty: int) -> int:
 
 
 @router.post("", response_model=SubmissionResultOut)
+@limiter.limit("30/minute")
 def submit(
+    request: Request,
     body: SubmissionCreate,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

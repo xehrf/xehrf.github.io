@@ -1,8 +1,45 @@
 from __future__ import annotations
 
+import ast
 import json
 import sys
 from typing import Any
+
+# Attributes reachable via MRO / introspection that enable sandbox escapes.
+_BLOCKED_ATTRS = frozenset({
+    "__class__", "__bases__", "__mro__", "__subclasses__",
+    "__globals__", "__builtins__", "__dict__", "__code__",
+    "__func__", "__self__", "__wrapped__", "__closure__",
+    "__init_subclass__", "__reduce__", "__reduce_ex__",
+    "__getattribute__", "__init__", "__new__", "__del__",
+    "mro",
+})
+
+# Names that are not in _safe_builtins but could be accessed via exotic paths.
+_BLOCKED_NAMES = frozenset({
+    "__import__", "open", "eval", "exec", "compile", "input",
+    "breakpoint", "exit", "quit", "help",
+    "globals", "locals", "vars", "dir",
+    "getattr", "setattr", "delattr", "hasattr",
+    "__builtins__",
+})
+
+
+def _validate_ast(code: str) -> str | None:
+    try:
+        tree = ast.parse(code, mode="exec")
+    except SyntaxError as exc:
+        return f"Syntax error: {exc}"
+
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            return "Import statements are not allowed in solutions."
+        if isinstance(node, ast.Attribute) and node.attr in _BLOCKED_ATTRS:
+            return f"Access to '{node.attr}' is not allowed."
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id in _BLOCKED_NAMES:
+            return f"Use of '{node.id}' is not allowed."
+
+    return None
 
 
 def _to_tuple(value: Any) -> tuple[Any, ...]:
@@ -61,11 +98,15 @@ def _evaluate_python_function(code: str, tests_json: dict[str, Any] | None) -> d
     if not function_name or not isinstance(tests, list) or len(tests) == 0:
         return _result(False, "Task tests are invalid.", 0, 0)
 
+    ast_error = _validate_ast(code)
+    if ast_error:
+        return _result(False, ast_error, 0, len(tests))
+
     globals_dict: dict[str, Any] = {"__builtins__": _safe_builtins()}
     locals_dict: dict[str, Any] = {}
 
     try:
-        exec(code, globals_dict, locals_dict)
+        exec(code, globals_dict, locals_dict)  # noqa: S102
     except Exception as exc:  # noqa: BLE001
         return _result(False, f"Runtime error while loading solution: {exc}", 0, len(tests))
 

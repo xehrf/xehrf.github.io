@@ -1,8 +1,10 @@
 from secrets import token_urlsafe
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
+
+from app.core.limiter import limiter
 
 from app.auth.deps import get_current_user, get_optional_current_user
 from app.auth.schemas import (
@@ -58,7 +60,8 @@ def _oauth_error_redirect(
 
 
 @router.post("/register", response_model=TokenResponse)
-def register(body: UserRegister, db: Session = Depends(get_db)) -> TokenResponse:
+@limiter.limit("10/minute")
+def register(request: Request, body: UserRegister, db: Session = Depends(get_db)) -> TokenResponse:
     if db.query(User).filter(User.email == body.email).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
     settings = get_settings()
@@ -79,7 +82,8 @@ def register(body: UserRegister, db: Session = Depends(get_db)) -> TokenResponse
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(body: UserLogin, db: Session = Depends(get_db)) -> TokenResponse:
+@limiter.limit("20/minute")
+def login(request: Request, body: UserLogin, db: Session = Depends(get_db)) -> TokenResponse:
     user = db.query(User).filter(User.email == body.email).first()
     if user is None or not verify_password(body.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")

@@ -16,6 +16,7 @@ passlib[bcrypt]==1.7.4
 bcrypt==3.2.2
 
 redis==5.2.1
+slowapi==0.1.9
 
 cloudinary==1.41.0
 

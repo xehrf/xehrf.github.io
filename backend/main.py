@@ -11,6 +11,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.auth.router import router as auth_router
 from app.core.config import get_settings
@@ -31,11 +33,12 @@ from app.team_matchmaking.router import router as team_matchmaking_router, team_
 from app.tasks.router import router as tasks_router
 from app.users.router import router as users_router
 from app.matchmaking.match_ws import match_ws_router
+from app.core.limiter import limiter
 from app.core.redis_client import get_redis
 
 logger = logging.getLogger(__name__)
 MATCH_TIMEOUT_SWEEP_LOCK_KEY = "mm:timeout_sweep_lock"
-MATCH_TIMEOUT_SWEEP_INTERVAL_SECONDS = 2
+MATCH_TIMEOUT_SWEEP_INTERVAL_SECONDS = 10
 
 
 async def _emit_match_finished(participant_ids: list[int], payload: dict) -> None:
@@ -112,6 +115,8 @@ async def lifespan(_: FastAPI):
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 
