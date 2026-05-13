@@ -1,10 +1,114 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { LinkButton } from "../components/ui/Button.jsx";
+import { Button, LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
 import { jsPDF } from "jspdf";
 import * as html2canvasModule from "html2canvas";
+
+// Level thresholds match backend/app/rating/pts.py
+const LEVELS = [
+  { id: "beginner", label: "Beginner", min: 0, max: 100 },
+  { id: "junior", label: "Junior", min: 100, max: 300 },
+  { id: "strong_junior", label: "Strong Junior", min: 300, max: 600 },
+  { id: "middle", label: "Middle", min: 600, max: Infinity },
+];
+
+function getLevelInfo(pts) {
+  const safePts = Math.max(0, Number(pts || 0));
+  const current = LEVELS.find((l) => safePts >= l.min && safePts < l.max) ?? LEVELS[LEVELS.length - 1];
+  const next = LEVELS[LEVELS.indexOf(current) + 1] ?? null;
+  const pctInLevel = next
+    ? Math.min(100, Math.round(((safePts - current.min) / (current.max - current.min)) * 100))
+    : 100;
+  const ptsToNext = next ? Math.max(0, next.min - safePts) : 0;
+  return { current, next, pctInLevel, ptsToNext };
+}
+
+function deriveAchievements({ pts, completedCount, bestStreak }) {
+  // Single source of truth for achievement metadata. Each one shows on the
+  // profile whether earned or not — locked tiles are dimmed.
+  return [
+    { id: "first_step", icon: "🎯", title: "Первый шаг", desc: "Решена первая задача", earned: completedCount >= 1 },
+    { id: "five_tasks", icon: "⚡", title: "Разогрев", desc: "5 задач решено", earned: completedCount >= 5 },
+    { id: "ten_tasks", icon: "💪", title: "Серьёзно", desc: "10 задач решено", earned: completedCount >= 10 },
+    { id: "streak_3", icon: "🔥", title: "В огне", desc: "Серия 3 победы", earned: bestStreak >= 3 },
+    { id: "streak_7", icon: "🔥🔥", title: "Легенда", desc: "Серия 7 побед", earned: bestStreak >= 7 },
+    { id: "pts_300", icon: "🏆", title: "Strong Junior", desc: "300+ PTS", earned: pts >= 300 },
+    { id: "pts_600", icon: "👑", title: "Middle", desc: "600+ PTS", earned: pts >= 600 },
+    { id: "pts_1000", icon: "💎", title: "Тысячник", desc: "1000+ PTS", earned: pts >= 1000 },
+  ];
+}
+
+function StatTile({ label, value, sub }) {
+  return (
+    <Card className="p-4">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className="mt-2 font-mono text-2xl font-bold text-accent">{value}</div>
+      {sub ? <div className="mt-1 text-xs text-muted">{sub}</div> : null}
+    </Card>
+  );
+}
+
+function LevelProgressBar({ pts }) {
+  const { current, next, pctInLevel, ptsToNext } = getLevelInfo(pts);
+  return (
+    <Card className="p-5">
+      <div className="flex items-baseline justify-between">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Текущий уровень</p>
+          <p className="mt-1 text-xl font-bold text-foreground">{current.label}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+            {next ? "До следующего" : "Достигнут потолок"}
+          </p>
+          <p className="mt-1 font-mono text-sm font-bold text-accent">
+            {next ? `+${ptsToNext} PTS → ${next.label}` : "Middle"}
+          </p>
+        </div>
+      </div>
+      <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-border/40">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-accent/70 to-accent transition-all duration-700"
+          style={{ width: `${pctInLevel}%` }}
+        />
+      </div>
+      <p className="mt-2 text-right font-mono text-[10px] text-muted">{pctInLevel}%</p>
+    </Card>
+  );
+}
+
+function AchievementGrid({ achievements }) {
+  const earnedCount = achievements.filter((a) => a.earned).length;
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Достижения</h2>
+        <span className="font-mono text-xs text-accent">
+          {earnedCount}/{achievements.length}
+        </span>
+      </div>
+      <div className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-4">
+        {achievements.map((a) => (
+          <div
+            key={a.id}
+            title={`${a.title} — ${a.desc}`}
+            className={`flex flex-col items-center rounded-btn border p-3 text-center transition-all ${
+              a.earned
+                ? "border-accent/40 bg-accent/5 hover:border-accent/70"
+                : "border-border bg-elevated/30 opacity-40"
+            }`}
+          >
+            <div className={`text-2xl ${a.earned ? "" : "grayscale"}`}>{a.icon}</div>
+            <div className="mt-2 text-[11px] font-semibold text-foreground">{a.title}</div>
+            <div className="mt-0.5 text-[9px] uppercase tracking-wider text-muted">{a.desc}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
 
 async function generateResumePDF(profile, completedTasks, skillChips) {
 
@@ -306,42 +410,34 @@ export function ProfilePage() {
     })),
   ];
 
+  const bestStreak = Number(u.pvp_best_win_streak ?? 0);
+  const currentStreak = Number(u.pvp_win_streak ?? 0);
+  const achievements = deriveAchievements({
+    pts: Number(u.pts || 0),
+    completedCount: completedTasks.length,
+    bestStreak,
+  });
+
   return (
-    <div className="mx-auto w-full max-w-[900px] px-4 py-6 md:px-6 md:py-8">
-      {/* ASCII video background lives in <AppShell /> so it persists across
-          every page — no per-page wiring needed here. */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Профиль</h1>
-          <p className="mt-1 text-sm text-muted">@{u.nickname || u.display_name}</p>
+    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+      {/* Page header */}
+      <div className="mb-8 text-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
+          <span className="capitalize">{u.level.replace("_", " ")}</span>
+          <span className="text-border">·</span>
+          <span className="font-mono">{Number(u.pts || 0).toLocaleString("ru-RU")} PTS</span>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <button
-            type="button"
-            disabled={generatingPdf}
-            onClick={async () => {
-              setGeneratingPdf(true);
-              try {
-                await generateResumePDF(u, completedTasks, skillChips);
-              } catch (e) {
-                alert("Не удалось сгенерировать резюме: " + (e?.message || e));
-              } finally {
-                setGeneratingPdf(false);
-              }
-            }}
-            className="h-12 justify-center rounded-[12px] px-5 py-2.5 text-sm font-semibold transition-opacity hover:opacity-85 disabled:opacity-50"
-            style={{ background: "#FFD600", color: "#111" }}
-          >
-            {generatingPdf ? "Генерируем PDF..." : "⬇ Скачать резюме"}
-          </button>
-          <LinkButton to="/profile/edit" className="h-12 justify-center rounded-[12px] px-5 py-2.5 text-sm">
-            Редактировать профиль
-          </LinkButton>
-        </div>
+        <h1 className="mt-4 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+          <span className="text-gradient-accent">Профиль</span>
+        </h1>
+        <p className="mt-2 text-sm text-muted sm:text-base">
+          @{u.nickname || u.display_name} · Всё про тебя на арене
+        </p>
       </div>
 
-      <Card className="overflow-hidden border-border">
-        <div className="relative h-56 bg-slate-950/80 sm:h-72">
+      {/* HERO card with banner + avatar + actions */}
+      <Card className="overflow-hidden p-0">
+        <div className="relative h-44 bg-canvas sm:h-56">
           {showBanner ? (
             <img
               src={bannerUrl}
@@ -352,94 +448,165 @@ export function ProfilePage() {
           ) : (
             <div
               className="h-full w-full"
-              style={{ background: bannerBackground }}
+              style={{
+                background:
+                  "radial-gradient(circle at 30% 50%, rgba(255,215,0,0.12), transparent 60%), linear-gradient(135deg, #161B22, #0D1117)",
+              }}
             />
           )}
-          <div className="absolute inset-x-0 bottom-0 flex justify-end p-4">
-            <span className="rounded-full bg-black/50 px-3 py-1 text-xs uppercase tracking-wide text-white">
-              {u.level}
-            </span>
-          </div>
-          <div className="absolute left-6 bottom-[-40px] flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-slate-950 bg-slate-800 shadow-xl">
-            {showAvatar ? (
-              <img
-                src={avatarUrl}
-                alt="Avatar"
-                className="h-full w-full object-cover"
-                onError={() => setAvatarLoadError(true)}
-              />
-            ) : (
-              <span className="text-4xl font-bold text-white">
-                {u.nickname?.[0]?.toUpperCase() ?? u.display_name?.[0]?.toUpperCase() ?? "?"}
-              </span>
-            )}
-          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-canvas/95 via-canvas/30 to-transparent" />
+          {currentStreak >= 3 ? (
+            <div className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full border border-accent/40 bg-canvas/80 px-3 py-1 text-xs font-semibold text-accent backdrop-blur">
+              {currentStreak >= 7 ? "🔥🔥🔥" : "🔥"} серия {currentStreak}
+            </div>
+          ) : null}
         </div>
 
-        <div className="space-y-4 px-6 pb-6 pt-16 sm:px-8">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">{u.nickname || u.display_name}</h2>
-              <p className="text-sm text-muted">{u.display_name}</p>
+        <div className="relative px-6 pb-6 sm:px-8">
+          {/* Avatar overlaps the banner */}
+          <div className="-mt-12 flex flex-col items-start gap-4 sm:-mt-16 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex items-end gap-4">
+              <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-canvas bg-elevated shadow-xl sm:h-32 sm:w-32">
+                {showAvatar ? (
+                  <img
+                    src={avatarUrl}
+                    alt="Avatar"
+                    className="h-full w-full object-cover"
+                    onError={() => setAvatarLoadError(true)}
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-4xl font-bold text-foreground">
+                    {u.nickname?.[0]?.toUpperCase() ?? u.display_name?.[0]?.toUpperCase() ?? "?"}
+                  </div>
+                )}
+              </div>
+              <div className="mb-2">
+                <h2 className="text-xl font-bold text-foreground sm:text-2xl">
+                  {u.nickname || u.display_name}
+                </h2>
+                <p className="text-sm text-muted">{u.display_name}</p>
+              </div>
+            </div>
+
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  setGeneratingPdf(true);
+                  try {
+                    await generateResumePDF(u, completedTasks, skillChips);
+                  } catch (e) {
+                    alert("Не удалось сгенерировать резюме: " + (e?.message || e));
+                  } finally {
+                    setGeneratingPdf(false);
+                  }
+                }}
+                disabled={generatingPdf}
+                className="flex-1 sm:flex-initial"
+              >
+                {generatingPdf ? "Генерируем..." : "⬇ Резюме PDF"}
+              </Button>
+              <LinkButton to="/profile/edit" className="flex-1 sm:flex-initial">
+                Редактировать
+              </LinkButton>
             </div>
           </div>
-          {u.bio ? (
-            <p className="rounded-3xl border border-border bg-canvas px-4 py-4 text-sm leading-6 text-foreground">
-              {u.bio}
-            </p>
-          ) : (
-            <p className="rounded-3xl border border-dashed border-border bg-elevated/50 px-4 py-4 text-sm text-muted">
-              Описание профиля отсутствует. Добавьте его в настройках.
-            </p>
-          )}
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-3xl border border-border bg-canvas p-4">
-              <div className="text-xs uppercase tracking-wider text-muted">PTS</div>
-              <div className="mt-2 text-2xl font-semibold text-foreground">{u.pts}</div>
-            </div>
-            <div className="rounded-3xl border border-border bg-canvas p-4">
-              <div className="text-xs uppercase tracking-wider text-muted">Уровень</div>
-              <div className="mt-2 text-2xl font-semibold capitalize text-foreground">{u.level}</div>
-            </div>
+          {/* Bio */}
+          <div className="mt-5">
+            {u.bio ? (
+              <p className="rounded-btn border border-border bg-elevated/40 px-4 py-3 text-sm leading-6 text-foreground">
+                {u.bio}
+              </p>
+            ) : (
+              <p className="rounded-btn border border-dashed border-border bg-elevated/30 px-4 py-3 text-sm text-muted">
+                Описание профиля пустое. Добавь в настройках, чтобы рекрутеры понимали что у тебя за стек.
+              </p>
+            )}
           </div>
         </div>
       </Card>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+      {/* Stat tiles row */}
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatTile label="PTS" value={Number(u.pts || 0).toLocaleString("ru-RU")} />
+        <StatTile
+          label="Уровень"
+          value={LEVELS.find((l) => l.id === u.level)?.label ?? u.level}
+        />
+        <StatTile
+          label="Решено"
+          value={completedTasks.length}
+          sub={completedTasks.length === 1 ? "задача" : "задач"}
+        />
+        <StatTile
+          label="Серия"
+          value={`${currentStreak}`}
+          sub={`лучшая: ${bestStreak}`}
+        />
+      </div>
+
+      {/* Level progress + Achievements side-by-side on desktop */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr,1.4fr]">
+        <LevelProgressBar pts={u.pts} />
+        <AchievementGrid achievements={achievements} />
+      </div>
+
+      {/* Skills + Completed tasks */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr,1.4fr]">
+        <Card className="p-5">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Навыки</h2>
-          <ul className="mt-4 flex flex-wrap gap-2">
-            {skillChips.length === 0 ? (
-              <li className="rounded-full border border-dashed border-border bg-elevated/50 px-3 py-1.5 text-sm text-muted">
-                Навыки пока не добавлены
-              </li>
-            ) : (
-              skillChips.map((s) => (
+          {skillChips.length === 0 ? (
+            <p className="mt-4 rounded-btn border border-dashed border-border bg-elevated/30 px-4 py-6 text-center text-sm text-muted">
+              Навыки ещё не добавлены. Перейди в настройки и расскажи про свой стек.
+            </p>
+          ) : (
+            <ul className="mt-4 space-y-2">
+              {skillChips.map((s) => (
                 <li
                   key={s.key}
-                  className="rounded-full border border-border bg-canvas px-3 py-1.5 text-sm text-foreground transition hover:border-accent/40"
+                  className="flex items-center justify-between rounded-btn border border-border bg-elevated/40 px-3 py-2.5 transition-colors hover:border-accent/40"
                 >
-                  <span className="font-medium">{s.label}</span>
-                  {s.type === "skill" ? (
-                    <>
-                      <span className="ml-2 text-muted">·</span>
-                      <span className="ml-2 text-accent">{s.proficiency}/5</span>
-                    </>
-                  ) : (
-                    <span className="ml-2 text-xs uppercase tracking-wider text-accent/90">роль</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-foreground">{s.label}</span>
+                    {s.type === "role" ? (
+                      <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[9px] uppercase tracking-wider text-accent">
+                        Роль
+                      </span>
+                    ) : null}
+                  </div>
+                  {s.type === "skill" && s.proficiency ? (
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((dot) => (
+                        <span
+                          key={dot}
+                          className={`h-1.5 w-3 rounded-sm ${
+                            dot <= s.proficiency ? "bg-accent" : "bg-border/40"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
                 </li>
-              ))
-            )}
-          </ul>
+              ))}
+            </ul>
+          )}
         </Card>
 
-        <Card className="lg:col-span-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Выполненные задачи</h2>
+        <Card className="p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
+              Выполненные задачи
+            </h2>
+            <span className="font-mono text-xs text-accent">{completedTasks.length}</span>
+          </div>
           {completedTasks.length === 0 ? (
-            <div className="mt-4 rounded-card border border-dashed border-border bg-elevated/50 px-4 py-6 text-sm text-muted">
-              Пока нет засчитанных решений. Решай solo-задачи на вкладке «Задачи».
+            <div className="mt-4 rounded-btn border border-dashed border-border bg-elevated/30 px-4 py-8 text-center text-sm text-muted">
+              Пока нет засчитанных решений.
+              <br />
+              <Link to="/dashboard" className="mt-2 inline-block text-accent hover:underline">
+                Решить первую задачу →
+              </Link>
             </div>
           ) : (
             <ul className="mt-4 space-y-2">
@@ -447,10 +614,10 @@ export function ProfilePage() {
                 <li key={row.taskId}>
                   <Link
                     to={`/tasks/${row.taskId}/solve`}
-                    className="flex items-center justify-between rounded-[10px] border border-border bg-canvas px-3 py-3 text-sm text-foreground transition-colors active:scale-[0.99] md:hover:border-accent/40"
+                    className="flex items-center justify-between rounded-btn border border-border bg-elevated/40 px-4 py-3 text-sm text-foreground transition-all hover:border-accent/40 hover:bg-elevated active:scale-[0.99]"
                   >
                     <span className="font-medium">{row.title}</span>
-                    <span className="text-xs text-accent">✓</span>
+                    <span className="font-mono text-xs text-accent">✓</span>
                   </Link>
                 </li>
               ))}

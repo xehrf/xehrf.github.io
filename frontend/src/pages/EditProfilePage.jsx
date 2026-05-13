@@ -21,6 +21,29 @@ function formatFileSize(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
+function ConnectionBadge({ label, connected }) {
+  return (
+    <div
+      className={`rounded-btn border px-4 py-3 transition-colors ${
+        connected
+          ? "border-accent/40 bg-accent/5"
+          : "border-border bg-elevated/30"
+      }`}
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+        {label}
+      </p>
+      <p
+        className={`mt-1 text-sm font-bold ${
+          connected ? "text-accent" : "text-foreground/70"
+        }`}
+      >
+        {connected ? "✓ Подключён" : "Не подключён"}
+      </p>
+    </div>
+  );
+}
+
 function AsciiBackgroundPreview({ videoUrl, variant }) {
   return (
     <AsciiVideoBackground
@@ -230,43 +253,35 @@ export function EditProfilePage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[800px] px-4 py-6 md:px-6 md:py-8">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Редактировать профиль</h1>
-          <p className="mt-1 text-sm text-muted">Обновите аватар, баннер, никнейм и описание.</p>
+    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
+      <div className="mb-8 text-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
+          ⚙ Настройки профиля
         </div>
+        <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          Редактировать <span className="text-gradient-accent">профиль</span>
+        </h1>
+        <p className="mt-2 text-sm text-muted">
+          Аватар, баннер, видео-фон, никнейм и описание. Сохраняется одним нажатием.
+        </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="p-6">
           <div className="flex flex-col gap-4">
             <div>
-              <h2 className="text-lg font-semibold text-foreground">Быстрый вход</h2>
-              <p className="mt-1 text-sm text-muted">
-                Подключите Google или GitHub, чтобы новые входы были без отдельного пароля.
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
+                Быстрый вход
+              </h2>
+              <p className="mt-2 text-sm text-foreground">
+                Подключи Google или GitHub — следующие входы без пароля.
               </p>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="rounded-2xl border border-border bg-canvas px-4 py-3">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-muted">Пароль</p>
-                <p className="mt-2 text-sm font-medium text-foreground">
-                  {user?.password_login_enabled ? "Доступен" : "Недоступен"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-border bg-canvas px-4 py-3">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-muted">Google</p>
-                <p className="mt-2 text-sm font-medium text-foreground">
-                  {user?.google_connected ? "Подключен" : "Не подключен"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-border bg-canvas px-4 py-3">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-muted">GitHub</p>
-                <p className="mt-2 text-sm font-medium text-foreground">
-                  {user?.github_connected ? "Подключен" : "Не подключен"}
-                </p>
-              </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <ConnectionBadge label="Пароль" connected={user?.password_login_enabled} />
+              <ConnectionBadge label="Google" connected={user?.google_connected} />
+              <ConnectionBadge label="GitHub" connected={user?.github_connected} />
             </div>
 
             <SocialAuthButtons mode="link" next="/profile/edit" title="Подключить провайдер" />
@@ -404,8 +419,11 @@ export function EditProfilePage() {
                 <input
                   value={nickname}
                   onChange={(event) => setNickname(event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-border bg-canvas px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent"
+                  className="mt-2 w-full rounded-btn border border-border bg-canvas px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
                 />
+                <span className="mt-1 block text-[11px] text-muted">
+                  {nickname.length}/100
+                </span>
               </label>
 
               <label className="block text-sm font-medium text-foreground">
@@ -414,7 +432,7 @@ export function EditProfilePage() {
                   value={bio}
                   onChange={(event) => setBio(event.target.value)}
                   rows={4}
-                  className="mt-2 w-full resize-none rounded-2xl border border-border bg-canvas px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent"
+                  className="mt-2 w-full resize-none rounded-btn border border-border bg-canvas px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
                 />
               </label>
             </div>
@@ -441,28 +459,25 @@ export function EditProfilePage() {
             </div>
 
             {error ? (
-              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-700">
+              <div className="rounded-btn border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
                 {error}
               </div>
             ) : null}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted">Максимальный размер файла: 5MB.</p>
+              <p className="text-xs text-muted">
+                Максимальный размер изображений: 5 МБ. Видео-фон — отдельно, до 15 МБ.
+              </p>
               <div className="flex flex-wrap gap-3">
                 <Button
                   type="button"
                   variant="secondary"
-                  className="rounded-[12px] px-4 py-2"
                   onClick={() => navigate("/profile")}
                 >
                   Отмена
                 </Button>
-                <Button
-                  type="submit"
-                  className="rounded-[12px] px-4 py-2"
-                  disabled={saving}
-                >
-                  {saving ? "Сохраняем..." : "Сохранить профиль"}
+                <Button type="submit" disabled={saving}>
+                  {saving ? "Сохраняем..." : "✓ Сохранить"}
                 </Button>
               </div>
             </div>
