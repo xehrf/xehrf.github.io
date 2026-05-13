@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch, getWebSocketBaseUrl } from "../api/client.js";
 import { useAuth } from "../auth/AuthProvider.jsx";
 import { MatchArena } from "../features/matchmaking/components/MatchArena.jsx";
+import { Card } from "../components/ui/Card.jsx";
+import { Button, LinkButton } from "../components/ui/Button.jsx";
 import { LeaderboardContent } from "./LeaderboardPage.jsx";
 
 const PARTY_SIZE = 2;
@@ -19,10 +21,7 @@ function getMatchmakingSocketUrl(token) {
 }
 
 function normalizeUserId(userId) {
-  if (userId == null) {
-    return null;
-  }
-
+  if (userId == null) return null;
   return String(userId);
 }
 
@@ -32,156 +31,347 @@ function isSameUserId(left, right) {
 }
 
 function translateQuestTitle(title) {
-  if (!title) {
-    return "";
-  }
-
+  if (!title) return "";
   const playMatch = title.match(/^Play\s+(\d+)\s+PvP\s+matches$/i);
   if (playMatch) {
     const count = Number(playMatch[1]);
     return `Сыграйте ${count} PvP матч${count === 1 ? "" : count >= 2 && count <= 4 ? "а" : "ей"}`;
   }
-
   const winMatch = title.match(/^Win\s+(\d+)\s+PvP\s+matches$/i);
   if (winMatch) {
     const count = Number(winMatch[1]);
     return `Выиграйте ${count} PvP матч${count === 1 ? "" : count >= 2 && count <= 4 ? "а" : "ей"}`;
   }
-
   return title;
 }
 
-function QueueSlot({ label, active, complete }) {
-  return (
-    <div className="rounded-2xl border px-4 py-4 transition-colors" style={{ borderColor: complete ? "#FFD600" : active ? "rgba(255,214,0,0.45)" : "rgba(255,214,0,0.15)", background: complete ? "rgba(255,214,0,0.15)" : active ? "rgba(255,214,0,0.08)" : "rgba(255,255,255,0.02)" }}>
-      <div className="flex items-center gap-3">
-        <span className="h-3 w-3 rounded-full" style={{ background: complete ? "#FFD600" : active ? "#f5c400" : "rgba(255,255,255,0.25)", boxShadow: complete || active ? "0 0 12px rgba(255,214,0,0.7)" : "none" }} />
-        <span className="text-sm font-medium text-white">{label}</span>
-      </div>
-    </div>
-  );
-}
-
-function QueueFill({ queueSize, queuePosition }) {
-  const clamped = Math.max(0, Math.min(queueSize, PARTY_SIZE));
-  const pct = Math.round((clamped / PARTY_SIZE) * 100);
+// ============================================================
+// RADAR — поисковая анимация (концентрические кольца)
+// ============================================================
+function SearchRadar({ state, queueSize, queuePosition }) {
+  // state: "idle" | "searching" | "matched"
+  const isSearching = state === "searching";
+  const isMatched = state === "matched";
+  const slotsFilled = Math.min(queueSize, PARTY_SIZE);
 
   return (
-    <div className="w-full space-y-3">
-      <div className="flex items-center justify-between text-xs text-white/65"><span>Прогресс очереди</span><span>{clamped}/{PARTY_SIZE}</span></div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: "linear-gradient(90deg, #b79000 0%, #FFD600 100%)" }} />
+    <div className="relative mx-auto flex h-64 w-64 items-center justify-center sm:h-72 sm:w-72">
+      {/* Внешние кольца */}
+      <div
+        className={`absolute inset-0 rounded-full border-2 border-accent/20 ${
+          isSearching ? "animate-ping" : ""
+        }`}
+      />
+      <div
+        className={`absolute inset-4 rounded-full border border-accent/15 ${
+          isSearching ? "animate-pulse" : ""
+        }`}
+        style={{ animationDelay: "0.5s" }}
+      />
+      <div
+        className={`absolute inset-8 rounded-full border border-accent/10 ${
+          isSearching ? "animate-pulse" : ""
+        }`}
+        style={{ animationDelay: "1s" }}
+      />
+
+      {/* Вращающийся луч (только при поиске) */}
+      {isSearching && (
+        <div
+          className="absolute inset-0 rounded-full"
+          style={{
+            background:
+              "conic-gradient(from 0deg, transparent 0deg, rgba(255,215,0,0.18) 60deg, transparent 90deg)",
+            animation: "spin 2.5s linear infinite",
+          }}
+        />
+      )}
+
+      {/* Центральный круг */}
+      <div
+        className={`relative z-10 flex h-32 w-32 flex-col items-center justify-center rounded-full border-2 transition-all sm:h-36 sm:w-36 ${
+          isMatched
+            ? "border-accent bg-accent/20 shadow-glow"
+            : isSearching
+              ? "border-accent/60 bg-canvas shadow-glow"
+              : "border-border bg-canvas"
+        }`}
+      >
+        {isMatched ? (
+          <>
+            <div className="text-4xl">⚔</div>
+            <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-accent">
+              МАТЧ
+            </div>
+          </>
+        ) : isSearching ? (
+          <>
+            <div className="font-mono text-3xl font-bold text-accent">
+              {slotsFilled}
+              <span className="text-muted">/{PARTY_SIZE}</span>
+            </div>
+            <div className="mt-1 text-[10px] uppercase tracking-wider text-muted">
+              {queuePosition ? `позиция #${queuePosition}` : "в очереди"}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="text-4xl">🎯</div>
+            <div className="mt-1 text-[10px] uppercase tracking-wider text-muted">
+              готов
+            </div>
+          </>
+        )}
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <QueueSlot label="Вы в очереди" active complete={clamped >= 1} />
-        <QueueSlot label="Подключаем соперника" active={clamped === 1} complete={clamped >= 2} />
-      </div>
-      <p className="text-xs text-white/55">Позиция в очереди: <span className="text-[#FFD600]">{queuePosition ?? "--"}</span></p>
-    </div>
-  );
-}
 
-function QuestPanel({ quests, onClaim, claimingQuestKey }) {
-  if (!quests) {
-    return null;
-  }
-
-  const sections = [
-    { id: "daily", title: "Ежедневные PvP-квесты", data: quests.daily },
-    { id: "weekly", title: "Недельные PvP-квесты", data: quests.weekly },
-  ];
-
-  return (
-    <div className="mt-6 space-y-4">
-      {sections.map((section) => (
-        <div key={section.id} className="rounded-2xl border px-4 py-3" style={{ borderColor: "rgba(255,214,0,0.15)", background: "rgba(255,255,255,0.01)" }}>
-          <p className="text-[11px] uppercase tracking-wider text-[#FFD600]">{section.title}</p>
-          <div className="mt-3 space-y-2.5">
-            {(section.data?.quests || []).map((quest) => {
-              const target = Math.max(1, Number(quest.target ?? 1));
-              const progress = Math.max(0, Number(quest.progress ?? 0));
-              const pct = Math.max(0, Math.min(100, Math.round((progress / target) * 100)));
-              const rowKey = `${section.id}:${quest.id}`;
-
-              return (
-                <div key={rowKey} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2.5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-white">{translateQuestTitle(quest.title)}</p>
-                      <p className="mt-0.5 text-xs text-white/60">{progress}/{target} • +{quest.reward_pts} PTS</p>
-                    </div>
-                    {quest.completed && !quest.claimed ? (
-                      <button type="button" onClick={() => onClaim(section.id, quest.id)} disabled={claimingQuestKey === rowKey} className="rounded-lg px-2.5 py-1 text-xs font-semibold transition-opacity hover:opacity-85 disabled:opacity-50" style={{ background: "#FFD600", color: "#111" }}>
-                        {claimingQuestKey === rowKey ? "..." : "Забрать"}
-                      </button>
-                    ) : (
-                      <span className="text-[11px] text-white/50">{quest.claimed ? "Получено" : quest.completed ? "Готово" : "В прогрессе"}</span>
-                    )}
-                  </div>
-                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg, #b79000 0%, #FFD600 100%)" }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      {/* Точки на кольцах */}
+      {[0, 90, 180, 270].map((deg, i) => (
+        <div
+          key={i}
+          className={`absolute h-2 w-2 rounded-full ${
+            isSearching ? "bg-accent" : "bg-border"
+          } ${isSearching ? "animate-pulse" : ""}`}
+          style={{
+            transform: `rotate(${deg}deg) translate(7.5rem) rotate(-${deg}deg)`,
+            animationDelay: `${i * 0.2}s`,
+          }}
+        />
       ))}
     </div>
   );
 }
 
-function SurrenderConfirmModal({ open, loading, error, onCancel, onConfirm }) {
-  if (!open) {
-    return null;
-  }
+// ============================================================
+// STREAK FLAME — горящая серия побед
+// ============================================================
+function StreakIndicator({ current, best }) {
+  if (current == null) return null;
+  const isHot = current >= 3;
+  const isLegendary = current >= 7;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 px-4 py-8">
-      <div
+    <Card className="p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+            Серия побед
+          </p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span
+              className={`text-3xl font-bold ${
+                isHot ? "text-accent" : "text-foreground"
+              }`}
+            >
+              {current}
+            </span>
+            <span className="text-xs text-muted">подряд</span>
+          </div>
+          <p className="mt-1 text-xs text-muted">
+            Рекорд: <span className="text-foreground">{best}</span>
+          </p>
+        </div>
+        <div className="text-4xl">
+          {isLegendary ? "🔥🔥🔥" : isHot ? "🔥" : "💤"}
+        </div>
+      </div>
+      {isHot && (
+        <div className="mt-3 rounded-btn border border-accent/30 bg-accent/5 px-3 py-2 text-[11px] leading-snug text-accent">
+          {isLegendary
+            ? "Легендарная серия! Каждая победа = +50% PTS"
+            : "В огне! +25% PTS за каждую победу"}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ============================================================
+// QUEST CARD
+// ============================================================
+function QuestRow({ quest, sectionId, onClaim, isClaiming }) {
+  const target = Math.max(1, Number(quest.target ?? 1));
+  const progress = Math.max(0, Number(quest.progress ?? 0));
+  const pct = Math.max(0, Math.min(100, Math.round((progress / target) * 100)));
+  const completed = quest.completed;
+  const claimed = quest.claimed;
+
+  return (
+    <div
+      className={`rounded-btn border p-3 transition-colors ${
+        claimed
+          ? "border-border/40 bg-elevated/30 opacity-60"
+          : completed
+            ? "border-accent/40 bg-accent/5"
+            : "border-border bg-elevated"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-foreground">
+            {translateQuestTitle(quest.title)}
+          </p>
+          <p className="mt-0.5 font-mono text-xs text-muted">
+            {progress}/{target} · +{quest.reward_pts} PTS
+          </p>
+        </div>
+        {completed && !claimed ? (
+          <Button
+            onClick={() => onClaim(sectionId, quest.id)}
+            disabled={isClaiming}
+            className="h-8 px-3 text-xs"
+          >
+            {isClaiming ? "..." : "Забрать"}
+          </Button>
+        ) : (
+          <span
+            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ${
+              claimed
+                ? "bg-border/30 text-muted"
+                : "border border-border text-muted"
+            }`}
+          >
+            {claimed ? "✓ Готово" : completed ? "Готов" : "В пути"}
+          </span>
+        )}
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border/40">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${
+            completed ? "bg-accent" : "bg-accent/60"
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function QuestsCard({ quests, onClaim, claimingQuestKey }) {
+  if (!quests) return null;
+
+  const sections = [
+    { id: "daily", title: "Ежедневные", icon: "☀", data: quests.daily },
+    { id: "weekly", title: "Недельные", icon: "📅", data: quests.weekly },
+  ];
+
+  return (
+    <Card className="p-4">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
+        Квесты
+      </h3>
+      <div className="mt-3 space-y-4">
+        {sections.map((section) => (
+          <div key={section.id}>
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-accent">
+              <span>{section.icon}</span>
+              <span className="uppercase tracking-wider">{section.title}</span>
+            </div>
+            <div className="space-y-2">
+              {(section.data?.quests || []).map((quest) => (
+                <QuestRow
+                  key={`${section.id}:${quest.id}`}
+                  quest={quest}
+                  sectionId={section.id}
+                  onClaim={onClaim}
+                  isClaiming={claimingQuestKey === `${section.id}:${quest.id}`}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// ============================================================
+// SURRENDER MODAL
+// ============================================================
+function SurrenderConfirmModal({ open, loading, error, onCancel, onConfirm }) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 px-4 py-8 backdrop-blur-sm">
+      <Card
+        className="w-full max-w-md p-6 sm:p-7"
         role="dialog"
         aria-modal="true"
         aria-labelledby="surrender-modal-title"
-        className="w-full max-w-md rounded-3xl border p-6 sm:p-7"
-        style={{ background: "#111", borderColor: "rgba(255,214,0,0.15)" }}
       >
-        <p className="text-xs uppercase tracking-[0.18em] text-[#FFD600]/80">Подтверждение</p>
-        <h2 id="surrender-modal-title" className="mt-2 text-2xl font-semibold text-white">Сдаться и потерять PTS?</h2>
-        <p className="mt-3 text-sm leading-6 text-white/70">
-          Матч завершится поражением, а рейтинг будет уменьшен. Если это случайный клик, лучше продолжить дуэль.
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent/80">
+          Подтверждение
+        </p>
+        <h2
+          id="surrender-modal-title"
+          className="mt-2 text-2xl font-bold text-foreground"
+        >
+          Сдаться и потерять PTS?
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-muted">
+          Матч завершится поражением, рейтинг уменьшится. Если это случайный
+          клик — лучше продолжай.
         </p>
 
         {error ? (
-          <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          <div className="mt-4 rounded-btn border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
             {error}
           </div>
         ) : null}
 
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={onCancel}
             disabled={loading}
-            className="h-11 rounded-xl border px-4 text-sm font-medium text-white/80 transition-colors hover:text-white disabled:opacity-50"
-            style={{ borderColor: "rgba(255,214,0,0.2)", background: "transparent" }}
+            className="h-11 px-4"
           >
             Отмена
-          </button>
+          </Button>
           <button
             type="button"
             onClick={onConfirm}
             disabled={loading}
-            className="h-11 rounded-xl px-4 text-sm font-semibold transition-opacity hover:opacity-85 disabled:opacity-50"
-            style={{ background: "#ef4444", color: "white" }}
+            className="inline-flex h-11 items-center justify-center rounded-btn bg-red-500 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {loading ? "Сдаёмся..." : "Сдаться"}
           </button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================
+// СТАТУС МАТЧЕЙ ЗА СЕГОДНЯ (моковая статистика)
+// ============================================================
+function ArenaStats() {
+  return (
+    <div className="grid grid-cols-3 gap-2 text-center">
+      <div className="rounded-btn border border-border bg-elevated/50 px-2 py-2.5">
+        <div className="font-mono text-lg font-bold text-accent">247</div>
+        <div className="text-[10px] uppercase tracking-wider text-muted">
+          матчей сегодня
+        </div>
+      </div>
+      <div className="rounded-btn border border-border bg-elevated/50 px-2 py-2.5">
+        <div className="font-mono text-lg font-bold text-accent">~25s</div>
+        <div className="text-[10px] uppercase tracking-wider text-muted">
+          среднее ожидание
+        </div>
+      </div>
+      <div className="rounded-btn border border-border bg-elevated/50 px-2 py-2.5">
+        <div className="font-mono text-lg font-bold text-accent">±150</div>
+        <div className="text-[10px] uppercase tracking-wider text-muted">
+          PTS разброс
         </div>
       </div>
     </div>
   );
 }
 
+// ============================================================
+// MAIN PAGE
+// ============================================================
 export function MatchmakingPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -189,9 +379,15 @@ export function MatchmakingPage() {
   const activeTab = searchParams.get("tab") === "leaderboard" ? "leaderboard" : "duel";
   const myUserId = user?.id ?? null;
   const [activeMatch, setActiveMatch] = useState(null);
-  const [queueInfo, setQueueInfo] = useState({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
+  const [queueInfo, setQueueInfo] = useState({
+    queue_size: 0,
+    queue_position: null,
+    total: PARTY_SIZE,
+  });
   const [searching, setSearching] = useState(false);
-  const [statusNote, setStatusNote] = useState("Нажмите «Найти матч», чтобы встать в PvP-очередь.");
+  const [statusNote, setStatusNote] = useState(
+    "Нажми «Найти матч» — алгоритм подберёт соперника твоего уровня."
+  );
   const [error, setError] = useState("");
   const [teamCurrent, setTeamCurrent] = useState(null);
   const [quests, setQuests] = useState(null);
@@ -203,12 +399,8 @@ export function MatchmakingPage() {
   const [surrenderModalError, setSurrenderModalError] = useState("");
 
   const queueState = useMemo(() => {
-    if (activeMatch) {
-      return "matched";
-    }
-    if (searching) {
-      return "searching";
-    }
+    if (activeMatch) return "matched";
+    if (searching) return "searching";
     return "idle";
   }, [activeMatch, searching]);
 
@@ -233,14 +425,10 @@ export function MatchmakingPage() {
 
   useEffect(() => {
     let mounted = true;
-
     (async () => {
       try {
         const current = await apiFetch("/matchmaking/active");
-        if (!mounted) {
-          return;
-        }
-
+        if (!mounted) return;
         if (current) {
           setActiveMatch(current);
           setSearching(false);
@@ -250,7 +438,6 @@ export function MatchmakingPage() {
         logDevError("Failed to restore active match.", eventError);
       }
     })();
-
     return () => {
       mounted = false;
     };
@@ -258,19 +445,15 @@ export function MatchmakingPage() {
 
   useEffect(() => {
     let mounted = true;
-
     (async () => {
       try {
         const currentTeam = await apiFetch("/teams/current");
-        if (mounted) {
-          setTeamCurrent(currentTeam);
-        }
+        if (mounted) setTeamCurrent(currentTeam);
       } catch (eventError) {
         logDevError("Failed to load current team.", eventError);
         setTeamCurrent(null);
       }
     })();
-
     return () => {
       mounted = false;
     };
@@ -282,9 +465,7 @@ export function MatchmakingPage() {
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
-    if (!token) {
-      return undefined;
-    }
+    if (!token) return undefined;
 
     const ws = new WebSocket(getMatchmakingSocketUrl(token));
     ws.addEventListener("message", (event) => {
@@ -292,7 +473,11 @@ export function MatchmakingPage() {
       const data = payload.data ?? {};
 
       if (payload.event === "queue_update") {
-        setQueueInfo({ queue_size: data.queue_size ?? 0, queue_position: data.queue_position ?? null, total: data.total ?? PARTY_SIZE });
+        setQueueInfo({
+          queue_size: data.queue_size ?? 0,
+          queue_position: data.queue_position ?? null,
+          total: data.total ?? PARTY_SIZE,
+        });
         setSearching(data.status === "queued");
         if (data.status === "queued") {
           setStatusNote("Ищем соперника с близким PTS...");
@@ -307,13 +492,13 @@ export function MatchmakingPage() {
         setShowSurrenderModal(false);
         setSurrenderModalError("");
         setStatusNote("Соперник найден. Переходим в дуэль.");
-        apiFetch("/matchmaking/active").then((current) => {
-          if (current) {
-            setActiveMatch(current);
-          }
-        }).catch((eventError) => {
-          logDevError("Failed to refresh active match after websocket update.", eventError);
-        });
+        apiFetch("/matchmaking/active")
+          .then((current) => {
+            if (current) setActiveMatch(current);
+          })
+          .catch((eventError) => {
+            logDevError("Failed to refresh active match after websocket update.", eventError);
+          });
       }
 
       if (payload.event === "match_finished") {
@@ -330,18 +515,26 @@ export function MatchmakingPage() {
         if (iWon) {
           const streak = Number(data.winner_streak ?? 0);
           const bonus = Number(data.winner_streak_bonus ?? 0);
-          const streakNote = streak >= 2 ? ` Серия побед: ${streak} (+${bonus} бонус PTS).` : "";
-          setStatusNote(data.reason === "surrender" ? `Соперник сдался. Победа!${streakNote}` : `Победа в матче!${streakNote}`);
+          const streakNote =
+            streak >= 2 ? ` Серия: ${streak} (+${bonus} бонус).` : "";
+          setStatusNote(
+            data.reason === "surrender"
+              ? `Соперник сдался. Победа!${streakNote}`
+              : `Победа в матче!${streakNote}`
+          );
         } else {
-          setStatusNote(data.reason === "surrender" ? "Вы сдались в матче." : "Матч завершен. Попробуйте реванш.");
+          setStatusNote(
+            data.reason === "surrender"
+              ? "Вы сдались в матче."
+              : "Матч завершён. Попробуй реванш."
+          );
         }
-
         loadQuests();
       }
 
       if (payload.event === "rematch_offered") {
         setLastMatchResult((prev) => ({ ...(prev ?? {}), match_id: data.match_id }));
-        setStatusNote("Соперник предлагает реванш. Нажмите кнопку «Реванш».");
+        setStatusNote("Соперник предлагает реванш. Нажми кнопку «Реванш».");
       }
     });
 
@@ -351,39 +544,34 @@ export function MatchmakingPage() {
   }, [loadQuests, myUserId]);
 
   useEffect(() => {
-    if (activeMatch) {
-      return;
-    }
-
+    if (activeMatch) return;
     setShowSurrenderModal(false);
     setSurrenderModalError("");
   }, [activeMatch]);
 
   async function runFindMatch() {
-    if (queueState === "searching") {
-      return;
-    }
-
+    if (queueState === "searching") return;
     setError("");
     setSearching(true);
     setStatusNote("Подключаем к PvP-очереди...");
 
     try {
       const result = await apiFetch("/matchmaking/queue", { method: "POST" });
-
       if (result.status === "matched" || result.status === "already_in_match") {
         setActiveMatch(result);
         setSearching(false);
         setStatusNote("Матч найден.");
         return;
       }
-
       if (result.status === "queued") {
-        setQueueInfo({ queue_size: result.queue_size ?? 1, queue_position: result.queue_position ?? null, total: PARTY_SIZE });
+        setQueueInfo({
+          queue_size: result.queue_size ?? 1,
+          queue_position: result.queue_position ?? null,
+          total: PARTY_SIZE,
+        });
         setStatusNote("Вы в очереди. Ожидаем соперника...");
         return;
       }
-
       setError(result.message || "Ошибка матчмейкинга.");
       setSearching(false);
     } catch (eventError) {
@@ -399,18 +587,14 @@ export function MatchmakingPage() {
     } catch (eventError) {
       logDevError("Failed to leave matchmaking queue.", eventError);
     }
-
     setActiveMatch(null);
     setSearching(false);
     setQueueInfo({ queue_size: 0, queue_position: null, total: PARTY_SIZE });
-    setStatusNote("Поиск отменен.");
+    setStatusNote("Поиск отменён.");
   }
 
   function requestSurrender() {
-    if (!activeMatch || surrendering) {
-      return;
-    }
-
+    if (!activeMatch || surrendering) return;
     setError("");
     setSurrenderModalError("");
     setShowSurrenderModal(true);
@@ -421,10 +605,7 @@ export function MatchmakingPage() {
   }
 
   async function confirmSurrenderFromModal() {
-    if (!activeMatch || surrendering) {
-      return;
-    }
-
+    if (!activeMatch || surrendering) return;
     setError("");
     setSurrenderModalError("");
     setSurrendering(true);
@@ -440,8 +621,10 @@ export function MatchmakingPage() {
       setStatusNote("Вы сдались в матче. PTS были уменьшены.");
     } catch (eventError) {
       const message = eventError?.message || "";
-      const alreadyFinished = eventError?.status === 409 || message.includes("Match is already finished") || message.includes("No active match to surrender");
-
+      const alreadyFinished =
+        eventError?.status === 409 ||
+        message.includes("Match is already finished") ||
+        message.includes("No active match to surrender");
       if (alreadyFinished) {
         setActiveMatch(null);
         setSearching(false);
@@ -454,7 +637,6 @@ export function MatchmakingPage() {
         setSurrenderModalError(message || "Не удалось сдаться.");
       }
     }
-
     setSurrendering(false);
   }
 
@@ -462,10 +644,12 @@ export function MatchmakingPage() {
     const key = `${period}:${questId}`;
     setClaimingQuestKey(key);
     setError("");
-
     try {
-      const reward = await apiFetch(`/matchmaking/quests/${period}/${questId}/claim`, { method: "POST" });
-      setStatusNote(`Квест завершен: +${reward.reward_pts ?? 0} PTS`);
+      const reward = await apiFetch(
+        `/matchmaking/quests/${period}/${questId}/claim`,
+        { method: "POST" }
+      );
+      setStatusNote(`Квест завершён: +${reward.reward_pts ?? 0} PTS`);
       await loadQuests();
     } catch (eventError) {
       setError(eventError?.message || "Не удалось забрать награду за квест.");
@@ -475,16 +659,14 @@ export function MatchmakingPage() {
   }
 
   async function handleRematch() {
-    if (!lastMatchResult?.match_id || rematchLoading) {
-      return;
-    }
-
+    if (!lastMatchResult?.match_id || rematchLoading) return;
     setRematchLoading(true);
     setError("");
-
     try {
-      const result = await apiFetch("/matchmaking/rematch", { method: "POST", body: { match_id: lastMatchResult.match_id } });
-
+      const result = await apiFetch("/matchmaking/rematch", {
+        method: "POST",
+        body: { match_id: lastMatchResult.match_id },
+      });
       if (result.status === "matched" || result.status === "already_in_match") {
         setActiveMatch(result);
         setSearching(false);
@@ -492,8 +674,11 @@ export function MatchmakingPage() {
         setStatusNote("Реванш начинается!");
         return;
       }
-
-      setStatusNote(result.status === "waiting_rematch" ? "Реванш предложен. Ждем подтверждение соперника." : result.message || "Ожидаем подтверждение реванша.");
+      setStatusNote(
+        result.status === "waiting_rematch"
+          ? "Реванш предложен. Ждём подтверждение."
+          : result.message || "Ожидаем подтверждение реванша."
+      );
     } catch (eventError) {
       setError(eventError?.message || "Не удалось запустить реванш.");
     } finally {
@@ -503,75 +688,213 @@ export function MatchmakingPage() {
 
   return (
     <div className="min-h-screen bg-canvas">
+      {/* Декоративный фон */}
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute left-1/3 top-20 h-72 w-72 rounded-full bg-accent/[0.05] blur-3xl" />
+        <div className="absolute bottom-1/3 right-1/4 h-64 w-64 rounded-full bg-accent/[0.04] blur-3xl" />
+      </div>
+
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-        <div className="mb-7 text-center">
-          <h1 className="text-4xl font-semibold tracking-tight text-white transition-all duration-300 hover:text-[#FFD600] hover:[text-shadow:0_0_14px_rgba(255,214,0,0.55)] sm:text-5xl">
-            PvP Подбор Соперника 1v1
+        {/* HEADER */}
+        <div className="mb-8 text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+            </span>
+            Арена открыта
+          </div>
+          <h1 className="mt-4 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+            PvP <span className="text-gradient-accent">Дуэль</span> 1v1
           </h1>
-          <p className="mt-2 text-sm text-white/55">Очередь, подключение соперника и дуэльные задания 1v1.</p>
+          <p className="mt-3 text-sm text-muted sm:text-base">
+            Один противник. Одна задача. 30 минут на победу.
+          </p>
         </div>
 
-        <div className="mx-auto mb-6 flex max-w-xl rounded-2xl border border-yellow-500/20 bg-slate-950/70 p-1">
-          <button type="button" onClick={() => switchTab("duel")} className={["h-11 flex-1 rounded-xl text-sm font-semibold transition", activeTab === "duel" ? "bg-[#FFD600] text-slate-950 shadow-[0_0_20px_rgba(255,214,0,0.25)]" : "text-white/75 hover:text-white"].join(" ")}>Дуэль</button>
-          <button type="button" onClick={() => switchTab("leaderboard")} className={["h-11 flex-1 rounded-xl text-sm font-semibold transition", activeTab === "leaderboard" ? "bg-[#FFD600] text-slate-950 shadow-[0_0_20px_rgba(255,214,0,0.25)]" : "text-white/75 hover:text-white"].join(" ")}>Рейтинг</button>
+        {/* TABS */}
+        <div className="mx-auto mb-8 flex max-w-sm rounded-btn border border-border bg-elevated/50 p-1">
+          <button
+            type="button"
+            onClick={() => switchTab("duel")}
+            className={[
+              "h-10 flex-1 rounded-[6px] text-sm font-semibold transition-all",
+              activeTab === "duel"
+                ? "bg-accent text-black shadow-glow"
+                : "text-muted hover:text-foreground",
+            ].join(" ")}
+          >
+            ⚔ Дуэль
+          </button>
+          <button
+            type="button"
+            onClick={() => switchTab("leaderboard")}
+            className={[
+              "h-10 flex-1 rounded-[6px] text-sm font-semibold transition-all",
+              activeTab === "leaderboard"
+                ? "bg-accent text-black shadow-glow"
+                : "text-muted hover:text-foreground",
+            ].join(" ")}
+          >
+            🏆 Рейтинг
+          </button>
         </div>
 
-        {activeTab === "leaderboard" ? <LeaderboardContent embedded /> : (
+        {activeTab === "leaderboard" ? (
+          <LeaderboardContent embedded />
+        ) : (
           <>
+            {/* TEAM BANNER */}
             {teamCurrent ? (
-              <div className="mb-6 rounded-2xl border border-yellow-500/20 bg-slate-950 p-5 text-sm text-white">
+              <Card className="mb-6 border-accent/30">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-xs uppercase tracking-wider text-yellow-300">Текущая команда</p>
-                    <h2 className="mt-2 text-xl font-semibold">{teamCurrent.name}</h2>
-                    <p className="mt-1 text-sm text-slate-400">Участников: {teamCurrent.members.length}</p>
+                    <p className="text-[11px] uppercase tracking-wider text-accent">
+                      Текущая команда
+                    </p>
+                    <h2 className="mt-1 text-xl font-bold text-foreground">
+                      {teamCurrent.name}
+                    </h2>
+                    <p className="mt-0.5 text-xs text-muted">
+                      Участников: {teamCurrent.members.length}
+                    </p>
                   </div>
-                  <button type="button" onClick={() => navigate("/team/current")} className="rounded-2xl bg-[#FFD600] px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_0_20px_rgba(255,214,0,0.25)] transition hover:bg-yellow-300">Открыть команду</button>
+                  <Button onClick={() => navigate("/team/current")}>
+                    Открыть команду →
+                  </Button>
                 </div>
-              </div>
+              </Card>
             ) : null}
 
             {queueState === "matched" ? (
-              <MatchArena activeMatch={activeMatch} myUserId={myUserId} onNavigateTask={(taskId) => navigate(`/tasks/${taskId}/solve`)} onSurrender={requestSurrender} surrendering={surrendering} />
+              <MatchArena
+                activeMatch={activeMatch}
+                myUserId={myUserId}
+                onNavigateTask={(taskId) => navigate(`/tasks/${taskId}/solve`)}
+                onSurrender={requestSurrender}
+                surrendering={surrendering}
+              />
             ) : (
-              <div className="mx-auto max-w-xl rounded-3xl border p-8" style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}>
-                <div className="mb-6 text-center">
-                  <p className="text-xl font-semibold text-white">{queueState === "searching" ? "Ищем дуэль..." : "Готовы к PvP?"}</p>
-                  <p className="mt-2 text-sm text-white/55">{statusNote}</p>
-                </div>
+              <div className="grid gap-6 lg:grid-cols-[1fr,360px]">
+                {/* ЛЕВАЯ КОЛОНКА — главная: радар + кнопки */}
+                <Card className="relative overflow-hidden p-8">
+                  {/* Decorative scan-lines */}
+                  <div
+                    className="pointer-events-none absolute inset-0 opacity-[0.03]"
+                    style={{
+                      backgroundImage:
+                        "repeating-linear-gradient(0deg, transparent, transparent 3px, #FFD700 3px, #FFD700 4px)",
+                    }}
+                  />
 
-                <QueueFill queueSize={queueInfo.queue_size} queuePosition={queueInfo.queue_position} />
+                  <div className="relative">
+                    <SearchRadar
+                      state={queueState}
+                      queueSize={queueInfo.queue_size}
+                      queuePosition={queueInfo.queue_position}
+                    />
 
-                {lastMatchResult?.match_id ? (
-                  <div className="mt-4">
-                    <button type="button" onClick={handleRematch} disabled={rematchLoading} className="h-11 w-full rounded-xl border text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50" style={{ borderColor: "rgba(34,197,94,0.45)", background: "rgba(34,197,94,0.16)" }}>
-                      {rematchLoading ? "Запускаем реванш..." : "Реванш (1 клик)"}
-                    </button>
+                    {/* Status text */}
+                    <div className="mt-8 text-center">
+                      <p className="text-xl font-bold text-foreground sm:text-2xl">
+                        {queueState === "searching"
+                          ? "Ищем дуэль..."
+                          : queueState === "matched"
+                            ? "Соперник найден!"
+                            : "Готов к бою?"}
+                      </p>
+                      <p className="mx-auto mt-2 max-w-md text-sm text-muted">
+                        {statusNote}
+                      </p>
+                    </div>
+
+                    {/* Stats row */}
+                    <div className="mx-auto mt-6 max-w-md">
+                      <ArenaStats />
+                    </div>
+
+                    {/* Rematch button */}
+                    {lastMatchResult?.match_id ? (
+                      <div className="mx-auto mt-6 max-w-md">
+                        <button
+                          type="button"
+                          onClick={handleRematch}
+                          disabled={rematchLoading}
+                          className="inline-flex h-12 w-full items-center justify-center rounded-btn border border-green-500/40 bg-green-500/15 text-sm font-semibold text-green-300 transition-opacity hover:opacity-90 disabled:opacity-50"
+                        >
+                          {rematchLoading ? "Запускаем реванш..." : "⚔ Реванш — 1 клик"}
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {/* Main CTA */}
+                    <div className="mx-auto mt-6 max-w-md">
+                      {queueState === "idle" ? (
+                        <button
+                          type="button"
+                          onClick={runFindMatch}
+                          className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-btn bg-accent text-base font-bold text-black shadow-glow transition-all hover:bg-accent-hover hover:shadow-[0_0_32px_rgba(255,215,0,0.4)] active:scale-[0.99]"
+                        >
+                          ⚔ Найти матч 1v1
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={runLeaveQueue}
+                          className="inline-flex h-14 w-full items-center justify-center rounded-btn border border-border bg-elevated text-base font-medium text-muted transition-colors hover:border-accent/50 hover:text-foreground"
+                        >
+                          ✕ Отменить поиск
+                        </button>
+                      )}
+                    </div>
+
+                    {error ? (
+                      <div className="mx-auto mt-4 max-w-md rounded-btn border border-red-500/30 bg-red-500/10 px-3 py-2 text-center text-sm text-red-300">
+                        {error}
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+                </Card>
 
-                <div className="mt-6 flex flex-col gap-3">
-                  {queueState === "idle" ? (
-                    <button type="button" onClick={runFindMatch} className="h-12 rounded-xl text-sm font-semibold transition-opacity hover:opacity-85" style={{ background: "#FFD600", color: "#111" }}>Найти матч 1v1</button>
-                  ) : (
-                    <button type="button" onClick={runLeaveQueue} className="h-12 rounded-xl border text-sm font-medium text-white/80 transition-colors hover:text-white" style={{ borderColor: "rgba(255,214,0,0.2)", background: "transparent" }}>Отменить поиск</button>
-                  )}
+                {/* ПРАВАЯ КОЛОНКА — серия побед + квесты */}
+                <div className="space-y-4">
+                  {quests?.streak ? (
+                    <StreakIndicator
+                      current={quests.streak.current}
+                      best={quests.streak.best}
+                    />
+                  ) : null}
+
+                  <QuestsCard
+                    quests={quests}
+                    onClaim={handleClaimQuest}
+                    claimingQuestKey={claimingQuestKey}
+                  />
+
+                  {/* Mini-helper card */}
+                  <Card className="p-4">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
+                      Совет дня
+                    </h3>
+                    <p className="mt-2 text-sm leading-snug text-foreground">
+                      <span className="text-accent">3 победы подряд</span> = +25%
+                      бонус PTS. Серия из 7 — +50%.
+                    </p>
+                    <LinkButton
+                      to="/leaderboard"
+                      variant="ghost"
+                      className="mt-3 px-0 text-xs"
+                    >
+                      Посмотреть рейтинг →
+                    </LinkButton>
+                  </Card>
                 </div>
-
-                {quests?.streak ? (
-                  <div className="mt-4 rounded-2xl border px-4 py-3" style={{ borderColor: "rgba(255,214,0,0.15)" }}>
-                    <p className="text-[11px] uppercase tracking-wider text-[#FFD600]">Серия побед</p>
-                    <p className="mt-1 text-sm text-white">Текущая серия: <span className="font-semibold text-[#FFD600]">{quests.streak.current}</span> • Лучшая: <span className="font-semibold text-[#FFD600]">{quests.streak.best}</span></p>
-                  </div>
-                ) : null}
-
-                <QuestPanel quests={quests} onClaim={handleClaimQuest} claimingQuestKey={claimingQuestKey} />
-                {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : null}
               </div>
             )}
           </>
         )}
       </div>
+
       <SurrenderConfirmModal
         open={showSurrenderModal}
         loading={surrendering}
