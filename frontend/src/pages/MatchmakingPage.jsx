@@ -6,6 +6,11 @@ import { MatchArena } from "../features/matchmaking/components/MatchArena.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
 import { LeaderboardContent } from "./LeaderboardPage.jsx";
+import {
+  useArenaStats,
+  formatWait,
+  formatSpread,
+} from "../hooks/useArenaStats.js";
 
 const PARTY_SIZE = 2;
 
@@ -342,25 +347,44 @@ function SurrenderConfirmModal({ open, loading, error, onCancel, onConfirm }) {
 }
 
 // ============================================================
-// СТАТУС МАТЧЕЙ ЗА СЕГОДНЯ (моковая статистика)
+// ARENA STATS — реальные цифры с /stats/arena
 // ============================================================
-function ArenaStats() {
+function ArenaStats({ stats, loading }) {
+  const matchesToday = stats?.matches_today;
+  const avgWait = stats?.avg_wait_seconds;
+  const ptsSpread = stats?.pts_spread;
+
+  function renderValue(value) {
+    if (loading) {
+      return (
+        <span className="inline-block h-4 w-8 animate-pulse rounded bg-accent/20 align-middle" />
+      );
+    }
+    return value;
+  }
+
   return (
     <div className="grid grid-cols-3 gap-2 text-center">
       <div className="rounded-btn border border-border bg-elevated/50 px-2 py-2.5">
-        <div className="font-mono text-lg font-bold text-accent">247</div>
+        <div className="font-mono text-lg font-bold text-accent">
+          {renderValue(matchesToday != null ? matchesToday.toLocaleString("ru-RU") : "—")}
+        </div>
         <div className="text-[10px] uppercase tracking-wider text-muted">
           матчей сегодня
         </div>
       </div>
       <div className="rounded-btn border border-border bg-elevated/50 px-2 py-2.5">
-        <div className="font-mono text-lg font-bold text-accent">~25s</div>
+        <div className="font-mono text-lg font-bold text-accent">
+          {renderValue(formatWait(avgWait))}
+        </div>
         <div className="text-[10px] uppercase tracking-wider text-muted">
           среднее ожидание
         </div>
       </div>
       <div className="rounded-btn border border-border bg-elevated/50 px-2 py-2.5">
-        <div className="font-mono text-lg font-bold text-accent">±150</div>
+        <div className="font-mono text-lg font-bold text-accent">
+          {renderValue(formatSpread(ptsSpread))}
+        </div>
         <div className="text-[10px] uppercase tracking-wider text-muted">
           PTS разброс
         </div>
@@ -542,6 +566,12 @@ export function MatchmakingPage() {
   const [surrendering, setSurrendering] = useState(false);
   const [showSurrenderModal, setShowSurrenderModal] = useState(false);
   const [surrenderModalError, setSurrenderModalError] = useState("");
+
+  // Реальная статистика арены: ~раз в 15 секунд во время поиска,
+  // достаточно часто чтобы счётчики выглядели "живыми".
+  const { stats: arenaStats, loading: arenaStatsLoading } = useArenaStats({
+    refreshMs: 15_000,
+  });
 
   useEffect(() => {
     activeMatchRef.current = activeMatch;
@@ -989,7 +1019,7 @@ export function MatchmakingPage() {
 
                     {/* Stats row */}
                     <div className="mx-auto mt-6 max-w-md">
-                      <ArenaStats />
+                      <ArenaStats stats={arenaStats} loading={arenaStatsLoading} />
                     </div>
 
                     {/* Rematch button */}

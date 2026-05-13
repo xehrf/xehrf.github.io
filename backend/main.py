@@ -28,6 +28,7 @@ from app.matchmaking import service as mm_service
 from app.matchmaking.ws import manager as matchmaking_manager
 from app.payments.router import router as payments_router
 from app.rating.router import router as rating_router
+from app.stats.router import router as stats_router
 from app.submissions.router import router as submissions_router
 from app.team_matchmaking.router import router as team_matchmaking_router, team_router
 from app.tasks.router import router as tasks_router
@@ -197,6 +198,7 @@ app.include_router(team_matchmaking_router)
 app.include_router(team_router)
 app.include_router(submissions_router)
 app.include_router(rating_router)
+app.include_router(stats_router)
 app.include_router(payments_router)
 app.include_router(freelance_router)
 app.include_router(match_ws_router)

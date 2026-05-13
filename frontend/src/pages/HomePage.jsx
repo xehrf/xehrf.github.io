@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client.js";
+import { useArenaStats } from "../hooks/useArenaStats.js";
 
 // ============================================================
 // [1] HERO — первый экран
 // ============================================================
-function Hero() {
-  // Псевдо-live цифры (потом подменим на реальный запрос /stats)
-  const [stats] = useState({ matchesToday: 247, online: 1432 });
+function Hero({ stats, loading }) {
+  const online = stats?.online ?? 0;
+  const matchesToday = stats?.matches_today ?? 0;
+  const hasLiveOnline = !loading && stats != null && online > 0;
 
   return (
     <section className="relative overflow-hidden border-b border-border">
@@ -24,10 +26,18 @@ function Hero() {
           {/* Live-индикатор */}
           <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/5 px-4 py-1.5 text-xs font-medium text-accent">
             <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
+              {hasLiveOnline && (
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
+              )}
               <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
             </span>
-            {stats.online.toLocaleString("ru-RU")} джунов онлайн
+            {loading
+              ? "Загружаем арену..."
+              : hasLiveOnline
+                ? `${online.toLocaleString("ru-RU")} ${
+                    online === 1 ? "игрок онлайн" : "игроков онлайн"
+                  }`
+                : "Будь первым на арене"}
           </div>
 
           <h1 className="mt-6 text-4xl font-bold tracking-tight text-foreground sm:text-6xl md:text-7xl">
@@ -60,9 +70,9 @@ function Hero() {
 
           {/* Метрики */}
           <div className="mt-14 grid grid-cols-3 gap-4 sm:gap-8">
-            <Metric value={stats.matchesToday} label="матчей сегодня" />
+            <Metric value={matchesToday} label="матчей сегодня" loading={loading} />
             <Metric value="30" label="минут на матч" suffix="мин" />
-            <Metric value={stats.online} label="онлайн прямо сейчас" />
+            <Metric value={online} label="онлайн прямо сейчас" loading={loading} />
           </div>
         </div>
       </div>
@@ -70,12 +80,20 @@ function Hero() {
   );
 }
 
-function Metric({ value, label, suffix }) {
+function Metric({ value, label, suffix, loading }) {
   return (
     <div className="text-center">
       <div className="text-2xl font-bold text-accent sm:text-3xl">
-        {typeof value === "number" ? value.toLocaleString("ru-RU") : value}
-        {suffix ? <span className="ml-1 text-base text-muted">{suffix}</span> : null}
+        {loading ? (
+          <span className="inline-block h-6 w-12 animate-pulse rounded bg-accent/20" />
+        ) : typeof value === "number" ? (
+          value.toLocaleString("ru-RU")
+        ) : (
+          value
+        )}
+        {!loading && suffix ? (
+          <span className="ml-1 text-base text-muted">{suffix}</span>
+        ) : null}
       </div>
       <div className="mt-1 text-xs uppercase tracking-wider text-muted">{label}</div>
     </div>
@@ -463,7 +481,11 @@ const testimonials = [
   },
 ];
 
-function SocialProof() {
+function SocialProof({ stats }) {
+  const users = stats?.users_total ?? 0;
+  const matches = stats?.matches_total ?? 0;
+  const hasUsers = users > 0;
+
   return (
     <section className="border-b border-border bg-elevated/30 py-20 sm:py-24">
       <div className="mx-auto w-full max-w-6xl px-4">
@@ -472,10 +494,31 @@ function SocialProof() {
             Что говорят
           </p>
           <h2 className="mt-3 text-3xl font-bold text-foreground sm:text-4xl">
-            Уже играют{" "}
-            <span className="text-gradient-accent">1,432 джуна</span>
+            {hasUsers ? (
+              <>
+                Уже играют{" "}
+                <span className="text-gradient-accent">
+                  {users.toLocaleString("ru-RU")}{" "}
+                  {users === 1 ? "игрок" : users < 5 ? "игрока" : "игроков"}
+                </span>
+              </>
+            ) : (
+              <>
+                Стань <span className="text-gradient-accent">первым</span> на арене
+              </>
+            )}
           </h2>
-          <p className="mt-3 text-muted">12,847 матчей сыграно с момента запуска</p>
+          <p className="mt-3 text-muted">
+            {matches > 0
+              ? `${matches.toLocaleString("ru-RU")} ${
+                  matches === 1
+                    ? "матч сыгран"
+                    : matches < 5
+                      ? "матча сыграно"
+                      : "матчей сыграно"
+                } с момента запуска`
+              : "Открой счёт первым матчем"}
+          </p>
         </div>
 
         <div className="mt-12 grid gap-6 md:grid-cols-3">
@@ -637,14 +680,16 @@ function FinalCTA() {
 // Главная страница
 // ============================================================
 export function HomePage() {
+  const { stats, loading } = useArenaStats({ refreshMs: 30_000 });
+
   return (
     <div className="w-full">
-      <Hero />
+      <Hero stats={stats} loading={loading} />
       <DemoSection />
       <HowItWorks />
       <Benefits />
       <LeaderboardPreview />
-      <SocialProof />
+      <SocialProof stats={stats} />
       <FAQ />
       <FinalCTA />
     </div>
