@@ -49,6 +49,8 @@ function sortAnswerEvents(events) {
   });
 }
 
+const ROUND_RESULT_AUTO_ADVANCE_MS = 2500;
+
 export function resolveLocalAnswerSubmission({
   state,
   answerLedger,
@@ -306,6 +308,24 @@ export function useGameEngine({
     setGame(nextState);
     sendWS(outboundEvent.event, outboundEvent.data);
   }, [clearActiveTimer, isHost, resetRoundLedger, roundSeconds, sendWS]);
+
+  useEffect(() => {
+    if (!isHost || game.gameState !== "round_result" || !game.roundResult) {
+      return undefined;
+    }
+
+    const resultRoundIndex = game.roundResult.roundIndex;
+    const timeoutId = setTimeout(() => {
+      const snapshot = gameRef.current;
+      if (snapshot.gameState !== "round_result" || snapshot.roundResult?.roundIndex !== resultRoundIndex) {
+        return;
+      }
+
+      nextRound();
+    }, ROUND_RESULT_AUTO_ADVANCE_MS);
+
+    return () => clearTimeout(timeoutId);
+  }, [game.gameState, game.roundResult, isHost, nextRound]);
 
   useEffect(() => {
     if (game.gameState !== "countdown") {
