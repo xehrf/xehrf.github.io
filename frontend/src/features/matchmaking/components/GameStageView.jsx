@@ -34,7 +34,7 @@ function TimerRing({ timeLeft, total = ROUND_SECONDS }) {
 export function ScoreBar({ myScore, opponentScore, totalRounds, myName, opponentName }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="min-w-[60px] text-right">
+      <div className="min-w-[52px] text-right sm:min-w-[60px]">
         <div className="truncate text-xs text-white/50">{myName}</div>
         <div className="text-2xl font-black text-[#FFD600]">{myScore}</div>
       </div>
@@ -63,7 +63,7 @@ export function ScoreBar({ myScore, opponentScore, totalRounds, myName, opponent
           />
         </div>
       </div>
-      <div className="min-w-[60px]">
+      <div className="min-w-[52px] sm:min-w-[60px]">
         <div className="truncate text-xs text-white/50">{opponentName}</div>
         <div className="text-2xl font-black text-indigo-400">{opponentScore}</div>
       </div>
@@ -128,7 +128,7 @@ function GameWaiting({ opponentName, totalRounds, readinessState, onToggleReady 
         type="button"
         onClick={onToggleReady}
         disabled={!canToggleReady}
-        className="h-12 rounded-xl px-8 text-sm font-black tracking-wide transition-all hover:scale-105 active:scale-95"
+        className="h-12 w-full max-w-xs rounded-xl px-8 text-sm font-black tracking-wide transition-all hover:scale-105 active:scale-95"
         style={{
           background: ready ? "rgba(239,68,68,0.18)" : "#22c55e",
           color: ready ? "#fecaca" : "#07130b",
@@ -149,7 +149,7 @@ function GameCountdown({ countdown, readinessState, onToggleReady }) {
       <p className="text-sm uppercase tracking-widest text-white/50">Приготовьтесь...</p>
       <div
         key={countdown}
-        className="text-8xl font-black text-[#FFD600]"
+        className="text-7xl font-black text-[#FFD600] sm:text-8xl"
         style={{
           animation: "countdownPop 0.8s ease-out",
           textShadow: "0 0 40px rgba(255,214,0,0.7)",
@@ -165,7 +165,7 @@ function GameCountdown({ countdown, readinessState, onToggleReady }) {
         type="button"
         onClick={onToggleReady}
         disabled={!readinessState?.canToggleReady}
-        className="h-11 rounded-xl px-6 text-sm font-bold transition-all hover:scale-105 active:scale-95"
+        className="h-11 w-full max-w-xs rounded-xl px-6 text-sm font-bold transition-all hover:scale-105 active:scale-95"
         style={{
           background: "rgba(239,68,68,0.18)",
           color: "#fecaca",
@@ -199,9 +199,9 @@ function GamePlaying({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <RoundTypeBadge type={question.type} />
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3 sm:justify-start">
           {opponentAnswered && !myAnswer ? (
             <span className="animate-pulse text-xs text-indigo-400">⚡ Соперник ответил</span>
           ) : null}
@@ -240,7 +240,7 @@ function GamePlaying({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {question.options.map((option) => {
           const chosen = myAnswer === option;
 
@@ -319,12 +319,12 @@ function GameFinished({ myScore, opponentScore, totalRounds, onPlayAgain, onSurr
         </p>
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex w-full max-w-sm flex-col gap-3 sm:flex-row">
         <button
           type="button"
           onClick={onPlayAgain}
           disabled={!canPlayAgain}
-          className="h-11 rounded-xl px-5 text-sm font-bold transition-all hover:scale-105"
+          className="h-11 flex-1 rounded-xl px-5 text-sm font-bold transition-all hover:scale-105"
           style={{ background: "#FFD600", color: "#111", opacity: canPlayAgain ? 1 : 0.55 }}
         >
           {canPlayAgain ? "🔄 Ещё раунд" : "⏳ Соперник выбирает"}
@@ -332,7 +332,7 @@ function GameFinished({ myScore, opponentScore, totalRounds, onPlayAgain, onSurr
         <button
           type="button"
           onClick={onSurrender}
-          className="h-11 rounded-xl border px-5 text-sm text-white/70 transition-colors hover:text-white"
+          className="h-11 flex-1 rounded-xl border px-5 text-sm text-white/70 transition-colors hover:text-white"
           style={{ borderColor: "rgba(255,214,0,0.2)", background: "transparent" }}
         >
           Выйти

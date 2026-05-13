@@ -35,14 +35,14 @@ export function TeamsPage() {
         </div>
         <LinkButton
           to="/team/create"
-          className="h-12 justify-center rounded-[12px] px-6 py-3 text-sm font-semibold"
+          className="h-12 w-full justify-center rounded-[12px] px-6 py-3 text-sm font-semibold sm:w-auto"
         >
           + Создать команду
         </LinkButton>
       </div>
 
       {/* Search */}
-      <div className="mb-6 flex gap-3">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -53,7 +53,7 @@ export function TeamsPage() {
         <button
           type="button"
           onClick={() => load(query)}
-          className="rounded-2xl bg-accent px-5 py-3 text-sm font-semibold text-black transition hover:bg-accent/90"
+          className="w-full rounded-2xl bg-accent px-5 py-3 text-sm font-semibold text-black transition hover:bg-accent/90 sm:w-auto"
         >
           Найти
         </button>

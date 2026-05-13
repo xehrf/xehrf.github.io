@@ -241,7 +241,7 @@ function ChatPanel({ messages, myUserId, onSend }) {
 
           return (
             <div key={`${message.user_id}-${index}-${message.text}`} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-              <div className="max-w-[82%] rounded-xl px-3 py-2 text-xs" style={{ background: mine ? "#FFD600" : "rgba(255,255,255,0.06)", color: mine ? "#111" : "#f8fafc" }}>
+              <div className="max-w-[88%] rounded-xl px-3 py-2 text-xs sm:max-w-[82%]" style={{ background: mine ? "#FFD600" : "rgba(255,255,255,0.06)", color: mine ? "#111" : "#f8fafc" }}>
                 <p className="mb-1 text-[10px] font-semibold opacity-80">{mine ? "вы" : message.display_name || message.nickname}</p>
                 <p>{message.text}</p>
               </div>
@@ -250,7 +250,7 @@ function ChatPanel({ messages, myUserId, onSend }) {
         })}
         <div ref={bottomRef} />
       </div>
-      <form onSubmit={handleSubmit} className="flex gap-2 border-t px-3 py-3" style={{ borderColor: "rgba(255,214,0,0.1)" }}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2 border-t px-3 py-3 sm:flex-row" style={{ borderColor: "rgba(255,214,0,0.1)" }}>
         <input
           value={text}
           onChange={(event) => setText(event.target.value)}
@@ -674,11 +674,11 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
               <span className="font-mono text-white">{formatCountdown(secondsRemaining)}</span>
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
             <button
               type="button"
               onClick={() => setShowChat((value) => !value)}
-              className="rounded-xl border px-4 py-2 text-sm text-white/70 transition-colors hover:text-white"
+              className="w-full rounded-xl border px-4 py-2 text-sm text-white/70 transition-colors hover:text-white sm:w-auto"
               style={{ borderColor: "rgba(255,214,0,0.2)", background: "transparent" }}
             >
               {showChat ? "🎮 Игра" : "💬 Чат"}
@@ -686,7 +686,7 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
             <button
               type="button"
               onClick={() => onNavigateTask(activeMatch.task_id)}
-              className="rounded-xl px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-85"
+              className="w-full rounded-xl px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-85 sm:w-auto"
               style={{ background: "rgba(255,214,0,0.15)", color: "#FFD600", border: "1px solid rgba(255,214,0,0.3)" }}
             >
               Задача
@@ -695,7 +695,7 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
               type="button"
               onClick={onSurrender}
               disabled={surrendering}
-              className="rounded-xl border px-4 py-2 text-sm text-white/50 transition-colors hover:text-white disabled:opacity-40"
+              className="w-full rounded-xl border px-4 py-2 text-sm text-white/50 transition-colors hover:text-white disabled:opacity-40 sm:w-auto"
               style={{ borderColor: "rgba(255,255,255,0.1)", background: "transparent" }}
             >
               Сдаться

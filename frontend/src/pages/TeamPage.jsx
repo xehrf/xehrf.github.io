@@ -306,14 +306,14 @@ export function TeamPage() {
           {team.task ? (
             <Link
               to={`/tasks/${team.task.task_id}/solve?team=1`}
-              className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-xl bg-accent px-3 py-2 text-xs font-bold text-black transition hover:bg-accent/90"
+              className="absolute left-4 right-4 top-4 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2 text-xs font-bold text-black transition hover:bg-accent/90 sm:left-auto sm:right-4"
             >
               ▶ Открыть задачу
             </Link>
           ) : null}
 
           {/* Bottom info */}
-          <div className="absolute bottom-0 left-0 right-0 flex items-end gap-4 p-4">
+          <div className="absolute bottom-0 left-0 right-0 flex flex-col items-start gap-3 p-4 sm:flex-row sm:items-end sm:gap-4">
             <div className="h-16 w-16 overflow-hidden rounded-2xl border-2 border-white/20 bg-elevated shadow-xl">
               {avatarUrl ? (
                 <img src={avatarUrl} alt={team.name} className="h-full w-full object-cover" />
@@ -396,7 +396,7 @@ export function TeamPage() {
           {isCaptain ? (
             <Card className="p-4">
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Пригласить игрока</h2>
-              <form onSubmit={handleInviteUser} className="flex gap-2">
+              <form onSubmit={handleInviteUser} className="flex flex-col gap-2 sm:flex-row">
                 <input
                   value={inviteeId}
                   onChange={(e) => setInviteeId(e.target.value)}
@@ -428,7 +428,7 @@ export function TeamPage() {
 
           {/* Task info bar */}
           <Card className="p-4">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs uppercase tracking-wider text-muted">Текущая задача</p>
                 <p className="mt-0.5 text-sm font-semibold text-foreground">
@@ -441,7 +441,7 @@ export function TeamPage() {
               {team.task ? (
                 <Link
                   to={`/tasks/${team.task.task_id}/solve?team=1`}
-                  className="rounded-xl bg-accent px-4 py-2 text-xs font-bold text-black transition hover:bg-accent/90"
+                  className="w-full rounded-xl bg-accent px-4 py-2 text-center text-xs font-bold text-black transition hover:bg-accent/90 sm:w-auto"
                 >
                   Решать →
                 </Link>
@@ -452,22 +452,24 @@ export function TeamPage() {
           {/* Tabs */}
           <Card className="flex-1 overflow-hidden p-0">
             {/* Tab bar */}
-            <div className="flex border-b border-border">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={[
-                    "flex-1 px-3 py-3 text-xs font-semibold transition",
-                    activeTab === tab.id
-                      ? "border-b-2 border-accent text-accent"
-                      : "text-muted hover:text-foreground",
-                  ].join(" ")}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            <div className="overflow-x-auto border-b border-border">
+              <div className="flex min-w-max">
+                {TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={[
+                      "min-w-[120px] whitespace-nowrap px-3 py-3 text-xs font-semibold transition sm:min-w-[132px]",
+                      activeTab === tab.id
+                        ? "border-b-2 border-accent text-accent"
+                        : "text-muted hover:text-foreground",
+                    ].join(" ")}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="p-4">
@@ -500,7 +502,7 @@ export function TeamPage() {
                     )}
                     <div ref={chatEndRef} />
                   </div>
-                  <form onSubmit={handleSendMessage} className="flex gap-2">
+                  <form onSubmit={handleSendMessage} className="flex flex-col gap-2 sm:flex-row">
                     <input
                       value={chatText}
                       onChange={(e) => setChatText(e.target.value)}
@@ -510,7 +512,7 @@ export function TeamPage() {
                     <button
                       type="submit"
                       disabled={!chatText.trim()}
-                      className="rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-black transition hover:bg-accent/90 disabled:opacity-40"
+                      className="w-full rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-black transition hover:bg-accent/90 disabled:opacity-40 sm:w-auto"
                     >
                       ↑
                     </button>
@@ -562,7 +564,7 @@ export function TeamPage() {
                   ) : (
                     <div className="space-y-2">
                       {teamHistory.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between rounded-xl border border-border bg-canvas px-4 py-3">
+                        <div key={item.id} className="flex flex-col gap-2 rounded-xl border border-border bg-canvas px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="flex items-center gap-3">
                             <span className={[
                               "rounded-lg px-2 py-1 text-xs font-bold",
@@ -628,7 +630,7 @@ export function TeamPage() {
                   {/* Avatar upload */}
                   <div>
                     <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Аватарка команды</p>
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
                       {/* Preview */}
                       <div
                         className="h-20 w-20 flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-elevated transition hover:border-accent/60"

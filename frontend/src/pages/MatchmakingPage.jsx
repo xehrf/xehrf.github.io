@@ -60,7 +60,7 @@ function SearchRadar({ state, queueSize, queuePosition }) {
   const slotsFilled = Math.min(queueSize, PARTY_SIZE);
 
   return (
-    <div className="relative mx-auto flex h-64 w-64 items-center justify-center sm:h-72 sm:w-72">
+    <div className="relative mx-auto flex h-60 w-60 items-center justify-center sm:h-72 sm:w-72">
       {/* Внешние кольца */}
       <div
         className={`absolute inset-0 rounded-full border-2 border-accent/20 ${
@@ -364,7 +364,7 @@ function ArenaStats({ stats, loading }) {
   }
 
   return (
-    <div className="grid grid-cols-3 gap-2 text-center">
+    <div className="grid grid-cols-1 gap-2 text-center sm:grid-cols-3">
       <div className="rounded-btn border border-border bg-elevated/50 px-2 py-2.5">
         <div className="font-mono text-lg font-bold text-accent">
           {renderValue(matchesToday != null ? matchesToday.toLocaleString("ru-RU") : "—")}
@@ -453,7 +453,7 @@ function PostMatchScreen({ result, myUserId, opponentSnapshot, onRematch, onNewM
           {reasonText}
         </p>
 
-        <div className="mt-6 flex items-center justify-center gap-8">
+        <div className="mt-6 flex flex-col items-center justify-center gap-4 text-center sm:flex-row sm:gap-8">
           <div>
             <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.4)" }}>
               Изменение PTS
@@ -468,7 +468,7 @@ function PostMatchScreen({ result, myUserId, opponentSnapshot, onRematch, onNewM
           </div>
           {streak >= 2 && (
             <>
-              <div className="h-12 w-px" style={{ background: "rgba(255,255,255,0.1)" }} />
+              <div className="h-px w-20 sm:h-12 sm:w-px" style={{ background: "rgba(255,255,255,0.1)" }} />
               <div>
                 <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.4)" }}>
                   Серия побед
@@ -486,7 +486,7 @@ function PostMatchScreen({ result, myUserId, opponentSnapshot, onRematch, onNewM
       {/* Opponent card */}
       {opponentSnapshot && (
         <div
-          className="flex items-center gap-4 rounded-2xl border p-4"
+          className="flex flex-col items-start gap-4 rounded-2xl border p-4 sm:flex-row sm:items-center"
           style={{ borderColor: "rgba(255,255,255,0.08)", background: "#111" }}
         >
           <div
@@ -941,7 +941,7 @@ export function MatchmakingPage() {
             {/* TEAM BANNER */}
             {teamCurrent ? (
               <Card className="mb-6 border-accent/30">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-[11px] uppercase tracking-wider text-accent">
                       Текущая команда
@@ -953,7 +953,7 @@ export function MatchmakingPage() {
                       Участников: {teamCurrent.members.length}
                     </p>
                   </div>
-                  <Button onClick={() => navigate("/team/current")}>
+                  <Button onClick={() => navigate("/team/current")} className="w-full sm:w-auto">
                     Открыть команду →
                   </Button>
                 </div>
@@ -986,7 +986,7 @@ export function MatchmakingPage() {
             ) : (
               <div className="grid gap-6 lg:grid-cols-[1fr,360px]">
                 {/* ЛЕВАЯ КОЛОНКА — главная: радар + кнопки */}
-                <Card className="relative overflow-hidden p-8">
+                <Card className="relative overflow-hidden p-5 sm:p-8">
                   {/* Decorative scan-lines */}
                   <div
                     className="pointer-events-none absolute inset-0 opacity-[0.03]"

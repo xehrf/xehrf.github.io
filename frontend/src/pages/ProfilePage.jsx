@@ -91,7 +91,7 @@ function AchievementGrid({ achievements }) {
           {earnedCount}/{achievements.length}
         </span>
       </div>
-      <div className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {achievements.map((a) => (
           <div
             key={a.id}
@@ -488,7 +488,7 @@ export function ProfilePage() {
               </div>
             </div>
 
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
               <Button
                 variant="secondary"
                 onClick={async () => {
@@ -502,11 +502,11 @@ export function ProfilePage() {
                   }
                 }}
                 disabled={generatingPdf}
-                className="flex-1 sm:flex-initial"
+                className="w-full sm:flex-initial"
               >
                 {generatingPdf ? "Генерируем..." : "⬇ Резюме PDF"}
               </Button>
-              <LinkButton to="/profile/edit" className="flex-1 sm:flex-initial">
+              <LinkButton to="/profile/edit" className="w-full sm:flex-initial">
                 Редактировать
               </LinkButton>
             </div>
@@ -565,7 +565,7 @@ export function ProfilePage() {
               {skillChips.map((s) => (
                 <li
                   key={s.key}
-                  className="flex items-center justify-between rounded-btn border border-border bg-elevated/40 px-3 py-2.5 transition-colors hover:border-accent/40"
+                  className="flex flex-col items-start gap-2 rounded-btn border border-border bg-elevated/40 px-3 py-2.5 transition-colors hover:border-accent/40 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-foreground">{s.label}</span>
@@ -614,7 +614,7 @@ export function ProfilePage() {
                 <li key={row.taskId}>
                   <Link
                     to={`/tasks/${row.taskId}/solve`}
-                    className="flex items-center justify-between rounded-btn border border-border bg-elevated/40 px-4 py-3 text-sm text-foreground transition-all hover:border-accent/40 hover:bg-elevated active:scale-[0.99]"
+                    className="flex flex-col items-start gap-2 rounded-btn border border-border bg-elevated/40 px-4 py-3 text-sm text-foreground transition-all hover:border-accent/40 hover:bg-elevated active:scale-[0.99] sm:flex-row sm:items-center sm:justify-between"
                   >
                     <span className="font-medium">{row.title}</span>
                     <span className="font-mono text-xs text-accent">✓</span>

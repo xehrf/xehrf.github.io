@@ -52,8 +52,8 @@ export function RegisterPage() {
         </div>
       </header>
 
-      <main className="relative z-10 flex flex-1 items-center justify-center px-4 py-12">
-        <Card className="w-full max-w-md border-border/80 p-8 shadow-glow sm:p-10">
+      <main className="relative z-10 flex flex-1 items-center justify-center px-4 py-8 sm:py-12">
+        <Card className="w-full max-w-md border-border/80 p-6 shadow-glow sm:p-10">
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Создайте аккаунт</h1>
             <p className="mt-2 text-sm text-muted">Зарегистрируйтесь, чтобы отправлять решения</p>
