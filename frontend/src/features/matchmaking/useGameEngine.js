@@ -108,6 +108,8 @@ export function useGameEngine({
   );
   const gameRef = useRef(game);
   const timerRef = useRef(null);
+  const autoAdvanceTimerRef = useRef(null);
+  const nextRoundRef = useRef(null);
   const roundStartRef = useRef(null);
   const answerLedgerRef = useRef({});
 
@@ -124,6 +126,11 @@ export function useGameEngine({
   const clearActiveTimer = useCallback(() => {
     clearInterval(timerRef.current);
     timerRef.current = null;
+  }, []);
+
+  const clearAutoAdvanceTimer = useCallback(() => {
+    clearTimeout(autoAdvanceTimerRef.current);
+    autoAdvanceTimerRef.current = null;
   }, []);
 
   const resetRoundLedger = useCallback(() => {
@@ -144,6 +151,25 @@ export function useGameEngine({
       );
     },
     [myUserId, wsRef],
+  );
+
+  const scheduleAutoAdvanceRound = useCallback(
+    (roundIndex) => {
+      if (!isHost) {
+        return;
+      }
+
+      clearAutoAdvanceTimer();
+      autoAdvanceTimerRef.current = setTimeout(() => {
+        const snapshot = gameRef.current;
+        if (snapshot.gameState !== "round_result" || snapshot.roundResult?.roundIndex !== roundIndex) {
+          return;
+        }
+
+        nextRoundRef.current?.();
+      }, ROUND_RESULT_AUTO_ADVANCE_MS);
+    },
+    [clearAutoAdvanceTimer, isHost],
   );
 
   const applyEventLocally = useCallback(
@@ -183,7 +209,8 @@ export function useGameEngine({
     clearActiveTimer();
     sendWS("game_round_result", payload);
     applyEventLocally("game_round_result", payload);
-  }, [applyEventLocally, clearActiveTimer, isHost, sendWS]);
+    scheduleAutoAdvanceRound(payload.roundIndex);
+  }, [applyEventLocally, clearActiveTimer, isHost, scheduleAutoAdvanceRound, sendWS]);
 
   const handleGameEvent = useCallback(
     (event, data) => {
@@ -191,6 +218,7 @@ export function useGameEngine({
 
       if (event === "game_start" || event === "game_start_cancelled") {
         clearActiveTimer();
+        clearAutoAdvanceTimer();
         resetRoundLedger();
         roundStartRef.current = null;
       }
@@ -212,17 +240,22 @@ export function useGameEngine({
       }
 
       if (event === "game_next_round") {
+        clearAutoAdvanceTimer();
         resetRoundLedger();
         roundStartRef.current = Date.now();
       }
 
       applyEventLocally(event, data);
 
+      if (event === "game_round_result") {
+        scheduleAutoAdvanceRound(data?.roundIndex);
+      }
+
       if (event === "game_answer_submitted") {
         maybeBroadcastRoundResult();
       }
     },
-    [applyEventLocally, clearActiveTimer, maybeBroadcastRoundResult, resetRoundLedger],
+    [applyEventLocally, clearActiveTimer, clearAutoAdvanceTimer, maybeBroadcastRoundResult, resetRoundLedger, scheduleAutoAdvanceRound],
   );
 
   const startGame = useCallback(() => {
@@ -231,6 +264,7 @@ export function useGameEngine({
     }
 
     clearActiveTimer();
+    clearAutoAdvanceTimer();
     resetRoundLedger();
     roundStartRef.current = null;
 
@@ -250,6 +284,7 @@ export function useGameEngine({
     myUserId,
     questionBank,
     random,
+    clearAutoAdvanceTimer,
     resetRoundLedger,
     sendWS,
     totalRounds,
@@ -291,6 +326,7 @@ export function useGameEngine({
       return;
     }
 
+    clearAutoAdvanceTimer();
     const { nextState, outboundEvent, isFinished } = resolveNextRound(gameRef.current, {
       roundSeconds,
     });
@@ -307,25 +343,9 @@ export function useGameEngine({
     gameRef.current = nextState;
     setGame(nextState);
     sendWS(outboundEvent.event, outboundEvent.data);
-  }, [clearActiveTimer, isHost, resetRoundLedger, roundSeconds, sendWS]);
+  }, [clearActiveTimer, clearAutoAdvanceTimer, isHost, resetRoundLedger, roundSeconds, sendWS]);
 
-  useEffect(() => {
-    if (!isHost || game.gameState !== "round_result" || !game.roundResult) {
-      return undefined;
-    }
-
-    const resultRoundIndex = game.roundResult.roundIndex;
-    const timeoutId = setTimeout(() => {
-      const snapshot = gameRef.current;
-      if (snapshot.gameState !== "round_result" || snapshot.roundResult?.roundIndex !== resultRoundIndex) {
-        return;
-      }
-
-      nextRound();
-    }, ROUND_RESULT_AUTO_ADVANCE_MS);
-
-    return () => clearTimeout(timeoutId);
-  }, [game.gameState, game.roundResult, isHost, nextRound]);
+  nextRoundRef.current = nextRound;
 
   useEffect(() => {
     if (game.gameState !== "countdown") {
