@@ -378,6 +378,59 @@ function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onT
   );
 }
 
+function PodiumStand({ player, place, height }) {
+  if (!player) {
+    return <div className={["rounded-btn border border-dashed border-border", height].join(" ")} />;
+  }
+  const avatar = resolveAssetUrl(player.avatar_url || "");
+  const name = player.display_name || player.nickname || "—";
+  const pts = player.pts_total ?? 0;
+  const medal = place === 1 ? "🥇" : place === 2 ? "🥈" : "🥉";
+  const isFirst = place === 1;
+
+  return (
+    <div className="flex flex-col items-center">
+      {/* Аватар */}
+      <div
+        className={[
+          "relative mb-2 overflow-hidden rounded-full border-2 transition-transform hover:scale-105",
+          isFirst ? "h-20 w-20 border-accent shadow-glow" : "h-16 w-16 border-border",
+        ].join(" ")}
+      >
+        {avatar ? (
+          <img src={avatar} alt={name} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-elevated text-2xl font-bold text-foreground">
+            {name[0]?.toUpperCase() || "?"}
+          </div>
+        )}
+        <div className="absolute -bottom-1 -right-1 text-2xl">{medal}</div>
+      </div>
+
+      {/* Имя и PTS */}
+      <div className="mb-2 max-w-full text-center">
+        <p className={["truncate font-semibold", isFirst ? "text-foreground" : "text-foreground/90"].join(" ")}>
+          {name}
+        </p>
+        <p className="font-mono text-xs text-accent">{formatNumber(pts)} PTS</p>
+      </div>
+
+      {/* Пьедестал */}
+      <div
+        className={[
+          "flex w-full items-start justify-center rounded-t-btn border border-b-0 pt-3 font-mono text-2xl font-bold transition-colors",
+          height,
+          isFirst
+            ? "border-accent/50 bg-accent/10 text-accent"
+            : "border-border bg-elevated text-muted",
+        ].join(" ")}
+      >
+        #{place}
+      </div>
+    </div>
+  );
+}
+
 export function LeaderboardContent({ embedded = false }) {
   const { user } = useAuth();
 
@@ -580,12 +633,19 @@ export function LeaderboardContent({ embedded = false }) {
     }
   }
 
+  const topThree = (leaderboard.items || []).slice(0, 3);
+
   return (
     <div className={embedded ? "space-y-4" : "mx-auto w-full max-w-[430px] space-y-4 px-4 py-6 md:max-w-6xl md:px-6 md:py-8"}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Рейтинг PvP</h1>
-          <p className="mt-1 text-sm text-muted">Таблица лидеров, график PTS и сравнение игроков.</p>
+          <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
+            🏆 Арена · сезон
+          </div>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            Рейтинг <span className="text-gradient-accent">PvP</span>
+          </h1>
+          <p className="mt-1 text-sm text-muted">Кто сильнее — решает арена. Попади в топ-100 и работодатели увидят твой профиль.</p>
         </div>
         {!embedded ? (
           <LinkButton to="/dashboard" variant="secondary" className="h-11 rounded-[12px] px-4 py-2 md:rounded-btn">
@@ -600,18 +660,36 @@ export function LeaderboardContent({ embedded = false }) {
 
       {!loading && !error ? (
         <>
+          {/* PODIUM — топ-3 на пьедестале */}
+          {topThree.length >= 3 ? (
+            <Card className="p-6">
+              <h2 className="mb-5 text-center text-xs font-semibold uppercase tracking-[0.2em] text-accent">
+                Лучшие из лучших
+              </h2>
+              <div className="grid grid-cols-3 items-end gap-3">
+                {/* 2-е место */}
+                <PodiumStand player={topThree[1]} place={2} height="h-28" />
+                {/* 1-е место */}
+                <PodiumStand player={topThree[0]} place={1} height="h-36" />
+                {/* 3-е место */}
+                <PodiumStand player={topThree[2]} place={3} height="h-20" />
+              </div>
+            </Card>
+          ) : null}
+
+          {/* MY POSITION CARDS */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Card className="p-4">
-              <p className="text-xs uppercase tracking-wide text-muted">Место</p>
-              <p className="mt-1 text-2xl font-semibold text-foreground">#{position?.rank ?? "-"}</p>
+              <p className="text-xs uppercase tracking-wide text-muted">Моё место</p>
+              <p className="mt-1 text-2xl font-bold text-accent">#{position?.rank ?? "-"}</p>
             </Card>
             <Card className="p-4">
               <p className="text-xs uppercase tracking-wide text-muted">Перцентиль</p>
-              <p className="mt-1 text-2xl font-semibold text-foreground">{formatPercent(position?.percentile || 0)}</p>
+              <p className="mt-1 text-2xl font-bold text-foreground">{formatPercent(position?.percentile || 0)}</p>
             </Card>
             <Card className="p-4">
               <p className="text-xs uppercase tracking-wide text-muted">PTS за период</p>
-              <p className="mt-1 text-2xl font-semibold text-foreground">{formatNumber(position?.pts_period || 0)}</p>
+              <p className="mt-1 text-2xl font-bold text-foreground">{formatNumber(position?.pts_period || 0)}</p>
             </Card>
           </div>
 

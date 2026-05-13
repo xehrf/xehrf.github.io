@@ -3,7 +3,213 @@ import { Link } from "react-router-dom";
 import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
-import { generateResumePDF } from "../features/profile/resumePdf.js";
+import { jsPDF } from "jspdf";
+import * as html2canvasModule from "html2canvas";
+
+async function generateResumePDF(profile, completedTasks, skillChips) {
+
+  const avatarUrl = resolveAssetUrl(profile.avatar_url || "");
+  const now = new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" });
+
+  // Build HTML string for the resume
+  const html = `
+    <div style="
+      width: 794px;
+      min-height: 1123px;
+      background: #0f0f14;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #fff;
+      position: relative;
+      box-sizing: border-box;
+    ">
+      <!-- Header -->
+      <div style="background: #191923; padding: 32px 40px 28px; position: relative; border-bottom: 3px solid #FFD600;">
+        <div style="position: absolute; top: 20px; right: 40px; text-align: right;">
+          <div style="color: #FFD600; font-size: 14px; font-weight: 700; letter-spacing: 1px;">CodeArena</div>
+          <div style="color: #888; font-size: 11px; margin-top: 2px;">Player Resume</div>
+          <div style="color: #666; font-size: 10px; margin-top: 4px;">Сформировано: ${now}</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 24px;">
+          <div style="
+            width: 90px; height: 90px; border-radius: 50%;
+            border: 3px solid #FFD600;
+            overflow: hidden; flex-shrink: 0;
+            background: #2a2a35;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 36px; font-weight: 700; color: #FFD600;
+          ">
+            ${avatarUrl
+              ? `<img src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover;" crossorigin="anonymous" />`
+              : (profile.nickname || profile.display_name || "?")[0].toUpperCase()
+            }
+          </div>
+          <div>
+            <div style="font-size: 30px; font-weight: 700; color: #fff; line-height: 1.1;">
+              ${profile.nickname || profile.display_name || "Unknown"}
+            </div>
+            <div style="font-size: 13px; color: #aaa; margin-top: 4px;">
+              @${profile.nickname || profile.display_name}
+            </div>
+            <div style="
+              display: inline-block;
+              background: #FFD600; color: #111;
+              font-size: 10px; font-weight: 700;
+              letter-spacing: 1px; text-transform: uppercase;
+              padding: 4px 14px; border-radius: 20px; margin-top: 10px;
+            ">${profile.level || "beginner"}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding: 28px 40px;">
+
+        <!-- Stats -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px;">
+          ${[
+            { label: "PTS", value: profile.pts ?? 0 },
+            { label: "Задач решено", value: completedTasks.length },
+            { label: "Навыков", value: skillChips.filter(s => s.type === "skill").length },
+            { label: "Уровень", value: profile.level || "beginner" },
+          ].map(s => `
+            <div style="background: #1e1e2a; border-radius: 12px; padding: 16px; text-align: center; border: 1px solid #2a2a3a;">
+              <div style="font-size: 24px; font-weight: 700; color: #FFD600;">${s.value}</div>
+              <div style="font-size: 11px; color: #888; margin-top: 4px;">${s.label}</div>
+            </div>
+          `).join("")}
+        </div>
+
+        ${profile.bio ? `
+        <!-- Bio -->
+        <div style="margin-bottom: 28px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <div style="width: 4px; height: 18px; background: #FFD600; border-radius: 2px;"></div>
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #fff; text-transform: uppercase;">О себе</div>
+            <div style="flex: 1; height: 1px; background: #2a2a3a;"></div>
+          </div>
+          <div style="background: #191923; border-radius: 10px; padding: 14px 18px; font-size: 13px; color: #ccc; line-height: 1.7; border: 1px solid #2a2a3a;">
+            ${profile.bio}
+          </div>
+        </div>
+        ` : ""}
+
+        ${skillChips.length > 0 ? `
+        <!-- Skills -->
+        <div style="margin-bottom: 28px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <div style="width: 4px; height: 18px; background: #FFD600; border-radius: 2px;"></div>
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #fff; text-transform: uppercase;">Навыки и роль</div>
+            <div style="flex: 1; height: 1px; background: #2a2a3a;"></div>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            ${skillChips.map(s => `
+              <div style="
+                padding: 6px 14px; border-radius: 20px;
+                background: ${s.type === "role" ? "rgba(99,102,241,0.2)" : "rgba(255,214,0,0.1)"};
+                border: 1px solid ${s.type === "role" ? "rgba(99,102,241,0.5)" : "rgba(255,214,0,0.3)"};
+                font-size: 12px; color: ${s.type === "role" ? "#a5b4fc" : "#FFD600"};
+                font-weight: ${s.type === "role" ? "700" : "400"};
+              ">
+                ${s.label}${s.type === "skill" ? ` <span style="opacity:0.6; font-size:11px;">${s.proficiency}/5</span>` : " <span style='font-size:10px;opacity:0.7;'>РОЛЬ</span>"}
+              </div>
+            `).join("")}
+          </div>
+        </div>
+        ` : ""}
+
+        ${completedTasks.length > 0 ? `
+        <!-- Tasks -->
+        <div>
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <div style="width: 4px; height: 18px; background: #FFD600; border-radius: 2px;"></div>
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #fff; text-transform: uppercase;">Выполненные задачи</div>
+            <div style="flex: 1; height: 1px; background: #2a2a3a;"></div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            ${completedTasks.map((task, i) => `
+              <div style="
+                display: flex; align-items: center; justify-content: space-between;
+                padding: 10px 14px; border-radius: 8px;
+                background: ${i % 2 === 0 ? "#191923" : "transparent"};
+                border: 1px solid ${i % 2 === 0 ? "#2a2a3a" : "transparent"};
+              ">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <div style="
+                    width: 20px; height: 20px; border-radius: 50%;
+                    background: #4ade80;
+                    display: flex; align-items: center; justify-content: center;
+                    font-size: 11px; font-weight: 700; color: #111; flex-shrink: 0;
+                  ">✓</div>
+                  <div style="font-size: 13px; color: #e5e5e5;">${task.title}</div>
+                </div>
+                <div style="font-size: 11px; color: #555; flex-shrink: 0;">#${task.taskId}</div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+        ` : ""}
+
+      </div>
+
+      <!-- Footer -->
+      <div style="
+        position: absolute; bottom: 0; left: 0; right: 0;
+        background: #191923; border-top: 2px solid #FFD600;
+        padding: 12px 40px; display: flex; justify-content: space-between; align-items: center;
+      ">
+        <div style="font-size: 10px; color: #666;">CodeArena — платформа для разработчиков</div>
+        <div style="font-size: 10px; color: #FFD600;">xehrf-github-io.vercel.app</div>
+      </div>
+    </div>
+  `;
+
+  // Render HTML to canvas
+  const container = document.createElement("div");
+  container.style.cssText = "position:absolute;left:0;top:0;z-index:-9999;opacity:0;pointer-events:none;width:794px;";
+  container.innerHTML = html;
+  document.body.appendChild(container);
+
+  try {
+    await new Promise(r => setTimeout(r, 300));
+    const h2c = html2canvasModule.default ?? html2canvasModule;
+    const canvas = await h2c(container.firstElementChild, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: "#0f0f14",
+      logging: false,
+      windowWidth: 794,
+    });
+
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pdfW = 210;
+    const pdfH = (canvas.height * pdfW) / canvas.width;
+
+    if (pdfH <= 297) {
+      pdf.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
+    } else {
+      // Multi-page
+      const pageH = 297;
+      const ratio = canvas.width / pdfW;
+      let srcY = 0;
+      while (srcY < canvas.height) {
+        const srcH = Math.min(pageH * ratio, canvas.height - srcY);
+        const pageCanvas = document.createElement("canvas");
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = srcH;
+        pageCanvas.getContext("2d").drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+        pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", 0, 0, pdfW, srcH / ratio);
+        srcY += srcH;
+        if (srcY < canvas.height) pdf.addPage();
+      }
+    }
+
+    const filename = `resume_${(profile.nickname || profile.display_name || "user").replace(/\s+/g, "_")}.pdf`;
+    pdf.save(filename);
+  } finally {
+    document.body.removeChild(container);
+  }
+}
 
 export function ProfilePage() {
   const [profile, setProfile] = useState(null);

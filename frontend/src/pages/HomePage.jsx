@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
+import { apiFetch, resolveAssetUrl } from "../api/client.js";
 
 // ============================================================
 // [1] HERO — первый экран
@@ -305,59 +306,129 @@ function Benefits() {
 }
 
 // ============================================================
-// [5] LEADERBOARD PREVIEW
+// [5] LEADERBOARD PREVIEW — реальные данные с fallback
 // ============================================================
-const fakeLeaderboard = [
-  { rank: 1, name: "deadcode_master", pts: 2847, badge: "🥇" },
-  { rank: 2, name: "vovan_da_juice", pts: 2712, badge: "🥈" },
-  { rank: 3, name: "анонимус_42", pts: 2598, badge: "🥉" },
-  { rank: 4, name: "leetcode_killer", pts: 2401, badge: null },
-  { rank: 5, name: "junior_no_more", pts: 2356, badge: null },
-  { rank: 6, name: "fastfingers", pts: 2298, badge: null },
-  { rank: 7, name: "py_god", pts: 2245, badge: null },
-  { rank: 8, name: "code_wolverine", pts: 2210, badge: null },
-  { rank: 9, name: "midnight_dev", pts: 2189, badge: null },
-  { rank: 10, name: "alex_strong", pts: 2150, badge: null },
+const fallbackLeaderboard = [
+  { rank: 1, display_name: "deadcode_master", pts_total: 2847, avatar_url: null },
+  { rank: 2, display_name: "vovan_da_juice", pts_total: 2712, avatar_url: null },
+  { rank: 3, display_name: "анонимус_42", pts_total: 2598, avatar_url: null },
+  { rank: 4, display_name: "leetcode_killer", pts_total: 2401, avatar_url: null },
+  { rank: 5, display_name: "junior_no_more", pts_total: 2356, avatar_url: null },
+  { rank: 6, display_name: "fastfingers", pts_total: 2298, avatar_url: null },
+  { rank: 7, display_name: "py_god", pts_total: 2245, avatar_url: null },
+  { rank: 8, display_name: "code_wolverine", pts_total: 2210, avatar_url: null },
+  { rank: 9, display_name: "midnight_dev", pts_total: 2189, avatar_url: null },
+  { rank: 10, display_name: "alex_strong", pts_total: 2150, avatar_url: null },
 ];
 
+function rankBadge(rank) {
+  if (rank === 1) return "🥇";
+  if (rank === 2) return "🥈";
+  if (rank === 3) return "🥉";
+  return null;
+}
+
 function LeaderboardPreview() {
+  const [items, setItems] = useState(fallbackLeaderboard);
+  const [isLive, setIsLive] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await apiFetch("/rating/leaderboard?period=all_time&limit=10");
+        if (!mounted) return;
+        const rows = (data?.items || []).slice(0, 10);
+        if (rows.length > 0) {
+          setItems(rows);
+          setIsLive(true);
+        }
+      } catch {
+        // Не авторизован или backend недоступен — оставляем демо-данные
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <section className="border-b border-border py-20 sm:py-24">
       <div className="mx-auto w-full max-w-4xl px-4">
         <div className="text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">
-            Live leaderboard
-          </p>
-          <h2 className="mt-3 text-3xl font-bold text-foreground sm:text-4xl">
-            Топ-10 этой недели
+          <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/5 px-3 py-1 text-xs font-medium text-accent">
+            {isLive ? (
+              <>
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+                </span>
+                Live leaderboard
+              </>
+            ) : (
+              <>Превью рейтинга</>
+            )}
+          </div>
+          <h2 className="mt-4 text-3xl font-bold text-foreground sm:text-4xl">
+            Топ-10 арены
           </h2>
-          <p className="mt-3 text-muted">Попадёшь сюда — про тебя узнают работодатели.</p>
+          <p className="mt-3 text-muted">
+            {isLive
+              ? "Реальные игроки прямо сейчас. Попадёшь сюда — работодатели заметят."
+              : "Войди, чтобы увидеть живой рейтинг и попасть в топ."}
+          </p>
         </div>
 
         <Card className="mt-10 p-0">
           <ul className="divide-y divide-border">
-            {fakeLeaderboard.map((p) => (
-              <li
-                key={p.rank}
-                className={`flex items-center justify-between px-5 py-3.5 transition-colors hover:bg-accent/5 ${
-                  p.rank <= 3 ? "bg-accent/[0.03]" : ""
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <span
-                    className={`w-8 text-center font-mono text-sm font-bold ${
-                      p.rank <= 3 ? "text-accent" : "text-muted"
-                    }`}
-                  >
-                    {p.badge || `#${p.rank}`}
+            {(loading ? fallbackLeaderboard : items).map((p, idx) => {
+              const rank = p.rank ?? idx + 1;
+              const name = p.display_name || p.nickname || "anonymous";
+              const pts = p.pts_total ?? 0;
+              const badge = rankBadge(rank);
+              const avatar = resolveAssetUrl(p.avatar_url || "");
+              return (
+                <li
+                  key={`${rank}-${name}`}
+                  className={`flex items-center justify-between px-5 py-3.5 transition-colors hover:bg-accent/5 ${
+                    rank <= 3 ? "bg-accent/[0.03]" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <span
+                      className={`w-8 text-center font-mono text-sm font-bold ${
+                        rank <= 3 ? "text-accent" : "text-muted"
+                      }`}
+                    >
+                      {badge || `#${rank}`}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 overflow-hidden rounded-full border border-border bg-elevated">
+                        {avatar ? (
+                          <img
+                            src={avatar}
+                            alt={name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-xs font-bold text-foreground">
+                            {name[0]?.toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <span className="font-medium text-foreground">{name}</span>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-accent">
+                    {Number(pts).toLocaleString("ru-RU")}{" "}
+                    <span className="text-xs text-muted">PTS</span>
                   </span>
-                  <span className="font-medium text-foreground">{p.name}</span>
-                </div>
-                <span className="font-mono font-bold text-accent">
-                  {p.pts.toLocaleString("ru-RU")} <span className="text-xs text-muted">PTS</span>
-                </span>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </Card>
 
