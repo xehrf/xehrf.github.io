@@ -96,6 +96,7 @@ class User(Base):
     nickname: Mapped[str] = mapped_column(String(100), nullable=False, server_default="")
     avatar_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     banner_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    bg_video_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     pts: Mapped[int] = mapped_column(Integer, default=0)
     level: Mapped[UserLevel] = mapped_column(Enum(UserLevel), default=UserLevel.beginner)

@@ -22,6 +22,7 @@ class ProfileOut(BaseModel):
     nickname: str
     avatar_url: str | None
     banner_url: str | None
+    bg_video_url: str | None
     bio: str | None
     pts: int
     level: str
