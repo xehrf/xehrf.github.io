@@ -9,6 +9,98 @@ def seed_if_empty(db: Session) -> None:
     existing_by_title: dict[str, Task] = {t.title: t for t in db.query(Task).all()}
 
     seeds: list[dict] = [
+        # ===== PVP (match) =====
+        {
+            "title": "Максимум в списке",
+            "description": "Реализуйте функцию list_max(nums), которая возвращает максимальный элемент списка. Если список пустой, верните None.",
+            "difficulty": 1,
+            "time_limit_minutes": 30,
+            "task_type": TaskType.match,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "list_max",
+                "tests": [
+                    {"input": [[3, 1, 4, 1, 5, 9, 2, 6]], "expected": 9},
+                    {"input": [[-1, -5, -2]], "expected": -1},
+                    {"input": [[42]], "expected": 42},
+                    {"input": [[]], "expected": None},
+                ],
+            },
+            "starter_code": "def list_max(nums):\n    pass\n",
+        },
+        {
+            "title": "Подсчёт гласных",
+            "description": "Реализуйте функцию count_vowels(s), которая возвращает количество гласных букв (a, e, i, o, u) в строке s (без учёта регистра).",
+            "difficulty": 1,
+            "time_limit_minutes": 30,
+            "task_type": TaskType.match,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "count_vowels",
+                "tests": [
+                    {"input": ["hello"], "expected": 2},
+                    {"input": ["Python"], "expected": 1},
+                    {"input": ["AEIOU"], "expected": 5},
+                    {"input": ["xyz"], "expected": 0},
+                    {"input": [""], "expected": 0},
+                ],
+            },
+            "starter_code": "def count_vowels(s):\n    pass\n",
+        },
+        {
+            "title": "Палиндром",
+            "description": "Реализуйте функцию is_palindrome(s), которая возвращает True, если строка s является палиндромом (одинаково читается слева и справа), иначе False. Регистр не учитывается.",
+            "difficulty": 2,
+            "time_limit_minutes": 30,
+            "task_type": TaskType.match,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "is_palindrome",
+                "tests": [
+                    {"input": ["racecar"], "expected": True},
+                    {"input": ["hello"], "expected": False},
+                    {"input": ["Madam"], "expected": True},
+                    {"input": ["A"], "expected": True},
+                    {"input": [""], "expected": True},
+                ],
+            },
+            "starter_code": "def is_palindrome(s):\n    pass\n",
+        },
+        {
+            "title": "FizzBuzz",
+            "description": "Реализуйте функцию fizzbuzz(n): верните список строк от 1 до n, где кратные 3 заменяются на 'Fizz', кратные 5 — на 'Buzz', кратные 15 — на 'FizzBuzz'.",
+            "difficulty": 2,
+            "time_limit_minutes": 30,
+            "task_type": TaskType.match,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "fizzbuzz",
+                "tests": [
+                    {"input": [5], "expected": ["1", "2", "Fizz", "4", "Buzz"]},
+                    {"input": [15], "expected": ["1", "2", "Fizz", "4", "Buzz", "Fizz", "7", "8", "Fizz", "Buzz", "11", "Fizz", "13", "14", "FizzBuzz"]},
+                    {"input": [1], "expected": ["1"]},
+                ],
+            },
+            "starter_code": "def fizzbuzz(n):\n    pass\n",
+        },
+        {
+            "title": "Второй максимум",
+            "description": "Реализуйте функцию second_max(nums), которая возвращает второй по величине уникальный элемент списка. Если такого нет, верните None.",
+            "difficulty": 3,
+            "time_limit_minutes": 30,
+            "task_type": TaskType.match,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "second_max",
+                "tests": [
+                    {"input": [[3, 1, 4, 1, 5, 9, 2, 6]], "expected": 6},
+                    {"input": [[1, 1, 1]], "expected": None},
+                    {"input": [[5, 3]], "expected": 3},
+                    {"input": [[7]], "expected": None},
+                ],
+            },
+            "starter_code": "def second_max(nums):\n    pass\n",
+        },
         # ===== ЛЁГКИЕ (1) =====
         {
             "legacy_titles": ["Sum Two Numbers"],
@@ -908,7 +1000,7 @@ def seed_if_empty(db: Session) -> None:
                 Task(
                     title=seed["title"],
                     description=seed["description"],
-                    task_type=TaskType.solo,
+                    task_type=seed.get("task_type", TaskType.solo),
                     difficulty=seed["difficulty"],
                     time_limit_minutes=seed["time_limit_minutes"],
                     tests_json=seed["tests_json"],
@@ -918,15 +1010,15 @@ def seed_if_empty(db: Session) -> None:
             )
             continue
 
-        # Обновляем существующие сиды под новые требования: русские тексты + только solo.
+        seed_task_type = seed.get("task_type", TaskType.solo)
         if existing.title != seed["title"]:
             existing.title = seed["title"]
             changed = True
         if existing.description != seed["description"]:
             existing.description = seed["description"]
             changed = True
-        if existing.task_type != TaskType.solo:
-            existing.task_type = TaskType.solo
+        if existing.task_type != seed_task_type:
+            existing.task_type = seed_task_type
             changed = True
         if existing.difficulty != seed["difficulty"]:
             existing.difficulty = seed["difficulty"]

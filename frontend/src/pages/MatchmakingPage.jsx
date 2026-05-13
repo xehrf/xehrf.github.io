@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch, getWebSocketBaseUrl } from "../api/client.js";
 import { useAuth } from "../auth/AuthProvider.jsx";
@@ -370,6 +370,149 @@ function ArenaStats() {
 }
 
 // ============================================================
+// POST-MATCH SCREEN — экран результатов после боя
+// ============================================================
+function PostMatchScreen({ result, myUserId, opponentSnapshot, onRematch, onNewMatch, rematchLoading }) {
+  const iWon = result?.winner_user_id != null && isSameUserId(result.winner_user_id, myUserId);
+  const isDraw = !result?.winner_user_id;
+
+  const myPtsDelta = iWon
+    ? Number(result?.winner_pts_delta ?? 0)
+    : isDraw
+      ? 0
+      : Number(result?.loser_pts_delta ?? 0);
+
+  const streak = iWon ? Number(result?.winner_streak ?? 0) : 0;
+  const streakBonus = iWon ? Number(result?.winner_streak_bonus ?? 0) : 0;
+
+  const REASON_MAP = {
+    surrender: iWon ? "Соперник сдался" : "Вы сдались",
+    timeout: "Время вышло",
+    timeout_draw: "Ничья по времени",
+  };
+  const reasonText = REASON_MAP[result?.reason] ?? (iWon ? "Решение принято первым" : "Соперник решил быстрее");
+
+  const opponentName =
+    opponentSnapshot?.display_name ?? opponentSnapshot?.nickname ?? opponentSnapshot?.name ?? "Соперник";
+  const opponentPts = opponentSnapshot?.pts ?? null;
+  const oppInitial = opponentName[0]?.toUpperCase() ?? "?";
+
+  return (
+    <div className="mx-auto max-w-xl space-y-4">
+      {/* Result banner */}
+      <div
+        className="rounded-3xl border p-8 text-center"
+        style={{
+          borderColor: iWon
+            ? "rgba(255,214,0,0.4)"
+            : isDraw
+              ? "rgba(255,255,255,0.15)"
+              : "rgba(239,68,68,0.3)",
+          background: iWon
+            ? "rgba(255,214,0,0.07)"
+            : isDraw
+              ? "rgba(255,255,255,0.03)"
+              : "rgba(239,68,68,0.05)",
+        }}
+      >
+        <div className="text-5xl">{iWon ? "🏆" : isDraw ? "🤝" : "💀"}</div>
+        <h2
+          className="mt-3 text-3xl font-bold tracking-tight"
+          style={{
+            color: iWon ? "#FFD600" : isDraw ? "#E6EDF3" : "#f87171",
+            textShadow: iWon ? "0 0 32px rgba(255,214,0,0.4)" : "none",
+          }}
+        >
+          {iWon ? "ПОБЕДА" : isDraw ? "НИЧЬЯ" : "ПОРАЖЕНИЕ"}
+        </h2>
+        <p className="mt-1 text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+          {reasonText}
+        </p>
+
+        <div className="mt-6 flex items-center justify-center gap-8">
+          <div>
+            <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Изменение PTS
+            </p>
+            <p
+              className="mt-1 font-mono text-4xl font-bold"
+              style={{ color: myPtsDelta >= 0 ? "#22c55e" : "#f87171" }}
+            >
+              {myPtsDelta >= 0 ? "+" : ""}
+              {myPtsDelta}
+            </p>
+          </div>
+          {streak >= 2 && (
+            <>
+              <div className="h-12 w-px" style={{ background: "rgba(255,255,255,0.1)" }} />
+              <div>
+                <p className="text-xs uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  Серия побед
+                </p>
+                <p className="mt-1 text-2xl font-bold text-[#FFD600]">
+                  🔥 {streak}
+                  {streakBonus > 0 && <span className="ml-1 text-lg text-green-400">+{streakBonus}</span>}
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Opponent card */}
+      {opponentSnapshot && (
+        <div
+          className="flex items-center gap-4 rounded-2xl border p-4"
+          style={{ borderColor: "rgba(255,255,255,0.08)", background: "#111" }}
+        >
+          <div
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-lg font-bold"
+            style={{ background: "rgba(255,214,0,0.12)", color: "#FFD600" }}
+          >
+            {oppInitial}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Соперник
+            </p>
+            <p className="truncate font-semibold text-white">{opponentName}</p>
+            {opponentPts != null && (
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+                {opponentPts} PTS
+              </p>
+            )}
+          </div>
+          <div className="text-2xl">{iWon ? "😞" : isDraw ? "🤝" : "😎"}</div>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex flex-col gap-3">
+        {result?.match_id && (
+          <button
+            type="button"
+            onClick={onRematch}
+            disabled={rematchLoading}
+            className="h-12 rounded-xl text-sm font-semibold transition-opacity hover:opacity-85 disabled:opacity-50"
+            style={{ background: "#FFD600", color: "#111" }}
+          >
+            {rematchLoading ? "Запускаем..." : "⚡ Реванш"}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onNewMatch}
+          className="h-12 rounded-xl border text-sm font-medium text-white/80 transition-colors hover:text-white"
+          style={{ borderColor: "rgba(255,214,0,0.2)", background: "transparent" }}
+        >
+          Найти нового соперника
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // MAIN PAGE
 // ============================================================
 export function MatchmakingPage() {
@@ -379,6 +522,8 @@ export function MatchmakingPage() {
   const activeTab = searchParams.get("tab") === "leaderboard" ? "leaderboard" : "duel";
   const myUserId = user?.id ?? null;
   const [activeMatch, setActiveMatch] = useState(null);
+  const activeMatchRef = useRef(null);
+  const [opponentSnapshot, setOpponentSnapshot] = useState(null);
   const [queueInfo, setQueueInfo] = useState({
     queue_size: 0,
     queue_position: null,
@@ -397,6 +542,10 @@ export function MatchmakingPage() {
   const [surrendering, setSurrendering] = useState(false);
   const [showSurrenderModal, setShowSurrenderModal] = useState(false);
   const [surrenderModalError, setSurrenderModalError] = useState("");
+
+  useEffect(() => {
+    activeMatchRef.current = activeMatch;
+  }, [activeMatch]);
 
   const queueState = useMemo(() => {
     if (activeMatch) return "matched";
@@ -487,6 +636,7 @@ export function MatchmakingPage() {
       if (payload.event === "match_found" || payload.event === "active_match") {
         setActiveMatch((prev) => ({ ...(prev ?? {}), ...data }));
         setLastMatchResult(null);
+        setOpponentSnapshot(null);
         setSearching(false);
         setSurrendering(false);
         setShowSurrenderModal(false);
@@ -502,6 +652,12 @@ export function MatchmakingPage() {
       }
 
       if (payload.event === "match_finished") {
+        const cur = activeMatchRef.current;
+        const opp =
+          cur?.opponent ??
+          cur?.participants?.find((p) => !isSameUserId(p?.user_id, myUserId)) ??
+          null;
+        setOpponentSnapshot(opp);
         setLastMatchResult(data);
         setActiveMatch(null);
         setSearching(false);
@@ -606,6 +762,13 @@ export function MatchmakingPage() {
 
   async function confirmSurrenderFromModal() {
     if (!activeMatch || surrendering) return;
+
+    const opp =
+      activeMatch?.opponent ??
+      activeMatch?.participants?.find((p) => !isSameUserId(p?.user_id, myUserId)) ??
+      null;
+    setOpponentSnapshot(opp);
+
     setError("");
     setSurrenderModalError("");
     setSurrendering(true);
@@ -671,6 +834,7 @@ export function MatchmakingPage() {
         setActiveMatch(result);
         setSearching(false);
         setLastMatchResult(null);
+        setOpponentSnapshot(null);
         setStatusNote("Реванш начинается!");
         return;
       }
@@ -773,6 +937,21 @@ export function MatchmakingPage() {
                 onNavigateTask={(taskId) => navigate(`/tasks/${taskId}/solve`)}
                 onSurrender={requestSurrender}
                 surrendering={surrendering}
+              />
+            ) : lastMatchResult ? (
+              <PostMatchScreen
+                result={lastMatchResult}
+                myUserId={myUserId}
+                opponentSnapshot={opponentSnapshot}
+                onRematch={handleRematch}
+                onNewMatch={() => {
+                  setLastMatchResult(null);
+                  setOpponentSnapshot(null);
+                  setStatusNote(
+                    "Нажми «Найти матч» — алгоритм подберёт соперника твоего уровня."
+                  );
+                }}
+                rematchLoading={rematchLoading}
               />
             ) : (
               <div className="grid gap-6 lg:grid-cols-[1fr,360px]">
