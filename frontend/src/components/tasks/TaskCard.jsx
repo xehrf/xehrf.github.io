@@ -24,51 +24,74 @@ const difficultyColors = {
  * @param {() => void} [props.onSolve]
  * @param {string} [props.actionLabel]
  * @param {boolean} [props.showPts]
+ * @param {boolean} [props.solved] — Дополнительная отметка "уже решено".
  */
-export function TaskCard({ task, onSolve, actionLabel = "Решить", showPts = false }) {
+export function TaskCard({
+  task,
+  onSolve,
+  actionLabel = "Решить",
+  showPts = false,
+  solved = false,
+}) {
   const diffClass = difficultyColors[task.difficulty] ?? difficultyColors[2];
-  const taskTypeLabel =
-    task.task_type === "solo" ? "Solo" : task.task_type === "match" ? "Match" : task.task_type;
+  const reward = ptsForDifficulty(task.difficulty);
 
   return (
-    <Card className="group flex min-h-[220px] w-full flex-col rounded-[18px] border border-[#2B2B3C] bg-[#1E1E2E] p-4 shadow-[0_18px_36px_rgba(0,0,0,0.18)]">
-      <div className="flex min-h-[72px] items-start justify-between gap-3">
+    <Card
+      className={`group relative flex min-h-[220px] w-full flex-col overflow-hidden p-5 transition-all hover:-translate-y-0.5 hover:border-accent/40 ${
+        solved ? "border-accent/30 bg-accent/[0.03]" : ""
+      }`}
+    >
+      {/* Solved checkmark badge */}
+      {solved ? (
+        <div className="absolute right-3 top-3 inline-flex h-6 w-6 items-center justify-center rounded-full border border-accent/50 bg-accent/15 text-[11px] font-bold text-accent">
+          ✓
+        </div>
+      ) : null}
+
+      <div className="flex min-h-[72px] items-start justify-between gap-3 pr-8">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-3">
-            <h3 className="truncate text-lg font-semibold text-white transition-colors group-hover:text-[#FFD600]">
-              {task.title}
-            </h3>
-            <span
-              className={[
-                "rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]",
-                diffClass,
-              ].join(" ")}
-            >
-              {difficultyLabels[task.difficulty] ?? `Уровень ${task.difficulty}`}
-            </span>
-          </div>
-          {taskTypeLabel && (
-            <p className="mt-3 text-sm uppercase tracking-[0.18em] text-slate-400">{taskTypeLabel}</p>
-          )}
+          <h3 className="truncate text-lg font-semibold text-foreground transition-colors group-hover:text-accent">
+            {task.title}
+          </h3>
+          <span
+            className={[
+              "mt-2 inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+              diffClass,
+            ].join(" ")}
+          >
+            {difficultyLabels[task.difficulty] ?? `Уровень ${task.difficulty}`}
+          </span>
         </div>
       </div>
-      <div className="mt-4 flex flex-col border-t border-[#2B2B3C] pt-4">
-        <div className="text-sm text-slate-300">
-          Лимит:{" "}
-          <span className="font-semibold text-white tabular-nums">
-            {task.time_limit_minutes} мин
-          </span>
-          {showPts ? (
-            <>
-              <span className="mx-2 text-slate-500">·</span>
-              <span className="font-semibold tabular-nums text-white">+{ptsForDifficulty(task.difficulty)} PTS</span>
-            </>
-          ) : null}
+
+      <div className="mt-auto flex flex-col gap-3 border-t border-border/60 pt-4">
+        <div className="flex items-center justify-between text-xs text-muted">
+          <div className="flex items-center gap-3">
+            <span>
+              ⏱{" "}
+              <span className="font-mono text-foreground">
+                {task.time_limit_minutes}
+              </span>{" "}
+              мин
+            </span>
+            {showPts || true ? (
+              <>
+                <span className="text-border">·</span>
+                <span>
+                  💰{" "}
+                  <span className="font-mono font-bold text-accent">+{reward}</span>{" "}
+                  PTS
+                </span>
+              </>
+            ) : null}
+          </div>
         </div>
         <Button
           type="button"
           onClick={onSolve}
-          className="mt-4 w-full rounded-[16px] bg-[#FFD600] px-4 py-2 text-sm font-semibold text-black shadow-[0_10px_30px_rgba(255,214,0,0.3)] transition-colors duration-200 hover:bg-[#f9d400] md:w-auto"
+          variant={solved ? "secondary" : "primary"}
+          className="w-full"
         >
           {actionLabel}
         </Button>

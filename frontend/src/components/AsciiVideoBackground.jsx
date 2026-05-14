@@ -8,26 +8,26 @@ import { useEffect, useRef } from "react";
  * based on luminance and drawn in monospace on a full-screen canvas. The
  * raw video element is hidden — only the rendered characters are visible.
  *
- * Variants:
- *   variant="ascii"   → " .:-=+*#%@" gradient
- *   variant="digits"  → "0123456789" gradient (matrix-style numbers)
- *   variant="binary"  → "01" gradient
+ * Two-tone rendering: bright pixels (luminance >= split) are drawn with
+ * `colorLight` (white by default), darker ones with `colorDark` (accent
+ * yellow). This produces a sharper, more readable matrix look without
+ * having to sample two separate frames.
  *
  * Performance: scales render to a grid of ~`cellPx` blocks. On a 1080p screen
  * with cellPx=10 that's ~190x108 = 20k cells per frame. Frame budget is
  * roughly 4–6ms on a modern laptop. Cap at ~30fps to be friendly to mobile.
  */
-const CHAR_SETS = {
-  ascii: " .:-=+*#%@",
-  digits: " 0123456789",
-  binary: " 01",
-};
+
+// Combined gradient — sparse symbols at the dark end, denser glyphs +
+// digits near the bright end so highlights pick up Matrix-style numbers.
+const CHARS = " .,:;-=+*?#%@0123456789";
 
 export function AsciiVideoBackground({
   videoUrl,
-  variant = "digits",
   cellPx = 10,
-  color = "#FFD700",
+  colorDark = "#FFD700",
+  colorLight = "#FFFFFF",
+  splitLuminance = 0.55,
   background = "#0D1117",
   opacity = 1,
   fps = 30,
@@ -36,6 +36,10 @@ export function AsciiVideoBackground({
   // When false it fills its containing block so it can be embedded inside a
   // preview card or any other bounded layout.
   fullscreen = true,
+  // Legacy prop kept for backwards compatibility with older callers that
+  // used to pass variant="digits" / "binary" / "ascii". Ignored.
+  // eslint-disable-next-line no-unused-vars
+  variant,
 }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -58,11 +62,12 @@ export function AsciiVideoBackground({
     const sampler = samplerRef.current;
     const samplerCtx = sampler.getContext("2d", { willReadFrequently: true });
 
-    const chars = CHAR_SETS[variant] ?? CHAR_SETS.digits;
+    const chars = CHARS;
     const charsLastIdx = chars.length - 1;
     const cellWidth = Math.max(6, cellPx);
     const cellHeight = Math.max(6, Math.round(cellPx * 1.2));
     const frameInterval = Math.max(16, Math.floor(1000 / Math.max(10, fps)));
+    const clampedSplit = Math.min(0.95, Math.max(0.05, splitLuminance));
 
     let mounted = true;
     let rafId = 0;
@@ -122,9 +127,13 @@ export function AsciiVideoBackground({
 
       ctx.fillStyle = background;
       ctx.fillRect(0, 0, widthCss, heightCss);
-      ctx.fillStyle = color;
       ctx.font = `${cellHeight}px ui-monospace, "JetBrains Mono", monospace`;
       ctx.textBaseline = "top";
+
+      // Two passes — one per color — so we set fillStyle only twice per
+      // frame instead of once per cell. Marginally faster on large grids.
+      const lightCells = [];
+      const darkCells = [];
 
       for (let y = 0; y < rows; y++) {
         for (let x = 0; x < cols; x++) {
@@ -140,10 +149,26 @@ export function AsciiVideoBackground({
             Math.max(0, Math.round(lum * charsLastIdx))
           );
           const ch = chars[charIdx];
-          if (ch !== " ") {
-            ctx.fillText(ch, x * cellWidth, y * cellHeight);
+          if (ch === " ") continue;
+          const cell = { ch, px: x * cellWidth, py: y * cellHeight };
+          if (lum >= clampedSplit) {
+            lightCells.push(cell);
+          } else {
+            darkCells.push(cell);
           }
         }
+      }
+
+      ctx.fillStyle = colorDark;
+      for (let i = 0; i < darkCells.length; i++) {
+        const cell = darkCells[i];
+        ctx.fillText(cell.ch, cell.px, cell.py);
+      }
+
+      ctx.fillStyle = colorLight;
+      for (let i = 0; i < lightCells.length; i++) {
+        const cell = lightCells[i];
+        ctx.fillText(cell.ch, cell.px, cell.py);
       }
     }
 
@@ -169,7 +194,15 @@ export function AsciiVideoBackground({
         // ignore
       }
     };
-  }, [videoUrl, variant, cellPx, color, background, fps]);
+  }, [
+    videoUrl,
+    cellPx,
+    colorDark,
+    colorLight,
+    splitLuminance,
+    background,
+    fps,
+  ]);
 
   if (!videoUrl) return null;
 

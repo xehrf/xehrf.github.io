@@ -18,7 +18,7 @@ export function AppShell() {
   return (
     <div className="flex min-h-screen flex-col bg-canvas text-foreground">
       {bgVideoUrl ? (
-        <AsciiVideoBackground videoUrl={bgVideoUrl} variant="digits" opacity={0.3} />
+        <AsciiVideoBackground videoUrl={bgVideoUrl} opacity={0.3} />
       ) : null}
       <div className="hidden md:block">
         <Navbar user={user} />

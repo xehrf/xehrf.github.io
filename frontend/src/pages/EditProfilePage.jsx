@@ -11,11 +11,6 @@ const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
 const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 15 * 1024 * 1024;
-const BG_VARIANTS = [
-  { id: "digits", label: "Цифры 0–9" },
-  { id: "binary", label: "Бинарный код" },
-  { id: "ascii", label: "ASCII символы" },
-];
 
 function formatFileSize(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
@@ -44,11 +39,10 @@ function ConnectionBadge({ label, connected }) {
   );
 }
 
-function AsciiBackgroundPreview({ videoUrl, variant }) {
+function AsciiBackgroundPreview({ videoUrl }) {
   return (
     <AsciiVideoBackground
       videoUrl={videoUrl}
-      variant={variant}
       fullscreen={false}
       // Tighter cell size keeps the effect readable inside the small preview.
       cellPx={8}
@@ -64,7 +58,6 @@ export function EditProfilePage() {
   const [avatarFile, setAvatarFile] = useState(null);
   const [bannerFile, setBannerFile] = useState(null);
   const [bgVideoFile, setBgVideoFile] = useState(null);
-  const [bgVariant, setBgVariant] = useState("digits");
   const [bgUploading, setBgUploading] = useState(false);
   const [bgError, setBgError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -305,10 +298,7 @@ export function EditProfilePage() {
           <div className="relative mt-4 h-56 overflow-hidden rounded-2xl border border-border bg-canvas">
             {bgVideoPreview ? (
               <div className="absolute inset-0">
-                <AsciiBackgroundPreview
-                  videoUrl={bgVideoPreview}
-                  variant={bgVariant}
-                />
+                <AsciiBackgroundPreview videoUrl={bgVideoPreview} />
               </div>
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-muted">
@@ -317,7 +307,7 @@ export function EditProfilePage() {
             )}
           </div>
 
-          <div className="mt-5 grid gap-4 sm:grid-cols-[1fr,auto] sm:items-end">
+          <div className="mt-5">
             <label className="block text-sm font-medium text-foreground">
               Файл видео
               <input
@@ -326,20 +316,6 @@ export function EditProfilePage() {
                 onChange={handleBgVideoFile}
                 className="mt-2 w-full text-sm text-foreground"
               />
-            </label>
-            <label className="block text-sm font-medium text-foreground">
-              Стиль символов
-              <select
-                value={bgVariant}
-                onChange={(event) => setBgVariant(event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-border bg-canvas px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-accent"
-              >
-                {BG_VARIANTS.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.label}
-                  </option>
-                ))}
-              </select>
             </label>
           </div>
 
