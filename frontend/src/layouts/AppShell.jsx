@@ -23,12 +23,12 @@ export function AppShell() {
           opacity={0.24}
           cellPx={18}
           symbolScale={0.6}
-          densityScale={1.2}
+          densityScale={1}
           fps={12}
           variableSizing={false}
           renderDpr={1}
-          maxCols={112}
-          maxRows={62}
+          maxCols={104}
+          maxRows={58}
         />
       ) : null}
       <div className="relative z-10 hidden md:block">
