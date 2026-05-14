@@ -52,6 +52,43 @@ def test_evaluate_python_function_rejects_too_many_test_cases() -> None:
     assert "test case count exceeds" in result.message.lower()
 
 
+def test_evaluate_python_function_blocks_format_sandbox_escape() -> None:
+    """`.format()` can reach `__class__` at runtime via the format spec —
+    e.g. `"{0.__class__}".format(0)` — bypassing AST attribute checks. We
+    block the method outright so this regresses the moment someone tries."""
+    code = (
+        "def sum_two(a, b):\n"
+        "    leak = \"{0.__class__}\".format(a)\n"
+        "    return a + b\n"
+    )
+    result = evaluate_python_function(code, _tests_payload())
+    assert result.passed is False
+    assert "format" in result.message.lower()
+
+
+def test_evaluate_python_function_blocks_format_map_sandbox_escape() -> None:
+    code = (
+        "def sum_two(a, b):\n"
+        "    leak = \"{x.__class__}\".format_map({'x': a})\n"
+        "    return a + b\n"
+    )
+    result = evaluate_python_function(code, _tests_payload())
+    assert result.passed is False
+    assert "format_map" in result.message.lower()
+
+
+def test_evaluate_python_function_still_allows_fstrings() -> None:
+    """f-strings are AST-analyzable, so they remain allowed. Plain ones with
+    no dunder access should pass through fine."""
+    code = (
+        "def sum_two(a, b):\n"
+        "    label = f\"sum is {a + b}\"\n"
+        "    return a + b\n"
+    )
+    result = evaluate_python_function(code, _tests_payload())
+    assert result.passed is True
+
+
 def test_task_submit_body_rejects_oversized_code() -> None:
     with pytest.raises(ValidationError):
         TaskSubmitBody(code="x" * (MAX_CODE_SIZE_BYTES + 1))

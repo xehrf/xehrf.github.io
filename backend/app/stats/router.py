@@ -11,10 +11,11 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import distinct, func
 from sqlalchemy.orm import Session
 
+from app.core.limiter import limiter
 from app.core.redis_client import get_redis
 from app.db.models import Match, MatchParticipant, MatchStatus, User
 from app.db.session import get_db
@@ -180,11 +181,13 @@ def _average_pts_spread(db: Session) -> int | None:
 
 
 @router.get("/arena")
-def get_arena_stats(db: Session = Depends(get_db)) -> dict:
+@limiter.limit("60/minute")
+def get_arena_stats(request: Request, db: Session = Depends(get_db)) -> dict:
     """Public arena statistics for marketing surfaces.
 
     All numbers are real — derived from DB and Redis. Safe to call from the
-    landing page (no auth required).
+    landing page (no auth required). Rate-limited to 60/min per IP so the
+    endpoint can't be turned into a cheap DoS against Postgres aggregates.
     """
     try:
         online = _count_online_users(db)

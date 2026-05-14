@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, timezone
 
 import bcrypt as _bcrypt
@@ -5,6 +6,8 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 # passlib 1.7.4 accesses bcrypt.__about__.__version__; bcrypt 4.x removed __about__.
 if not hasattr(_bcrypt, "__about__"):
@@ -40,7 +43,7 @@ def decode_token(token: str) -> str | None:
             return None
         return str(sub)
     except JWTError as e:
-        print(f"[decode_token] JWTError: {type(e).__name__}: {e}")
+        logger.warning("decode_token JWTError: %s: %s", type(e).__name__, e)
         return None
 
 
@@ -59,5 +62,5 @@ def decode_oauth_state(token: str) -> dict[str, object] | None:
             return None
         return payload
     except JWTError as e:
-        print(f"[decode_oauth_state] JWTError: {type(e).__name__}: {e}")
+        logger.warning("decode_oauth_state JWTError: %s: %s", type(e).__name__, e)
         return None

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import redis
@@ -16,6 +17,19 @@ USER_QUEUE_KEY = "mm:user_queue:{user_id}"
 REMATCH_OFFER_KEY = "mm:rematch_offer:{match_id}:{user_id}"
 REMATCH_LOCK_KEY = "mm:rematch_lock:{match_id}"
 MATCH_ROUND_RESULTS_KEY = "mm:match_room:{match_id}:round_results"
+QUEUE_MATCH_LOCK_KEY = "mm:queue_match_lock"
+QUEUE_MATCH_LOCK_TTL = 10  # seconds — long enough to finish DB writes, short
+# enough that a crashed worker doesn't block matchmaking for long.
+
+# Lua script that releases the lock only if we still own it.  Direct
+# `r.delete(key)` would risk freeing someone else's lock if ours had expired.
+_RELEASE_LOCK_LUA = """
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return redis.call('DEL', KEYS[1])
+else
+    return 0
+end
+"""
 
 PVP_QUESTS: dict[str, list[dict[str, object]]] = {
     "daily": [
@@ -381,31 +395,57 @@ def _create_match(db: Session, user_ids: list[int], task: Task) -> Match:
 
 
 def try_queue_match(db: Session, r: redis.Redis, user: User) -> Match | None:
-    """Try to create a match for the caller and closest queued users by PTS."""
+    """Try to create a match for the caller and closest queued users by PTS.
+
+    Two-phase:
+      1. Always enqueue the caller (fast, no lock).
+      2. Acquire a global matchmaking lock and try to pair from the queue.
+
+    Without the lock, two simultaneous calls could each read the queue, pick
+    the same pair, and create two separate matches — a real data-corrupting
+    bug since both players would then have ambiguous "active" state.
+
+    If the lock is busy, the caller just stays enqueued; whoever holds the
+    lock will pair them, and a follow-up matchmaking pulse (or the polling
+    fallback on the client) will pick the new match up.
+    """
     party_size = 2
     leave_queue_if_present(r, user.id)
     key = _queue_key()
     r.rpush(key, str(user.id))
     r.set(_user_queue_key(user.id), "1", ex=3600)
 
-    user_ids = _select_party_users(db, r, user, party_size)
-    if user_ids is None:
+    lock_token = secrets.token_hex(8)
+    acquired = bool(r.set(QUEUE_MATCH_LOCK_KEY, lock_token, ex=QUEUE_MATCH_LOCK_TTL, nx=True))
+    if not acquired:
         return None
 
-    for uid in user_ids:
-        r.lrem(key, 1, str(uid))
+    try:
+        user_ids = _select_party_users(db, r, user, party_size)
+        if user_ids is None:
+            return None
 
-    task = _select_match_task(db, user_ids)
-    if task is None:
         for uid in user_ids:
-            r.rpush(key, str(uid))
-        for uid in user_ids:
-            r.set(_user_queue_key(uid), "1", ex=3600)
-        return None
+            r.lrem(key, 1, str(uid))
 
-    for uid in user_ids:
-        r.delete(_user_queue_key(uid))
-    return _create_match(db, user_ids, task)
+        task = _select_match_task(db, user_ids)
+        if task is None:
+            # Put everyone back so they can be picked up next round.
+            for uid in user_ids:
+                r.rpush(key, str(uid))
+            for uid in user_ids:
+                r.set(_user_queue_key(uid), "1", ex=3600)
+            return None
+
+        for uid in user_ids:
+            r.delete(_user_queue_key(uid))
+        return _create_match(db, user_ids, task)
+    finally:
+        try:
+            r.eval(_RELEASE_LOCK_LUA, 1, QUEUE_MATCH_LOCK_KEY, lock_token)
+        except Exception:
+            # Best-effort: the TTL will reap a stuck lock anyway.
+            pass
 
 
 def request_rematch(
