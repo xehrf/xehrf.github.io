@@ -9,97 +9,202 @@ def seed_if_empty(db: Session) -> None:
     existing_by_title: dict[str, Task] = {t.title: t for t in db.query(Task).all()}
 
     seeds: list[dict] = [
-        # ===== PVP (match) =====
+        # =====================================================================
+        # CODE RACE (match) — задачи специально для гонок 1v1.
+        #
+        # Дизайн-принципы:
+        #   - формулировка читается за 30 секунд, без юридических
+        #     "Дано… Требуется…"
+        #   - решение влезает в 10–15 строк (5–10 минут на код + дебаг)
+        #   - тесты покрывают основной кейс + один edge (пусто / single)
+        #   - стартовый код — голый шаблон, чтобы игроки не теряли время
+        #     на чтение наводок
+        #
+        # Все задачи имеют time_limit_minutes=10 (тугая гонка), task_type=match.
+        # =====================================================================
         {
-            "title": "Максимум в списке",
-            "description": "Реализуйте функцию list_max(nums), которая возвращает максимальный элемент списка. Если список пустой, верните None.",
+            "title": "Удвой числа",
+            "description": "double_all(nums): верни новый список, где каждый элемент умножен на 2. Не меняй исходный.",
             "difficulty": 1,
-            "time_limit_minutes": 30,
+            "time_limit_minutes": 10,
             "task_type": TaskType.match,
             "tests_json": {
                 "type": "python_function",
-                "function_name": "list_max",
+                "function_name": "double_all",
                 "tests": [
-                    {"input": [[3, 1, 4, 1, 5, 9, 2, 6]], "expected": 9},
-                    {"input": [[-1, -5, -2]], "expected": -1},
-                    {"input": [[42]], "expected": 42},
-                    {"input": [[]], "expected": None},
+                    {"input": [[1, 2, 3]], "expected": [2, 4, 6]},
+                    {"input": [[-5, 0, 5]], "expected": [-10, 0, 10]},
+                    {"input": [[]], "expected": []},
+                    {"input": [[7]], "expected": [14]},
                 ],
             },
-            "starter_code": "def list_max(nums):\n    pass\n",
+            "starter_code": "def double_all(nums):\n    pass\n",
         },
         {
-            "title": "Подсчёт гласных",
-            "description": "Реализуйте функцию count_vowels(s), которая возвращает количество гласных букв (a, e, i, o, u) в строке s (без учёта регистра).",
+            "title": "Реверс строки",
+            "description": "reverse_str(s): верни строку, прочитанную задом наперёд.",
             "difficulty": 1,
-            "time_limit_minutes": 30,
+            "time_limit_minutes": 10,
             "task_type": TaskType.match,
             "tests_json": {
                 "type": "python_function",
-                "function_name": "count_vowels",
+                "function_name": "reverse_str",
                 "tests": [
-                    {"input": ["hello"], "expected": 2},
-                    {"input": ["Python"], "expected": 1},
-                    {"input": ["AEIOU"], "expected": 5},
-                    {"input": ["xyz"], "expected": 0},
-                    {"input": [""], "expected": 0},
+                    {"input": ["hello"], "expected": "olleh"},
+                    {"input": ["a"], "expected": "a"},
+                    {"input": [""], "expected": ""},
+                    {"input": ["12345"], "expected": "54321"},
                 ],
             },
-            "starter_code": "def count_vowels(s):\n    pass\n",
+            "starter_code": "def reverse_str(s):\n    pass\n",
+        },
+        {
+            "title": "Сумма цифр",
+            "description": "sum_digits(n): верни сумму цифр положительного целого числа n. Для n=0 верни 0.",
+            "difficulty": 1,
+            "time_limit_minutes": 10,
+            "task_type": TaskType.match,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "sum_digits",
+                "tests": [
+                    {"input": [123], "expected": 6},
+                    {"input": [9999], "expected": 36},
+                    {"input": [0], "expected": 0},
+                    {"input": [10], "expected": 1},
+                ],
+            },
+            "starter_code": "def sum_digits(n):\n    pass\n",
         },
         {
             "title": "Палиндром",
-            "description": "Реализуйте функцию is_palindrome(s), которая возвращает True, если строка s является палиндромом (одинаково читается слева и справа), иначе False. Регистр не учитывается.",
+            "description": "is_palindrome(s): True, если строка читается одинаково слева направо и справа налево. Регистр игнорируй, пробелы оставь как есть.",
             "difficulty": 2,
-            "time_limit_minutes": 30,
+            "time_limit_minutes": 10,
             "task_type": TaskType.match,
             "tests_json": {
                 "type": "python_function",
                 "function_name": "is_palindrome",
                 "tests": [
                     {"input": ["racecar"], "expected": True},
-                    {"input": ["hello"], "expected": False},
+                    {"input": ["Hello"], "expected": False},
                     {"input": ["Madam"], "expected": True},
-                    {"input": ["A"], "expected": True},
                     {"input": [""], "expected": True},
+                    {"input": ["ab"], "expected": False},
                 ],
             },
             "starter_code": "def is_palindrome(s):\n    pass\n",
         },
         {
-            "title": "FizzBuzz",
-            "description": "Реализуйте функцию fizzbuzz(n): верните список строк от 1 до n, где кратные 3 заменяются на 'Fizz', кратные 5 — на 'Buzz', кратные 15 — на 'FizzBuzz'.",
+            "title": "Уникальные подсчёт",
+            "description": "count_unique(items): верни количество уникальных элементов в списке (порядок не важен).",
             "difficulty": 2,
-            "time_limit_minutes": 30,
+            "time_limit_minutes": 10,
             "task_type": TaskType.match,
             "tests_json": {
                 "type": "python_function",
-                "function_name": "fizzbuzz",
+                "function_name": "count_unique",
                 "tests": [
-                    {"input": [5], "expected": ["1", "2", "Fizz", "4", "Buzz"]},
-                    {"input": [15], "expected": ["1", "2", "Fizz", "4", "Buzz", "Fizz", "7", "8", "Fizz", "Buzz", "11", "Fizz", "13", "14", "FizzBuzz"]},
-                    {"input": [1], "expected": ["1"]},
+                    {"input": [[1, 2, 2, 3, 3, 3]], "expected": 3},
+                    {"input": [["a", "b", "a"]], "expected": 2},
+                    {"input": [[]], "expected": 0},
+                    {"input": [[5]], "expected": 1},
                 ],
             },
-            "starter_code": "def fizzbuzz(n):\n    pass\n",
+            "starter_code": "def count_unique(items):\n    pass\n",
         },
         {
-            "title": "Второй максимум",
-            "description": "Реализуйте функцию second_max(nums), которая возвращает второй по величине уникальный элемент списка. Если такого нет, верните None.",
-            "difficulty": 3,
-            "time_limit_minutes": 30,
+            "title": "Пропавшее число",
+            "description": "find_missing(nums): дан список различных чисел от 1 до N+1, в котором ровно одно число пропущено. Верни его. N >= 1.",
+            "difficulty": 2,
+            "time_limit_minutes": 10,
             "task_type": TaskType.match,
             "tests_json": {
                 "type": "python_function",
-                "function_name": "second_max",
+                "function_name": "find_missing",
                 "tests": [
-                    {"input": [[3, 1, 4, 1, 5, 9, 2, 6]], "expected": 6},
-                    {"input": [[1, 1, 1]], "expected": None},
-                    {"input": [[5, 3]], "expected": 3},
-                    {"input": [[7]], "expected": None},
+                    {"input": [[1, 2, 4, 5]], "expected": 3},
+                    {"input": [[2, 3, 4]], "expected": 1},
+                    {"input": [[1, 2, 3]], "expected": 4},
+                    {"input": [[1]], "expected": 2},
                 ],
             },
-            "starter_code": "def second_max(nums):\n    pass\n",
+            "starter_code": "def find_missing(nums):\n    pass\n",
+        },
+        {
+            "title": "Балансированные скобки",
+            "description": "is_balanced(s): True, если все скобки (), [], {} парные и правильно вложены. Любые другие символы можно игнорировать.",
+            "difficulty": 3,
+            "time_limit_minutes": 10,
+            "task_type": TaskType.match,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "is_balanced",
+                "tests": [
+                    {"input": ["()"], "expected": True},
+                    {"input": ["([{}])"], "expected": True},
+                    {"input": ["(]"], "expected": False},
+                    {"input": ["((()"], "expected": False},
+                    {"input": [""], "expected": True},
+                    {"input": ["a(b)c"], "expected": True},
+                ],
+            },
+            "starter_code": "def is_balanced(s):\n    pass\n",
+        },
+        {
+            "title": "Two Sum",
+            "description": "two_sum(nums, target): верни список из двух индексов [i, j] таких, что nums[i] + nums[j] == target и i < j. Гарантируется, что решение есть и оно единственное.",
+            "difficulty": 3,
+            "time_limit_minutes": 10,
+            "task_type": TaskType.match,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "two_sum",
+                "tests": [
+                    {"input": [[2, 7, 11, 15], 9], "expected": [0, 1]},
+                    {"input": [[3, 2, 4], 6], "expected": [1, 2]},
+                    {"input": [[-1, 0, 1], 0], "expected": [0, 2]},
+                ],
+            },
+            "starter_code": "def two_sum(nums, target):\n    pass\n",
+        },
+        {
+            "title": "Run-length encoding",
+            "description": "rle_compress(s): сожми строку, заменив подряд идущие одинаковые символы на символ+количество. 'aaabbc' → 'a3b2c1'. Для пустой строки верни ''.",
+            "difficulty": 3,
+            "time_limit_minutes": 10,
+            "task_type": TaskType.match,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "rle_compress",
+                "tests": [
+                    {"input": ["aaabbc"], "expected": "a3b2c1"},
+                    {"input": ["a"], "expected": "a1"},
+                    {"input": [""], "expected": ""},
+                    {"input": ["abc"], "expected": "a1b1c1"},
+                    {"input": ["zzz"], "expected": "z3"},
+                ],
+            },
+            "starter_code": "def rle_compress(s):\n    pass\n",
+        },
+        {
+            "title": "Анаграммы",
+            "description": "are_anagrams(a, b): True, если строки a и b — анаграммы (одинаковый набор символов с учётом количества). Регистр игнорируй.",
+            "difficulty": 2,
+            "time_limit_minutes": 10,
+            "task_type": TaskType.match,
+            "tests_json": {
+                "type": "python_function",
+                "function_name": "are_anagrams",
+                "tests": [
+                    {"input": ["listen", "silent"], "expected": True},
+                    {"input": ["Hello", "ohell"], "expected": True},
+                    {"input": ["abc", "ab"], "expected": False},
+                    {"input": ["aab", "abb"], "expected": False},
+                    {"input": ["", ""], "expected": True},
+                ],
+            },
+            "starter_code": "def are_anagrams(a, b):\n    pass\n",
         },
         # ===== ЛЁГКИЕ (1) =====
         {
@@ -1039,6 +1144,28 @@ def seed_if_empty(db: Session) -> None:
     if to_insert:
         db.add_all(to_insert)
         changed = True
+
+    # Cleanup: match-type задачи, которых больше нет в текущем seed, —
+    # выводим из обращения через is_published=False. Без этого старые
+    # задачки продолжали бы попадать в выборку Code Race / matchmaking.
+    match_seed_titles = {
+        s["title"]
+        for s in seeds
+        if s.get("task_type") == TaskType.match
+    }
+    if match_seed_titles:
+        stale_match_tasks = (
+            db.query(Task)
+            .filter(
+                Task.task_type == TaskType.match,
+                Task.is_published.is_(True),
+                ~Task.title.in_(match_seed_titles),
+            )
+            .all()
+        )
+        for stale in stale_match_tasks:
+            stale.is_published = False
+            changed = True
 
     if changed:
         db.commit()
