@@ -658,7 +658,7 @@ function FinalCTA() {
           </a>
           <span className="text-border">•</span>
           <a
-            href="https://discord.gg/codearena"
+            href="https://discord.gg/p9qcEqbe5"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-2 transition-colors hover:text-accent"
