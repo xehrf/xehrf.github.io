@@ -8,6 +8,12 @@ class OpponentInfo(BaseModel):
     pts: int
 
 
+class MatchmakingJoinRequest(BaseModel):
+    # Optional mode hint. Server normalizes unknown values to the default
+    # mode so older clients that don't send anything still work.
+    mode: str | None = None
+
+
 class MatchmakingJoinResponse(BaseModel):
     status: str
     match_id: int | None = None
@@ -17,6 +23,10 @@ class MatchmakingJoinResponse(BaseModel):
     queue_size: int | None = None
     queue_position: int | None = None
     message: str | None = None
+    # Echo the mode back so the client knows which matchmaking lane it landed
+    # in (useful when the client and server fall out of sync about which mode
+    # is the default).
+    mode: str | None = None
 
 
 class ActiveMatchResponse(BaseModel):

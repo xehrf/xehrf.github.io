@@ -70,8 +70,33 @@ PVP_QUESTS: dict[str, list[dict[str, object]]] = {
     ],
 }
 
-def _queue_key() -> str:
-    return QUEUE_KEY
+# Matchmaking modes. Kept as a small, ordered list so two players can only be
+# paired with someone playing the SAME mode (otherwise Code Race players
+# would get matched against Quiz Duel players, which is confusing).
+#
+# The backend doesn't otherwise care which mode a match was created in — the
+# distinction is purely a queue-segmentation concern. The frontend renders
+# different UI on top of the same match data.
+DEFAULT_MODE = "duel-1v1"
+ALLOWED_MODES = frozenset({"duel-1v1", "code-race"})
+
+
+def normalize_mode(value: str | None) -> str:
+    if value is None:
+        return DEFAULT_MODE
+    cleaned = str(value).strip().lower()
+    if cleaned in ALLOWED_MODES:
+        return cleaned
+    return DEFAULT_MODE
+
+
+def _queue_key(mode: str = DEFAULT_MODE) -> str:
+    # Mode-segmented Redis queue. The legacy "duel-1v1" queue keeps the bare
+    # `mm:queue` key so old in-flight queue entries from before the segregation
+    # remain reachable.
+    if mode == DEFAULT_MODE:
+        return QUEUE_KEY
+    return f"{QUEUE_KEY}:{mode}"
 
 
 def _user_queue_key(user_id: int) -> str:
@@ -255,8 +280,10 @@ def claim_pvp_quest(db: Session, r: redis.Redis, user: User, period: str, quest_
         "updated_pts": user.pts,
     }
 def leave_queue_if_present(r: redis.Redis, user_id: int) -> None:
-    """Remove user from matchmaking queue."""
-    r.lrem(_queue_key(), 0, str(user_id))
+    """Remove user from any matchmaking queue they may be in."""
+    # We don't know which queue the user is in, so clean all of them.
+    for mode in ALLOWED_MODES:
+        r.lrem(_queue_key(mode), 0, str(user_id))
     r.delete(_user_queue_key(user_id))
 
 
@@ -264,26 +291,44 @@ def is_user_in_queue(r: redis.Redis, user_id: int) -> bool:
     return bool(r.exists(_user_queue_key(user_id)))
 
 
-def queue_size(r: redis.Redis) -> int:
-    return int(r.llen(_queue_key()))
+def get_user_queue_mode(r: redis.Redis, user_id: int) -> str | None:
+    """Return the mode the user is currently queued for, or None if idle."""
+    raw = r.get(_user_queue_key(user_id))
+    return str(raw) if raw else None
 
 
-def queue_position(r: redis.Redis, user_id: int) -> int | None:
-    members = [int(raw) for raw in r.lrange(_queue_key(), 0, -1)]
+def queue_size(r: redis.Redis, mode: str = DEFAULT_MODE) -> int:
+    return int(r.llen(_queue_key(mode)))
+
+
+def queue_position(r: redis.Redis, user_id: int, mode: str = DEFAULT_MODE) -> int | None:
+    members = [int(raw) for raw in r.lrange(_queue_key(mode), 0, -1)]
     for idx, uid in enumerate(members, start=1):
         if uid == user_id:
             return idx
     return None
 
 
-def _select_party_users(db: Session, r: redis.Redis, anchor_user: User, size: int) -> list[int] | None:
-    queued = [int(raw) for raw in r.lrange(_queue_key(), 0, -1)]
+def _select_party_users(
+    db: Session,
+    r: redis.Redis,
+    anchor_user: User,
+    size: int,
+    mode: str = DEFAULT_MODE,
+) -> list[int] | None:
+    queued = [int(raw) for raw in r.lrange(_queue_key(mode), 0, -1)]
     seen: set[int] = set()
     ordered_unique: list[int] = []
     for uid in queued:
-        if uid not in seen and is_user_in_queue(r, uid):
-            ordered_unique.append(uid)
-            seen.add(uid)
+        # Only consider entries whose user-queue marker matches the requested
+        # mode — guards against stale entries from a previous mode session.
+        if uid in seen:
+            continue
+        stored_mode = r.get(_user_queue_key(uid))
+        if not stored_mode or str(stored_mode) != mode:
+            continue
+        ordered_unique.append(uid)
+        seen.add(uid)
     if len(ordered_unique) < size:
         return None
 
@@ -394,7 +439,7 @@ def _create_match(db: Session, user_ids: list[int], task: Task) -> Match:
     return match
 
 
-def try_queue_match(db: Session, r: redis.Redis, user: User) -> Match | None:
+def try_queue_match(db: Session, r: redis.Redis, user: User, mode: str = DEFAULT_MODE) -> Match | None:
     """Try to create a match for the caller and closest queued users by PTS.
 
     Two-phase:
@@ -408,12 +453,16 @@ def try_queue_match(db: Session, r: redis.Redis, user: User) -> Match | None:
     If the lock is busy, the caller just stays enqueued; whoever holds the
     lock will pair them, and a follow-up matchmaking pulse (or the polling
     fallback on the client) will pick the new match up.
+
+    The `mode` argument segments the queue: Code Race players can only be
+    paired with other Code Race players, not against Quiz Duel players.
     """
     party_size = 2
+    mode = normalize_mode(mode)
     leave_queue_if_present(r, user.id)
-    key = _queue_key()
+    key = _queue_key(mode)
     r.rpush(key, str(user.id))
-    r.set(_user_queue_key(user.id), "1", ex=3600)
+    r.set(_user_queue_key(user.id), mode, ex=3600)
 
     lock_token = secrets.token_hex(8)
     acquired = bool(r.set(QUEUE_MATCH_LOCK_KEY, lock_token, ex=QUEUE_MATCH_LOCK_TTL, nx=True))
@@ -421,7 +470,7 @@ def try_queue_match(db: Session, r: redis.Redis, user: User) -> Match | None:
         return None
 
     try:
-        user_ids = _select_party_users(db, r, user, party_size)
+        user_ids = _select_party_users(db, r, user, party_size, mode=mode)
         if user_ids is None:
             return None
 
@@ -434,7 +483,7 @@ def try_queue_match(db: Session, r: redis.Redis, user: User) -> Match | None:
             for uid in user_ids:
                 r.rpush(key, str(uid))
             for uid in user_ids:
-                r.set(_user_queue_key(uid), "1", ex=3600)
+                r.set(_user_queue_key(uid), mode, ex=3600)
             return None
 
         for uid in user_ids:

@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -8,12 +9,15 @@ from app.core.limiter import limiter
 from app.auth.deps import get_current_user
 from app.db.models import Match, MatchParticipant, MatchStatus, Submission, SubmissionStatus, Task, User
 from app.db.session import get_db
+from app.matchmaking import service as mm_service
+from app.matchmaking.ws import manager as matchmaking_manager
 from app.rating.pts import apply_pts_delta, level_from_pts
 from app.rating.service import add_rating_history
 from app.submissions import anti_cheat
 from app.submissions.evaluator import evaluate_python_function
 from app.submissions.schemas import SubmissionCreate, SubmissionOut, SubmissionResultOut
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
 
@@ -27,7 +31,7 @@ def _penalty_points(difficulty: int) -> int:
 
 @router.post("", response_model=SubmissionResultOut)
 @limiter.limit("30/minute")
-def submit(
+async def submit(
     request: Request,
     body: SubmissionCreate,
     user: User = Depends(get_current_user),
@@ -121,6 +125,45 @@ def submit(
     db.commit()
     db.refresh(sub)
     db.refresh(user)
+
+    # Code Race / match-mode finalize: if this submission was inside an active
+    # match and it passed, end the match RIGHT NOW with the submitter as
+    # winner. Without this, both players would have to wait for the match
+    # timer (often 30+ min) before learning who won. The check is gated on:
+    #   - the match still being active (no race against a previous finalize)
+    #   - this user's submission being the first passing one (the winner
+    #     resolver picks the earliest submission, so ties go to whoever
+    #     committed first)
+    if (
+        verdict.passed
+        and match is not None
+        and body.match_id is not None
+        and match.status in (MatchStatus.active, MatchStatus.pending)
+    ):
+        try:
+            db.refresh(match)
+            if match.status in (MatchStatus.active, MatchStatus.pending):
+                winner_user_id = mm_service.resolve_match_winner_from_submissions(db, match.id)
+                if winner_user_id is not None:
+                    finalize_result = mm_service.complete_match_with_winner(
+                        db, match, winner_user_id
+                    )
+                    if finalize_result is not None:
+                        participant_ids = [p.user_id for p in match.participants]
+                        payload = {
+                            "match_id": match.id,
+                            "status": "completed",
+                            "reason": "first_to_pass",
+                            **finalize_result,
+                        }
+                        for uid in participant_ids:
+                            await matchmaking_manager.send_event(uid, "match_finished", payload)
+        except Exception:
+            # Never let a finalize hiccup leak out and fail the submission
+            # response — the player's code did pass; finalization can be
+            # retried by the timeout sweeper.
+            logger.exception("Failed to immediately finalize match after passing submission")
+
     return SubmissionResultOut(
         submission_id=sub.id,
         task_id=sub.task_id,

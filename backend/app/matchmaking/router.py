@@ -9,7 +9,12 @@ from app.core.redis_client import get_redis
 from app.db.models import Match, MatchStatus, User
 from app.db.session import get_db
 from app.matchmaking import service as mm_service
-from app.matchmaking.schemas import ActiveMatchResponse, MatchmakingJoinResponse, RematchRequestIn
+from app.matchmaking.schemas import (
+    ActiveMatchResponse,
+    MatchmakingJoinRequest,
+    MatchmakingJoinResponse,
+    RematchRequestIn,
+)
 from app.matchmaking.ws import manager
 
 router = APIRouter(prefix="/matchmaking", tags=["matchmaking"])
@@ -36,7 +41,12 @@ def _match_found_payload(match: Match) -> dict[str, object]:
 
 
 @router.post("/queue", response_model=MatchmakingJoinResponse)
-async def join_queue(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MatchmakingJoinResponse:
+async def join_queue(
+    body: MatchmakingJoinRequest | None = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MatchmakingJoinResponse:
+    mode = mm_service.normalize_mode(body.mode if body else None)
     active = mm_service.get_active_match_for_user(db, user.id)
     if active:
         return MatchmakingJoinResponse(
@@ -46,13 +56,14 @@ async def join_queue(user: User = Depends(get_current_user), db: Session = Depen
             ends_at=active.ends_at.isoformat() if active.ends_at else None,
             opponent=_opponent_payload(db, active, user.id),
             message="Finish current match before queuing.",
+            mode=mode,
         )
 
     r = get_redis()
     try:
-        match = mm_service.try_queue_match(db, r, user)
-        q_size = mm_service.queue_size(r)
-        q_pos = mm_service.queue_position(r, user.id)
+        match = mm_service.try_queue_match(db, r, user, mode=mode)
+        q_size = mm_service.queue_size(r, mode=mode)
+        q_pos = mm_service.queue_position(r, user.id, mode=mode)
     finally:
         r.close()
 
@@ -60,7 +71,7 @@ async def join_queue(user: User = Depends(get_current_user), db: Session = Depen
         await manager.send_event(
             user.id,
             "queue_update",
-            {"queue_size": q_size, "queue_position": q_pos, "status": "queued", "total": 2},
+            {"queue_size": q_size, "queue_position": q_pos, "status": "queued", "total": 2, "mode": mode},
         )
 
         return MatchmakingJoinResponse(
@@ -68,11 +79,11 @@ async def join_queue(user: User = Depends(get_current_user), db: Session = Depen
             queue_size=q_size,
             queue_position=q_pos,
             message="Waiting for players with similar rating.",
+            mode=mode,
         )
 
     participant_ids = [p.user_id for p in match.participants]
 
-    # 🔥 FIX ЗДЕСЬ
     for uid in participant_ids:
         await manager.send_event(
             uid,
@@ -80,6 +91,7 @@ async def join_queue(user: User = Depends(get_current_user), db: Session = Depen
             {
                 **_match_found_payload(match),
                 "opponent": _opponent_payload(db, match, uid),
+                "mode": mode,
             },
         )
 
@@ -89,6 +101,7 @@ async def join_queue(user: User = Depends(get_current_user), db: Session = Depen
         task_id=match.task_id,
         ends_at=match.ends_at.isoformat() if match.ends_at else None,
         opponent=_opponent_payload(db, match, user.id),
+        mode=mode,
     )
 
 
