@@ -880,8 +880,8 @@ export function LeaderboardContent({ embedded = false }) {
                 return (
                   <div className="mt-5">
                     {/* Player headers */}
-                    <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_48px_1fr]">
-                      <div className={`order-1 rounded-2xl border p-4 ${leftWins ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-canvas"}`}>
+                    <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_48px_minmax(0,1fr)]">
+                      <div className={`order-1 min-w-0 rounded-2xl border p-4 sm:order-1 ${leftWins ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-canvas"}`}>
                         <p className="text-[11px] uppercase tracking-wider text-muted">Вы</p>
                         <p className="mt-1 truncate text-base font-bold text-foreground">{compareData.left.display_name}</p>
                         <p className="mt-1 text-2xl font-bold text-foreground">{formatNumber(leftPts)}</p>
@@ -889,11 +889,11 @@ export function LeaderboardContent({ embedded = false }) {
                         {leftWins && <p className="mt-2 text-xs font-semibold text-yellow-400">👑 Лидер</p>}
                       </div>
 
-                      <div className="order-2 flex items-center justify-center sm:order-none">
+                      <div className="order-2 flex items-center justify-center sm:order-2">
                         <span className="rounded-full bg-elevated px-2 py-1 text-xs font-bold text-muted">VS</span>
                       </div>
 
-                      <div className={`order-3 rounded-2xl border p-4 ${!leftWins ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-canvas"}`}>
+                      <div className={`order-3 min-w-0 rounded-2xl border p-4 sm:order-3 ${!leftWins ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-canvas"}`}>
                         <p className="text-[11px] uppercase tracking-wider text-muted">Соперник</p>
                         <p className="mt-1 truncate text-base font-bold text-foreground">{compareData.right.display_name}</p>
                         <p className="mt-1 text-2xl font-bold text-foreground">{formatNumber(rightPts)}</p>
