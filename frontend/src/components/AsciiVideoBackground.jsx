@@ -104,7 +104,9 @@ export function AsciiVideoBackground({
     let lastFrameAt = 0;
     let widthCss = 0;
     let heightCss = 0;
-    let cellWidth = Math.max(4, Math.round(baseFontSize * 0.62));
+    let sampleCellWidth = Math.max(4, Math.round(baseFontSize * 0.62));
+    let drawCellWidth = sampleCellWidth;
+    let drawCellHeight = cellHeight;
     let cols = 1;
     let rows = 1;
 
@@ -125,8 +127,8 @@ export function AsciiVideoBackground({
       ctx.textBaseline = "middle";
 
       const measuredCharWidth = ctx.measureText("8").width || baseFontSize * 0.62;
-      cellWidth = Math.max(4, Math.round(measuredCharWidth * 0.9));
-      cols = Math.max(1, Math.ceil(widthCss / cellWidth));
+      sampleCellWidth = Math.max(4, Math.round(measuredCharWidth * 0.9));
+      cols = Math.max(1, Math.ceil(widthCss / sampleCellWidth));
       rows = Math.max(1, Math.ceil(heightCss / cellHeight));
 
       if (Number.isFinite(effectiveMaxCols)) {
@@ -135,6 +137,9 @@ export function AsciiVideoBackground({
       if (Number.isFinite(effectiveMaxRows)) {
         rows = Math.min(rows, effectiveMaxRows);
       }
+
+      drawCellWidth = widthCss / cols;
+      drawCellHeight = heightCss / rows;
 
       sampler.width = cols;
       sampler.height = rows;
@@ -216,8 +221,8 @@ export function AsciiVideoBackground({
           }
           ctx.fillText(
             ch,
-            x * cellWidth + cellWidth / 2,
-            y * cellHeight + cellHeight / 2,
+            x * drawCellWidth + drawCellWidth / 2,
+            y * drawCellHeight + drawCellHeight / 2,
           );
         }
       }
