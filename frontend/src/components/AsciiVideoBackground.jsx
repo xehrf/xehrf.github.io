@@ -74,6 +74,7 @@ export function AsciiVideoBackground({
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const samplerRef = useRef(null);
+  const effectiveOpacity = clampNumber(Number(opacity) || 0, 0, 1);
 
   useEffect(() => {
     if (!videoUrl) return undefined;
@@ -95,8 +96,8 @@ export function AsciiVideoBackground({
 
     const chars = CHAR_SETS[variant] ?? CHAR_SETS.hybrid;
     const charsLastIdx = chars.length - 1;
-    const frameInterval = Math.max(16, Math.floor(1000 / Math.max(10, fps)));
-    const sampleFontSize = Math.max(7, Math.round(cellPx));
+    const frameInterval = Math.max(16, Math.floor(1000 / Math.max(10, Number(fps) || 0)));
+    const sampleFontSize = clampNumber(Math.round(Number(cellPx) || 10), 7, 28);
     const effectiveSymbolScale = clampNumber(Number(symbolScale) || 1, 0.35, 2.5);
     const effectiveDensityScale = clampNumber(Number(densityScale) || 1, 0.7, 1.8);
     const drawBaseFontSize = Math.max(6, Math.round(sampleFontSize * effectiveSymbolScale));
@@ -264,7 +265,7 @@ export function AsciiVideoBackground({
     : "pointer-events-none absolute inset-0 overflow-hidden";
 
   return (
-    <div className={`${positionClasses} ${className}`} style={{ opacity }} aria-hidden="true">
+    <div className={`${positionClasses} ${className}`} style={{ opacity: effectiveOpacity }} aria-hidden="true">
       <video
         ref={videoRef}
         src={videoUrl}

@@ -20,10 +20,10 @@ export function AppShell() {
       {bgVideoUrl ? (
         <AsciiVideoBackground
           videoUrl={bgVideoUrl}
-          opacity={1.24}
+          opacity={0.24}
           cellPx={18}
-          symbolScale={20}
-          densityScale={20}
+          symbolScale={0.6}
+          densityScale={1}
           fps={12}
           variableSizing={false}
           renderDpr={1}
