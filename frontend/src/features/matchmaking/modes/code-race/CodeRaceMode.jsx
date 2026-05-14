@@ -1,45 +1,22 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "../../../../components/ui/Button.jsx";
 import { Card } from "../../../../components/ui/Card.jsx";
 import { useMatchQueue } from "../../useMatchQueue.js";
+import { CodeRaceArena } from "./CodeRaceArena.jsx";
 
 /**
  * Code Race 1v1.
  *
- * Reuses `useMatchQueue` for queue+WS lifecycle so all the reconnect/poll
- * fallbacks come for free. Once a match is found, this mode does NOT host
- * its own arena UI — it shows a small "race in progress" panel with a
- * direct link to the editor, plus a banner whenever the match ends.
+ * Three rendered phases, picked from the shared `useMatchQueue` hook's
+ * `queueState` plus `lastMatchResult`:
  *
- * Backend already supports the "first passing submission wins" semantics:
- * /submissions immediately calls `complete_match_with_winner` after a
- * pass inside an active match, and broadcasts match_finished to both
- * players via the same WS we listen on here.
+ *   StartingGate — idle / searching. Hero "Найти соперника" button.
+ *   CodeRaceArena — matched. Full inline editor split-view. The arena also
+ *     consumes the `match_finished` event (via parent state) to show the
+ *     finish overlay so the player never has to refresh or guess who won.
+ *   RaceResult — after the arena overlay is dismissed. Compact card with
+ *     "Реванш / Новая гонка / К режимам" actions.
  */
-
-function formatCountdown(seconds) {
-  if (seconds == null || seconds < 0) return "--:--";
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-function useEndsAtCountdown(activeMatch) {
-  const [remaining, setRemaining] = useState(activeMatch?.seconds_remaining ?? null);
-  useEffect(() => {
-    if (!activeMatch?.ends_at) {
-      setRemaining(activeMatch?.seconds_remaining ?? null);
-      return undefined;
-    }
-    const deadline = new Date(activeMatch.ends_at).getTime();
-    const tick = () => setRemaining(Math.max(0, Math.floor((deadline - Date.now()) / 1000)));
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [activeMatch?.ends_at, activeMatch?.seconds_remaining]);
-  return remaining;
-}
 
 function StartingGate({ statusNote, searching, error, onFind, onLeave, queueInfo }) {
   return (
@@ -53,7 +30,7 @@ function StartingGate({ statusNote, searching, error, onFind, onLeave, queueInfo
           {searching ? "Ищем соперника..." : "Готов гнать?"}
         </h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted">
-          {statusNote || "Открывается одна задача. Первый, кто пройдёт все тесты, заберёт PTS."}
+          {statusNote || "Одна задача на двоих. Кто первым пройдёт все тесты — забирает PTS."}
         </p>
 
         <div className="mx-auto mt-6 grid max-w-md grid-cols-3 gap-2 text-xs text-muted">
@@ -66,8 +43,8 @@ function StartingGate({ statusNote, searching, error, onFind, onLeave, queueInfo
             <div className="text-[10px] uppercase tracking-wider">в очереди</div>
           </div>
           <div className="rounded-btn border border-border bg-elevated/50 px-2 py-2">
-            <div className="font-mono text-lg font-bold text-accent">first</div>
-            <div className="text-[10px] uppercase tracking-wider">to pass</div>
+            <div className="font-mono text-lg font-bold text-accent">10</div>
+            <div className="text-[10px] uppercase tracking-wider">мин на матч</div>
           </div>
         </div>
 
@@ -96,53 +73,13 @@ function StartingGate({ statusNote, searching, error, onFind, onLeave, queueInfo
             {error}
           </div>
         ) : null}
-      </div>
-    </Card>
-  );
-}
 
-function InRace({ activeMatch, onOpenTask }) {
-  const remaining = useEndsAtCountdown(activeMatch);
-  const opponent = activeMatch?.opponent ?? null;
-  const opponentName = opponent?.nickname || opponent?.display_name || "Соперник";
-  const timerCritical = remaining != null && remaining > 0 && remaining <= 30;
-
-  return (
-    <Card className="p-6 sm:p-8">
-      <div className="flex flex-col items-center text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-accent">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
-          </span>
-          Гонка в процессе
+        <div className="mx-auto mt-6 max-w-md rounded-btn border border-border/60 bg-elevated/30 px-4 py-3 text-left text-xs text-muted">
+          <p className="mb-1 font-semibold uppercase tracking-wider text-accent">Правила</p>
+          <p>• Задача появится после нахождения соперника.</p>
+          <p>• Жми «Запустить тесты» — на каждом проходе матч мгновенно завершается победой.</p>
+          <p>• Истёк таймер без победителя — ничья.</p>
         </div>
-        <h2 className="mt-4 text-3xl font-bold text-foreground sm:text-4xl">
-          🏁 Соперник найден
-        </h2>
-        <p className="mt-2 text-sm text-muted">
-          Против тебя: <span className="font-semibold text-foreground">{opponentName}</span>
-          {opponent?.pts != null ? <> · {opponent.pts} PTS</> : null}
-        </p>
-
-        <div className="mt-6">
-          <p className="text-[10px] uppercase tracking-wider text-muted">До конца матча</p>
-          <p
-            className={`mt-1 font-mono text-5xl font-bold tabular-nums ${
-              timerCritical ? "animate-pulse text-red-400" : "text-accent"
-            }`}
-          >
-            {formatCountdown(remaining)}
-          </p>
-        </div>
-
-        <Button onClick={onOpenTask} className="mt-6 min-w-[220px]">
-          📋 Открыть редактор задачи →
-        </Button>
-
-        <p className="mt-4 max-w-md text-xs leading-snug text-muted">
-          Первый, чьё решение пройдёт все тесты — забирает матч. Можно сдаться из редактора.
-        </p>
       </div>
     </Card>
   );
@@ -179,8 +116,11 @@ function RaceResult({ result, myUserId, onRace, onDismiss, rematchLoading, onRem
             ? iWon ? "Соперник сдался" : "Вы сдались"
             : "Время вышло"}
       </p>
-      <p className="mt-6 font-mono text-4xl font-bold" style={{ color: delta >= 0 ? "#22c55e" : "#f87171" }}>
-        {delta >= 0 ? "+" : ""}{delta} PTS
+      <p
+        className="mt-6 font-mono text-4xl font-bold"
+        style={{ color: delta > 0 ? "#22c55e" : delta < 0 ? "#f87171" : "#9ca3af" }}
+      >
+        {delta > 0 ? "+" : ""}{delta} PTS
       </p>
 
       <div className="mx-auto mt-6 flex max-w-sm flex-col gap-2 sm:flex-row">
@@ -197,7 +137,6 @@ function RaceResult({ result, myUserId, onRace, onDismiss, rematchLoading, onRem
 }
 
 export function CodeRaceMode({ user }) {
-  const navigate = useNavigate();
   const queue = useMatchQueue({ user, mode: "code-race" });
   const {
     activeMatch,
@@ -214,25 +153,61 @@ export function CodeRaceMode({ user }) {
     dismissResult,
   } = queue;
 
-  function openTask() {
-    if (!activeMatch?.task_id) return;
-    navigate(`/tasks/${activeMatch.task_id}/solve?match=${activeMatch.match_id}`);
+  // Track whether the user has acknowledged the in-arena finish overlay.
+  // While `overlayAcked` is false and we have a fresh result, the arena
+  // stays mounted on screen with the overlay on top — preserves context
+  // (you see your last code + the winner card). After the user clicks
+  // "Закрыть", we transition to the compact RaceResult screen.
+  const [overlayAcked, setOverlayAcked] = useState(false);
+  const lastMatchRef = useRef(null);
+
+  // Snapshot the active match the moment the WS event nulls it out, so we
+  // can keep the arena rendered for the overlay phase. Without this, the
+  // arena would unmount as soon as `activeMatch` flips to null.
+  if (activeMatch && lastMatchRef.current !== activeMatch) {
+    lastMatchRef.current = activeMatch;
   }
 
+  // New result arrived → reset the ack so the overlay re-appears.
+  useEffect(() => {
+    if (lastMatchResult) setOverlayAcked(false);
+  }, [lastMatchResult?.match_id]);
+
+  // Active match in progress.
   if (queueState === "matched") {
-    return <InRace activeMatch={activeMatch} onOpenTask={openTask} />;
+    return <CodeRaceArena activeMatch={activeMatch} myUserId={user?.id ?? null} finishedResult={null} />;
   }
 
+  // Match just ended and overlay hasn't been dismissed → keep the arena
+  // visible (read-only) with the finish overlay layered on top.
+  if (lastMatchResult && !overlayAcked && lastMatchRef.current) {
+    return (
+      <CodeRaceArena
+        activeMatch={lastMatchRef.current}
+        myUserId={user?.id ?? null}
+        finishedResult={lastMatchResult}
+        onAfterClose={() => setOverlayAcked(true)}
+      />
+    );
+  }
+
+  // Overlay acknowledged → compact result card with rematch / new race / exit.
   if (lastMatchResult) {
     return (
       <RaceResult
         result={lastMatchResult}
         myUserId={user?.id ?? null}
         onRace={() => {
+          lastMatchRef.current = null;
+          setOverlayAcked(false);
           dismissResult();
           findMatch();
         }}
-        onDismiss={dismissResult}
+        onDismiss={() => {
+          lastMatchRef.current = null;
+          setOverlayAcked(false);
+          dismissResult();
+        }}
         onRematch={handleRematch}
         rematchLoading={rematchLoading}
       />
