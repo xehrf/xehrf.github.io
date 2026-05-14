@@ -48,10 +48,44 @@ function useEndsAtCountdown(endsAtIso, secondsRemainingHint) {
   return remaining;
 }
 
+// Defensive avatar fallback. The matchmaking opponent payload now ships
+// `avatar_url` directly, but a deployment where the frontend leads the
+// backend (or a cached match restored from /matchmaking/active that was
+// recorded under the old schema) will leave it empty. In that case we
+// fetch /users/<id>/profile once and use its avatar instead — same image
+// the rest of the site shows for this player.
+function useOpponentAvatar(opponent) {
+  const [fallback, setFallback] = useState(null);
+  const directAvatar = opponent?.avatar_url || null;
+  const opponentId = opponent?.user_id ?? null;
+
+  useEffect(() => {
+    if (directAvatar || !opponentId) {
+      setFallback(null);
+      return undefined;
+    }
+    let cancelled = false;
+    apiFetch(`/users/${opponentId}/profile`)
+      .then((data) => {
+        if (cancelled) return;
+        setFallback(data?.avatar_url || null);
+      })
+      .catch(() => {
+        // Profile lookup failed (network, 404, auth). The avatar slot
+        // will just keep the initial-letter fallback — nothing breaks.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [opponentId, directAvatar]);
+
+  return resolveAssetUrl(directAvatar || fallback || "");
+}
+
 function TaskBriefCard({ task, opponent, timerEl }) {
   const opponentName = opponent?.nickname || opponent?.display_name || "Соперник";
   const opponentPts = opponent?.pts ?? null;
-  const opponentAvatar = resolveAssetUrl(opponent?.avatar_url || "");
+  const opponentAvatar = useOpponentAvatar(opponent);
   return (
     <Card className="flex h-full flex-col p-5">
       {/* Mobile-only: timer up top because the right column is below */}
