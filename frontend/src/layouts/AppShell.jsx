@@ -23,7 +23,7 @@ export function AppShell() {
           opacity={0.24}
           cellPx={18}
           symbolScale={0.6}
-          densityScale={1}
+          densityScale={4}
           fps={12}
           variableSizing={false}
           renderDpr={1}
