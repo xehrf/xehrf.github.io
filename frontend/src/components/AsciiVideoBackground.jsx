@@ -54,6 +54,7 @@ export function AsciiVideoBackground({
   videoUrl,
   variant = "hybrid",
   cellPx = 10,
+  symbolScale = 1,
   colorMode = "video",
   lightColor = "#FFFFFF",
   darkColor = "#FFD700",
@@ -94,8 +95,9 @@ export function AsciiVideoBackground({
     const chars = CHAR_SETS[variant] ?? CHAR_SETS.hybrid;
     const charsLastIdx = chars.length - 1;
     const frameInterval = Math.max(16, Math.floor(1000 / Math.max(10, fps)));
-    const baseFontSize = Math.max(7, Math.round(cellPx));
-    const cellHeight = Math.max(6, Math.round(baseFontSize * 0.94));
+    const sampleFontSize = Math.max(7, Math.round(cellPx));
+    const drawBaseFontSize = Math.max(sampleFontSize, Math.round(sampleFontSize * Math.max(0.9, symbolScale)));
+    const cellHeight = Math.max(6, Math.round(sampleFontSize * 0.94));
     const effectiveMaxCols = Number.isFinite(maxCols) ? Math.max(1, Math.floor(maxCols)) : Infinity;
     const effectiveMaxRows = Number.isFinite(maxRows) ? Math.max(1, Math.floor(maxRows)) : Infinity;
 
@@ -104,7 +106,7 @@ export function AsciiVideoBackground({
     let lastFrameAt = 0;
     let widthCss = 0;
     let heightCss = 0;
-    let sampleCellWidth = Math.max(4, Math.round(baseFontSize * 0.62));
+    let sampleCellWidth = Math.max(4, Math.round(sampleFontSize * 0.62));
     let drawCellWidth = sampleCellWidth;
     let drawCellHeight = cellHeight;
     let cols = 1;
@@ -122,11 +124,11 @@ export function AsciiVideoBackground({
       canvas.style.height = `${heightCss}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      ctx.font = `700 ${baseFontSize}px ${FONT_FAMILY}`;
+      ctx.font = `700 ${sampleFontSize}px ${FONT_FAMILY}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
-      const measuredCharWidth = ctx.measureText("8").width || baseFontSize * 0.62;
+      const measuredCharWidth = ctx.measureText("8").width || sampleFontSize * 0.62;
       sampleCellWidth = Math.max(4, Math.round(measuredCharWidth * 0.9));
       cols = Math.max(1, Math.ceil(widthCss / sampleCellWidth));
       rows = Math.max(1, Math.ceil(heightCss / cellHeight));
@@ -160,7 +162,7 @@ export function AsciiVideoBackground({
         return;
       }
 
-      ctx.font = `700 ${baseFontSize}px ${FONT_FAMILY}`;
+      ctx.font = `700 ${drawBaseFontSize}px ${FONT_FAMILY}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
@@ -180,7 +182,7 @@ export function AsciiVideoBackground({
       ctx.fillStyle = background;
       ctx.fillRect(0, 0, widthCss, heightCss);
 
-      let activeFontSize = baseFontSize;
+      let activeFontSize = drawBaseFontSize;
       let activeColor = "";
 
       for (let y = 0; y < rows; y++) {
@@ -205,9 +207,9 @@ export function AsciiVideoBackground({
               : getVideoSymbolColor(red, green, blue, lum);
 
           const symbolFontSize = clampNumber(
-            Math.round(baseFontSize * (variableSizing ? getVariableSymbolScale(lum, x, y) : 1)),
-            Math.max(6, baseFontSize - 3),
-            baseFontSize + 4,
+            Math.round(drawBaseFontSize * (variableSizing ? getVariableSymbolScale(lum, x, y) : 1)),
+            Math.max(6, drawBaseFontSize - 3),
+            drawBaseFontSize + 4,
           );
 
           if (symbolFontSize !== activeFontSize) {
@@ -248,7 +250,7 @@ export function AsciiVideoBackground({
         // ignore
       }
     };
-  }, [videoUrl, variant, cellPx, colorMode, lightColor, darkColor, background, fps, lightThreshold, variableSizing, renderDpr, maxCols, maxRows, pauseWhenHidden]);
+  }, [videoUrl, variant, cellPx, symbolScale, colorMode, lightColor, darkColor, background, fps, lightThreshold, variableSizing, renderDpr, maxCols, maxRows, pauseWhenHidden]);
 
   if (!videoUrl) return null;
 
