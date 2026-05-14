@@ -20,15 +20,15 @@ export function AppShell() {
       {bgVideoUrl ? (
         <AsciiVideoBackground
           videoUrl={bgVideoUrl}
-          opacity={0.24}
+          opacity={0.34}
           cellPx={18}
-          symbolScale={0.6}
-          densityScale={1}
+          symbolScale={0.48}
+          densityScale={1.28}
           fps={12}
           variableSizing={false}
           renderDpr={1}
-          maxCols={104}
-          maxRows={58}
+          maxCols={120}
+          maxRows={68}
         />
       ) : null}
       <div className="relative z-10 hidden md:block">
