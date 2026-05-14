@@ -24,6 +24,14 @@ _BLOCKED_NAMES = frozenset({
     "__builtins__",
 })
 
+# str.format()/str.format_map() read attribute access spec at *runtime* from
+# the format string body (e.g. "{0.__class__.__mro__[1].__subclasses__}"),
+# bypassing the AST attribute check. We block calls to these methods outright
+# — legitimate solutions can use f-strings or % formatting instead.
+_BLOCKED_METHOD_CALLS = frozenset({
+    "format", "format_map", "__format__",
+})
+
 
 def _validate_ast(code: str) -> str | None:
     try:
@@ -38,6 +46,12 @@ def _validate_ast(code: str) -> str | None:
             return f"Access to '{node.attr}' is not allowed."
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id in _BLOCKED_NAMES:
             return f"Use of '{node.id}' is not allowed."
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in _BLOCKED_METHOD_CALLS
+        ):
+            return f"Use of '.{node.func.attr}()' is not allowed."
 
     return None
 

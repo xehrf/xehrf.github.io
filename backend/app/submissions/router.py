@@ -82,7 +82,26 @@ def submit(
 
     pts_delta = 0
     if verdict.passed:
-        pts_delta = _reward_points(task.difficulty)
+        # Only award PTS on the user's *first* successful pass of this task.
+        # Without this guard, players could grind unlimited PTS by submitting
+        # the same correct code repeatedly. Match submissions are also
+        # de-duped per (user, match) so re-solving inside one match yields
+        # nothing extra either.
+        already_passed_query = (
+            db.query(Submission.id)
+            .filter(
+                Submission.user_id == user.id,
+                Submission.task_id == body.task_id,
+                Submission.auto_test_passed.is_(True),
+            )
+        )
+        if body.match_id is not None:
+            already_passed_query = already_passed_query.filter(
+                Submission.match_id == body.match_id,
+            )
+        already_passed = already_passed_query.first()
+        if already_passed is None:
+            pts_delta = _reward_points(task.difficulty)
     elif task.task_type.value == "match":
         pts_delta = -min(user.pts, _penalty_points(task.difficulty))
 
