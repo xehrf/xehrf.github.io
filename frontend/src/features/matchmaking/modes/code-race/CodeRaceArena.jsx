@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiFetch } from "../../../../api/client.js";
+import { apiFetch, resolveAssetUrl } from "../../../../api/client.js";
 import { Button } from "../../../../components/ui/Button.jsx";
 import { Card } from "../../../../components/ui/Card.jsx";
+import { PlayerHoverCard } from "../../../../components/ui/PlayerHoverCard.jsx";
 
 /**
  * Full-screen Code Race arena.
@@ -50,6 +51,7 @@ function useEndsAtCountdown(endsAtIso, secondsRemainingHint) {
 function TaskBriefCard({ task, opponent, timerEl }) {
   const opponentName = opponent?.nickname || opponent?.display_name || "Соперник";
   const opponentPts = opponent?.pts ?? null;
+  const opponentAvatar = resolveAssetUrl(opponent?.avatar_url || "");
   return (
     <Card className="flex h-full flex-col p-5">
       {/* Mobile-only: timer up top because the right column is below */}
@@ -73,19 +75,29 @@ function TaskBriefCard({ task, opponent, timerEl }) {
         </div>
       </div>
 
-      {/* Opponent slim card */}
-      <div className="mt-3 flex items-center gap-3 rounded-btn border border-border/60 bg-elevated/40 px-3 py-2">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/15 text-sm font-bold text-accent">
-          {(opponentName[0] || "?").toUpperCase()}
+      {/* Opponent slim card — clickable for the mini-profile popup */}
+      <PlayerHoverCard userId={opponent?.user_id} disabled={!opponent?.user_id}>
+        <div className="mt-3 flex cursor-pointer items-center gap-3 rounded-btn border border-border/60 bg-elevated/40 px-3 py-2 transition-colors hover:border-accent/40">
+          <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border bg-elevated">
+            {opponentAvatar ? (
+              <img src={opponentAvatar} alt={opponentName} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-accent/15 text-sm font-bold text-accent">
+                {(opponentName[0] || "?").toUpperCase()}
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-foreground">{opponentName}</p>
+            {opponentPts != null ? (
+              <p className="text-[11px] text-muted">{opponentPts} PTS · клик для профиля</p>
+            ) : (
+              <p className="text-[11px] text-muted">клик для профиля</p>
+            )}
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-accent">VS</span>
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-foreground">{opponentName}</p>
-          {opponentPts != null ? (
-            <p className="text-[11px] text-muted">{opponentPts} PTS</p>
-          ) : null}
-        </div>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-accent">VS</span>
-      </div>
+      </PlayerHoverCard>
 
       <div className="mt-4 flex-1 overflow-auto rounded-btn border border-border/60 bg-elevated/30 p-4 text-sm leading-relaxed text-foreground">
         {task ? (

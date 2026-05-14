@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../components/ui/Card.jsx";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
 import { MediaAsset } from "../components/ui/MediaAsset.jsx";
+import { PlayerHoverCard } from "../components/ui/PlayerHoverCard.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
 import {
@@ -391,32 +392,34 @@ function PodiumStand({ player, place, height, className = "" }) {
 
   return (
     <div className={["flex flex-col items-center", className].join(" ")}>
-      {/* Аватар */}
-      <div
-        className={[
-          "relative mb-2 overflow-hidden rounded-full border-2 transition-transform hover:scale-105",
-          isFirst ? "h-20 w-20 border-accent shadow-glow" : "h-16 w-16 border-border",
-        ].join(" ")}
-      >
-        {avatar ? (
-          <MediaAsset src={avatar} alt={name} className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-elevated text-2xl font-bold text-foreground">
-            {name[0]?.toUpperCase() || "?"}
+      {/* Аватар + имя кликабельны и открывают мини-профиль через portal. */}
+      <PlayerHoverCard userId={player.user_id} disabled={!player.user_id}>
+        <div className="flex flex-col items-center">
+          <div
+            className={[
+              "relative mb-2 cursor-pointer overflow-hidden rounded-full border-2 transition-transform hover:scale-105",
+              isFirst ? "h-20 w-20 border-accent shadow-glow" : "h-16 w-16 border-border",
+            ].join(" ")}
+          >
+            {avatar ? (
+              <MediaAsset src={avatar} alt={name} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-elevated text-2xl font-bold text-foreground">
+                {name[0]?.toUpperCase() || "?"}
+              </div>
+            )}
+            <div className="absolute -bottom-1 -right-1 text-2xl">{medal}</div>
           </div>
-        )}
-        <div className="absolute -bottom-1 -right-1 text-2xl">{medal}</div>
-      </div>
 
-      {/* Имя и PTS */}
-      <div className="mb-2 max-w-full text-center">
-        <p className={["truncate font-semibold", isFirst ? "text-foreground" : "text-foreground/90"].join(" ")}>
-          {name}
-        </p>
-        <p className="font-mono text-xs text-accent">{formatNumber(pts)} PTS</p>
-      </div>
+          <div className="mb-2 max-w-full text-center">
+            <p className={["truncate font-semibold", isFirst ? "text-foreground" : "text-foreground/90"].join(" ")}>
+              {name}
+            </p>
+            <p className="font-mono text-xs text-accent">{formatNumber(pts)} PTS</p>
+          </div>
+        </div>
+      </PlayerHoverCard>
 
-      {/* Пьедестал */}
       <div
         className={[
           "flex w-full items-start justify-center rounded-t-btn border border-b-0 pt-3 font-mono text-2xl font-bold transition-colors",

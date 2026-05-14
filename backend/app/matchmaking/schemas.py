@@ -6,6 +6,10 @@ class OpponentInfo(BaseModel):
     display_name: str
     nickname: str
     pts: int
+    # Avatar surface used by the frontend mini-profile hover card and the
+    # opponent panel inside CodeRaceArena / MatchArena. Optional because
+    # users without an uploaded image carry None here.
+    avatar_url: str | None = None
 
 
 class MatchmakingJoinRequest(BaseModel):
