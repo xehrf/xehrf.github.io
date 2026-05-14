@@ -700,7 +700,7 @@ export function LeaderboardContent({ embedded = false }) {
               <p className="mt-1 text-2xl font-bold text-accent">#{position?.rank ?? "-"}</p>
             </Card>
             <Card className="p-4">
-              <p className="text-xs uppercase tracking-wide text-muted">Перцентиль</p>
+              <p className="text-xs uppercase tracking-wide text-muted">Процентиль</p>
               <p className="mt-1 text-2xl font-bold text-foreground">{formatPercent(position?.percentile || 0)}</p>
             </Card>
             <Card className="p-4">
