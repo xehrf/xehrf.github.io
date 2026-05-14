@@ -55,6 +55,7 @@ export function AsciiVideoBackground({
   variant = "hybrid",
   cellPx = 10,
   symbolScale = 1,
+  densityScale = 1,
   colorMode = "video",
   lightColor = "#FFFFFF",
   darkColor = "#FFD700",
@@ -97,8 +98,9 @@ export function AsciiVideoBackground({
     const frameInterval = Math.max(16, Math.floor(1000 / Math.max(10, fps)));
     const sampleFontSize = Math.max(7, Math.round(cellPx));
     const effectiveSymbolScale = clampNumber(Number(symbolScale) || 1, 0.35, 2.5);
+    const effectiveDensityScale = clampNumber(Number(densityScale) || 1, 0.7, 1.8);
     const drawBaseFontSize = Math.max(6, Math.round(sampleFontSize * effectiveSymbolScale));
-    const cellHeight = Math.max(6, Math.round(sampleFontSize * 0.94));
+    const baseCellHeight = Math.max(6, Math.round(sampleFontSize * 0.94));
     const effectiveMaxCols = Number.isFinite(maxCols) ? Math.max(1, Math.floor(maxCols)) : Infinity;
     const effectiveMaxRows = Number.isFinite(maxRows) ? Math.max(1, Math.floor(maxRows)) : Infinity;
 
@@ -109,7 +111,8 @@ export function AsciiVideoBackground({
     let heightCss = 0;
     let sampleCellWidth = Math.max(4, Math.round(sampleFontSize * 0.62));
     let drawCellWidth = sampleCellWidth;
-    let drawCellHeight = cellHeight;
+    let sampleCellHeight = baseCellHeight;
+    let drawCellHeight = baseCellHeight;
     let cols = 1;
     let rows = 1;
 
@@ -130,9 +133,10 @@ export function AsciiVideoBackground({
       ctx.textBaseline = "middle";
 
       const measuredCharWidth = ctx.measureText("8").width || sampleFontSize * 0.62;
-      sampleCellWidth = Math.max(4, Math.round(measuredCharWidth * 0.9));
+      sampleCellWidth = Math.max(3, Math.round((measuredCharWidth * 0.9) / effectiveDensityScale));
+      sampleCellHeight = Math.max(4, Math.round(baseCellHeight / effectiveDensityScale));
       cols = Math.max(1, Math.ceil(widthCss / sampleCellWidth));
-      rows = Math.max(1, Math.ceil(heightCss / cellHeight));
+      rows = Math.max(1, Math.ceil(heightCss / sampleCellHeight));
 
       if (Number.isFinite(effectiveMaxCols)) {
         cols = Math.min(cols, effectiveMaxCols);
@@ -251,7 +255,7 @@ export function AsciiVideoBackground({
         // ignore
       }
     };
-  }, [videoUrl, variant, cellPx, symbolScale, colorMode, lightColor, darkColor, background, fps, lightThreshold, variableSizing, renderDpr, maxCols, maxRows, pauseWhenHidden]);
+  }, [videoUrl, variant, cellPx, symbolScale, densityScale, colorMode, lightColor, darkColor, background, fps, lightThreshold, variableSizing, renderDpr, maxCols, maxRows, pauseWhenHidden]);
 
   if (!videoUrl) return null;
 
