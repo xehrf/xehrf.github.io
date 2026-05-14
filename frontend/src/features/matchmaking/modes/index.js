@@ -10,10 +10,11 @@
  * iterates the registry, renders ModePicker, and mounts the selected
  * mode's Component. That keeps the page small as we add more modes.
  */
+import { codeRaceMeta } from "./code-race/meta.js";
 import { duelMeta } from "./duel-1v1/meta.js";
 import { practiceMeta } from "./practice/meta.js";
 
-export const MODES = [duelMeta, practiceMeta];
+export const MODES = [duelMeta, codeRaceMeta, practiceMeta];
 export const DEFAULT_MODE_ID = duelMeta.id;
 
 export function getModeById(id) {
