@@ -17,7 +17,18 @@ export function AppShell() {
 
   return (
     <div className="relative isolate flex min-h-screen flex-col bg-canvas text-foreground">
-      {bgVideoUrl ? <AsciiVideoBackground videoUrl={bgVideoUrl} opacity={0.34} /> : null}
+      {bgVideoUrl ? (
+        <AsciiVideoBackground
+          videoUrl={bgVideoUrl}
+          opacity={0.28}
+          cellPx={15}
+          fps={12}
+          variableSizing={false}
+          renderDpr={1}
+          maxCols={110}
+          maxRows={62}
+        />
+      ) : null}
       <div className="relative z-10 hidden md:block">
         <Navbar user={user} />
       </div>

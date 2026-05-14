@@ -64,6 +64,10 @@ export function AsciiVideoBackground({
   className = "",
   fullscreen = true,
   variableSizing = true,
+  renderDpr = 1.25,
+  maxCols = Infinity,
+  maxRows = Infinity,
+  pauseWhenHidden = true,
 }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -92,22 +96,48 @@ export function AsciiVideoBackground({
     const frameInterval = Math.max(16, Math.floor(1000 / Math.max(10, fps)));
     const baseFontSize = Math.max(7, Math.round(cellPx));
     const cellHeight = Math.max(6, Math.round(baseFontSize * 0.94));
+    const effectiveMaxCols = Number.isFinite(maxCols) ? Math.max(1, Math.floor(maxCols)) : Infinity;
+    const effectiveMaxRows = Number.isFinite(maxRows) ? Math.max(1, Math.floor(maxRows)) : Infinity;
 
     let mounted = true;
     let rafId = 0;
     let lastFrameAt = 0;
+    let widthCss = 0;
+    let heightCss = 0;
+    let cellWidth = Math.max(4, Math.round(baseFontSize * 0.62));
+    let cols = 1;
+    let rows = 1;
 
     function resize() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, renderDpr));
       const rect = canvas.getBoundingClientRect();
-      const width = Math.max(1, Math.floor(rect.width || window.innerWidth));
-      const height = Math.max(1, Math.floor(rect.height || window.innerHeight));
+      widthCss = Math.max(1, Math.floor(rect.width || window.innerWidth));
+      heightCss = Math.max(1, Math.floor(rect.height || window.innerHeight));
 
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
+      canvas.width = Math.floor(widthCss * dpr);
+      canvas.height = Math.floor(heightCss * dpr);
+      canvas.style.width = `${widthCss}px`;
+      canvas.style.height = `${heightCss}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      ctx.font = `700 ${baseFontSize}px ${FONT_FAMILY}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      const measuredCharWidth = ctx.measureText("8").width || baseFontSize * 0.62;
+      cellWidth = Math.max(4, Math.round(measuredCharWidth * 0.9));
+      cols = Math.max(1, Math.ceil(widthCss / cellWidth));
+      rows = Math.max(1, Math.ceil(heightCss / cellHeight));
+
+      if (Number.isFinite(effectiveMaxCols)) {
+        cols = Math.min(cols, effectiveMaxCols);
+      }
+      if (Number.isFinite(effectiveMaxRows)) {
+        rows = Math.min(rows, effectiveMaxRows);
+      }
+
+      sampler.width = cols;
+      sampler.height = rows;
     }
 
     function tick(now) {
@@ -117,24 +147,17 @@ export function AsciiVideoBackground({
       if (now - lastFrameAt < frameInterval) return;
       lastFrameAt = now;
 
+      if (pauseWhenHidden && typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+
       if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
         return;
       }
 
-      const widthCss = canvas.clientWidth || window.innerWidth;
-      const heightCss = canvas.clientHeight || window.innerHeight;
-
       ctx.font = `700 ${baseFontSize}px ${FONT_FAMILY}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-
-      const measuredCharWidth = ctx.measureText("8").width || baseFontSize * 0.62;
-      const cellWidth = Math.max(4, Math.round(measuredCharWidth * 0.9));
-      const cols = Math.max(1, Math.ceil(widthCss / cellWidth));
-      const rows = Math.max(1, Math.ceil(heightCss / cellHeight));
-
-      sampler.width = cols;
-      sampler.height = rows;
 
       try {
         samplerCtx.drawImage(video, 0, 0, cols, rows);
@@ -153,6 +176,7 @@ export function AsciiVideoBackground({
       ctx.fillRect(0, 0, widthCss, heightCss);
 
       let activeFontSize = baseFontSize;
+      let activeColor = "";
 
       for (let y = 0; y < rows; y++) {
         for (let x = 0; x < cols; x++) {
@@ -186,7 +210,10 @@ export function AsciiVideoBackground({
             ctx.font = `700 ${activeFontSize}px ${FONT_FAMILY}`;
           }
 
-          ctx.fillStyle = symbolColor;
+          if (symbolColor !== activeColor) {
+            activeColor = symbolColor;
+            ctx.fillStyle = symbolColor;
+          }
           ctx.fillText(
             ch,
             x * cellWidth + cellWidth / 2,
@@ -216,7 +243,7 @@ export function AsciiVideoBackground({
         // ignore
       }
     };
-  }, [videoUrl, variant, cellPx, colorMode, lightColor, darkColor, background, fps, lightThreshold, variableSizing]);
+  }, [videoUrl, variant, cellPx, colorMode, lightColor, darkColor, background, fps, lightThreshold, variableSizing, renderDpr, maxCols, maxRows, pauseWhenHidden]);
 
   if (!videoUrl) return null;
 
