@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, getWebSocketBaseUrl, resolveAssetUrl } from "../../../api/client.js";
+import { Card } from "../../../components/ui/Card.jsx";
+import { Button } from "../../../components/ui/Button.jsx";
 import { MediaAsset } from "../../../components/ui/MediaAsset.jsx";
 import { useGameEngine } from "../useGameEngine.js";
 import { GameStageView, ScoreBar } from "./GameStageView.jsx";
@@ -364,6 +366,84 @@ function OpponentIntelPanel({ opponentUserId, online, myUserId }) {
   );
 }
 
+/**
+ * Brief "VS" splash that flashes when MatchArena mounts. Gives the
+ * round transition some weight instead of just popping the room into
+ * view. Auto-dismisses after ~1.8 s.
+ */
+function MatchFoundSplash({ myName, opponentName }) {
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    const t = window.setTimeout(() => setVisible(false), 1800);
+    return () => window.clearTimeout(t);
+  }, []);
+  if (!visible) return null;
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
+      <div className="flex items-center gap-6 sm:gap-12">
+        <div className="text-right">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-muted">Вы</p>
+          <p className="font-mono text-2xl font-bold text-accent sm:text-4xl">{myName}</p>
+        </div>
+        <div className="relative">
+          <div className="text-5xl font-black text-foreground sm:text-7xl" style={{ textShadow: "0 0 32px rgba(255,215,0,0.6)" }}>
+            VS
+          </div>
+          <div className="absolute inset-0 animate-ping rounded-full bg-accent/30 blur-2xl" />
+        </div>
+        <div className="text-left">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-muted">Соперник</p>
+          <p className="font-mono text-2xl font-bold text-foreground sm:text-4xl">{opponentName}</p>
+        </div>
+      </div>
+      <style>{`
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fade-in { animation: fade-in 0.25s ease-out; }
+      `}</style>
+    </div>
+  );
+}
+
+/**
+ * Tracks how many rounds the user has won in a row this match.
+ * Resets when they lose a round. >= 2 lights up; >= 3 starts glowing.
+ */
+function useComboStreak(myScore, opponentScore) {
+  const prevScores = useRef({ my: myScore, opp: opponentScore });
+  const [combo, setCombo] = useState(0);
+  useEffect(() => {
+    const prev = prevScores.current;
+    if (myScore > prev.my && opponentScore === prev.opp) {
+      setCombo((c) => c + 1);
+    } else if (opponentScore > prev.opp) {
+      setCombo(0);
+    }
+    prevScores.current = { my: myScore, opp: opponentScore };
+  }, [myScore, opponentScore]);
+  return combo;
+}
+
+function ComboBadge({ combo }) {
+  if (combo < 2) return null;
+  const isFire = combo >= 3;
+  const isLegend = combo >= 5;
+  return (
+    <div
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wider transition-all ${
+        isLegend
+          ? "border-accent bg-accent/20 text-accent shadow-glow animate-pulse"
+          : isFire
+            ? "border-accent/60 bg-accent/10 text-accent"
+            : "border-accent/40 bg-accent/5 text-accent"
+      }`}
+    >
+      {isLegend ? "🔥🔥🔥" : isFire ? "🔥" : "⚡"}
+      <span className="font-mono">×{combo}</span>
+      <span>комбо</span>
+    </div>
+  );
+}
+
 export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender, surrendering }) {
   const [messages, setMessages] = useState([]);
   const [participants, setParticipants] = useState([]);
@@ -663,48 +743,82 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
     wsRef.current.send(JSON.stringify({ event: "chat", text }));
   }
 
+  const combo = useComboStreak(myScore, opponentScore);
+  const isCountingDown = gameState === "countdown";
+  const inGame = gameState !== "waiting";
+  // Highlight the timer in red on the last 10s of match.
+  const timerCritical = secondsRemaining != null && secondsRemaining > 0 && secondsRemaining <= 10;
+
   return (
     <div className="space-y-3">
-      <div className="rounded-2xl border p-4" style={{ borderColor: "rgba(255,214,0,0.2)", background: "#111" }}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-black text-[#FFD600]">⚔️ PvP Дуэль 1v1</h2>
-            <p className="text-sm text-white/55">
-              До конца матча:{" "}
-              <span className="font-mono text-white">{formatCountdown(secondsRemaining)}</span>
-            </p>
+      <MatchFoundSplash myName={myName} opponentName={opponentName} />
+
+      {/* HERO HEADER — sticky context line: match status, timer, actions */}
+      <Card className="overflow-hidden p-0">
+        {/* Top strip: title + timer + actions */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-elevated/40 px-4 py-3 sm:px-5">
+          <div className="flex items-center gap-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
+              <span className={`relative flex h-1.5 w-1.5 ${isCountingDown ? "" : ""}`}>
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
+              </span>
+              Quiz Duel · 1v1
+            </div>
+            <div className="hidden items-center gap-2 sm:flex">
+              <span className="text-[10px] uppercase tracking-wider text-muted">До конца</span>
+              <span
+                className={`font-mono text-base font-bold tabular-nums ${
+                  timerCritical ? "animate-pulse text-red-400" : "text-foreground"
+                }`}
+              >
+                {formatCountdown(secondsRemaining)}
+              </span>
+            </div>
+            <ComboBadge combo={combo} />
           </div>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <button
               type="button"
-              onClick={() => setShowChat((value) => !value)}
-              className="w-full rounded-xl border px-4 py-2 text-sm text-white/70 transition-colors hover:text-white sm:w-auto"
-              style={{ borderColor: "rgba(255,214,0,0.2)", background: "transparent" }}
+              onClick={() => setShowChat((v) => !v)}
+              className="inline-flex flex-1 items-center justify-center rounded-btn border border-border bg-elevated/50 px-3 py-2 text-xs font-semibold text-muted transition-colors hover:border-accent/40 hover:text-foreground sm:flex-initial"
             >
               {showChat ? "🎮 Игра" : "💬 Чат"}
             </button>
             <button
               type="button"
               onClick={() => onNavigateTask(activeMatch.task_id)}
-              className="w-full rounded-xl px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-85 sm:w-auto"
-              style={{ background: "rgba(255,214,0,0.15)", color: "#FFD600", border: "1px solid rgba(255,214,0,0.3)" }}
+              className="inline-flex flex-1 items-center justify-center rounded-btn border border-accent/30 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:border-accent/60 sm:flex-initial"
             >
-              Задача
+              📋 Задача
             </button>
             <button
               type="button"
               onClick={onSurrender}
               disabled={surrendering}
-              className="w-full rounded-xl border px-4 py-2 text-sm text-white/50 transition-colors hover:text-white disabled:opacity-40 sm:w-auto"
-              style={{ borderColor: "rgba(255,255,255,0.1)", background: "transparent" }}
+              className="inline-flex flex-1 items-center justify-center rounded-btn border border-border bg-transparent px-3 py-2 text-xs font-semibold text-muted/70 transition-colors hover:border-red-500/40 hover:text-red-300 disabled:opacity-40 sm:flex-initial"
             >
-              Сдаться
+              {surrendering ? "Сдаёмся..." : "🏳 Сдаться"}
             </button>
           </div>
         </div>
 
-        {gameState !== "waiting" ? (
-          <div className="mt-4">
+        {/* Mobile-only timer row — too crowded inline at small widths */}
+        <div className="flex items-center justify-between border-b border-border/70 bg-elevated/20 px-4 py-2 text-xs sm:hidden">
+          <span className="uppercase tracking-wider text-muted">До конца</span>
+          <span
+            className={`font-mono text-sm font-bold tabular-nums ${
+              timerCritical ? "animate-pulse text-red-400" : "text-foreground"
+            }`}
+          >
+            {formatCountdown(secondsRemaining)}
+          </span>
+        </div>
+
+        {/* Score bar — appears once we leave the "waiting room" */}
+        {inGame ? (
+          <div className="px-4 py-4 sm:px-5">
             <ScoreBar
               myScore={myScore}
               opponentScore={opponentScore}
@@ -714,12 +828,12 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
             />
           </div>
         ) : null}
-      </div>
+      </Card>
 
       {showChat ? (
         <ChatPanel messages={messages} myUserId={myUserId} onSend={sendChatMessage} />
       ) : (
-        <div className="min-h-[360px] rounded-2xl border p-5" style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}>
+        <Card className="min-h-[360px] p-5">
           <GameStageView
             gameState={gameState}
             currentQuestion={currentQuestion}
@@ -742,7 +856,7 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
             readinessState={readinessState}
             onToggleReady={sendReadyToggle}
           />
-        </div>
+        </Card>
       )}
 
       <OpponentIntelPanel opponentUserId={opponent?.user_id ?? null} online={opponentOnline} myUserId={myUserId} />

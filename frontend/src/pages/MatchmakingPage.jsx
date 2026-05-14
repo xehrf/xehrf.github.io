@@ -642,12 +642,20 @@ export function MatchmakingPage() {
     loadQuests();
   }, [loadQuests]);
 
+  // Matchmaking WebSocket: keeps a single live connection and automatically
+  // reconnects with exponential backoff. Render free tier silently kills
+  // idle sockets after ~minute, so without this we'd miss `match_found`
+  // and the user would think the page froze until they hit refresh.
   useEffect(() => {
     const token = localStorage.getItem("access_token");
     if (!token) return undefined;
 
-    const ws = new WebSocket(getMatchmakingSocketUrl(token));
-    ws.addEventListener("message", (event) => {
+    let disposed = false;
+    let ws = null;
+    let reconnectTimer = null;
+    let reconnectAttempt = 0;
+
+    const handleMessage = (event) => {
       const payload = JSON.parse(event.data);
       const data = payload.data ?? {};
 
@@ -722,12 +730,78 @@ export function MatchmakingPage() {
         setLastMatchResult((prev) => ({ ...(prev ?? {}), match_id: data.match_id }));
         setStatusNote("Соперник предлагает реванш. Нажми кнопку «Реванш».");
       }
-    });
+    };
+
+    const scheduleReconnect = () => {
+      if (disposed) return;
+      reconnectAttempt += 1;
+      // Exponential backoff capped at 10s. Without a cap we'd risk waiting
+      // through a whole match if the user has been idle for hours.
+      const delay = Math.min(1000 * 2 ** Math.max(0, reconnectAttempt - 1), 10_000);
+      reconnectTimer = window.setTimeout(connect, delay);
+    };
+
+    function connect() {
+      if (disposed) return;
+      try {
+        ws = new WebSocket(getMatchmakingSocketUrl(token));
+      } catch (err) {
+        logDevError("Failed to construct matchmaking WS.", err);
+        scheduleReconnect();
+        return;
+      }
+
+      ws.addEventListener("open", () => {
+        reconnectAttempt = 0;
+      });
+      ws.addEventListener("message", handleMessage);
+      ws.addEventListener("close", () => {
+        if (disposed) return;
+        scheduleReconnect();
+      });
+      ws.addEventListener("error", () => {
+        // The "close" handler will fire next and trigger reconnect — no need
+        // to schedule from here too, that would double the attempt counter.
+        logDevError("Matchmaking WS error.", null);
+      });
+    }
+
+    connect();
 
     return () => {
-      ws.close();
+      disposed = true;
+      if (reconnectTimer) window.clearTimeout(reconnectTimer);
+      if (ws) ws.close();
     };
   }, [loadQuests, myUserId]);
+
+  // Polling fallback while searching: if the WS misses a match_found event
+  // (e.g. just-reconnected, or message was published during the dead window),
+  // /matchmaking/active will still report the live match the next poll cycle.
+  useEffect(() => {
+    if (!searching || activeMatch) return undefined;
+
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const current = await apiFetch("/matchmaking/active");
+        if (cancelled) return;
+        if (current && current.match_id) {
+          setActiveMatch(current);
+          setSearching(false);
+          setStatusNote("Соперник найден.");
+        }
+      } catch (err) {
+        logDevError("Polling /matchmaking/active failed.", err);
+      }
+    };
+
+    const interval = window.setInterval(tick, 3500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [searching, activeMatch]);
 
   useEffect(() => {
     if (activeMatch) return;
