@@ -7,7 +7,7 @@ import { useEffect, useRef } from "react";
  * a visible canvas with a hybrid character ramp. By default the symbols keep
  * the original video colors so the effect feels more alive.
  */
-const HYBRID_CHAR_SET = " .,:-~=+*#0123456789%@";
+const HYBRID_CHAR_SET = " .,:-~=+*abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%@";
 
 const CHAR_SETS = {
   hybrid: HYBRID_CHAR_SET,
