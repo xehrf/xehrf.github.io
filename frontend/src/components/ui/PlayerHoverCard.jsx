@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { apiFetch, resolveAssetUrl } from "../../api/client.js";
 import { Button } from "./Button.jsx";
+import { MediaAsset } from "./MediaAsset.jsx";
 
 /**
  * Discord-style mini-profile that pops up next to whatever the user just
@@ -51,6 +52,17 @@ async function loadProfile(userId) {
 }
 
 function MiniProfileCard({ profile, loading, error, onClose }) {
+  // Image errors are surfaced via `onError` so a broken Cloudinary asset
+  // doesn't show its alt text on top of the banner gradient. Hooks live
+  // here because the early returns below would otherwise violate rules.
+  const [bannerBroken, setBannerBroken] = useState(false);
+  const [avatarBroken, setAvatarBroken] = useState(false);
+
+  useEffect(() => {
+    setBannerBroken(false);
+    setAvatarBroken(false);
+  }, [profile?.id]);
+
   if (loading && !profile) {
     return (
       <div className="p-6 text-center text-sm text-muted">Загружаем профиль…</div>
@@ -71,13 +83,21 @@ function MiniProfileCard({ profile, loading, error, onClose }) {
   const role = typeof profile.role === "string" ? profile.role.trim() : "";
   const skills = Array.isArray(profile.skills) ? profile.skills.slice(0, 6) : [];
   const technologies = Array.isArray(profile.technologies) ? profile.technologies.slice(0, 5) : [];
+  const showBanner = bannerUrl && !bannerBroken;
+  const showAvatar = avatarUrl && !avatarBroken;
 
   return (
     <div className="overflow-hidden rounded-card border border-border bg-canvas shadow-card">
-      {/* Banner */}
+      {/* Banner. MediaAsset handles both still images and short videos —
+          some users upload looping mp4 banners. */}
       <div className="relative h-16">
-        {bannerUrl ? (
-          <img src={bannerUrl} alt="banner" className="h-full w-full object-cover" />
+        {showBanner ? (
+          <MediaAsset
+            src={bannerUrl}
+            alt={`Баннер ${displayName}`}
+            className="h-full w-full object-cover"
+            onError={() => setBannerBroken(true)}
+          />
         ) : (
           <div className="h-full w-full bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900" />
         )}
@@ -86,8 +106,13 @@ function MiniProfileCard({ profile, loading, error, onClose }) {
         {/* Avatar overlapping the banner */}
         <div className="absolute -bottom-7 left-4">
           <div className="h-14 w-14 overflow-hidden rounded-full border-[3px] border-canvas bg-elevated">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
+            {showAvatar ? (
+              <MediaAsset
+                src={avatarUrl}
+                alt={`Аватар ${displayName}`}
+                className="h-full w-full object-cover"
+                onError={() => setAvatarBroken(true)}
+              />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-lg font-bold text-foreground">
                 {(displayName[0] || "?").toUpperCase()}
