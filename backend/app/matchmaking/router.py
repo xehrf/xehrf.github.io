@@ -29,6 +29,7 @@ def _opponent_payload(db: Session, match: Match, user_id: int) -> dict | None:
         "display_name": opponent.display_name,
         "nickname": opponent.nickname,
         "pts": opponent.pts,
+        "avatar_url": opponent.avatar_url,
     }
 
 
