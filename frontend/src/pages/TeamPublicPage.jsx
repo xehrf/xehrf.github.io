@@ -80,7 +80,7 @@ export function TeamPublicPage() {
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{team.name}</h1>
           <p className="mt-1 text-sm text-muted">{team.description || "Описание команды не заполнено"}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <LinkButton to="/team" variant="secondary" className="h-11 rounded-[12px] px-4 py-2 md:rounded-btn">
             К списку команд
           </LinkButton>
@@ -104,7 +104,7 @@ export function TeamPublicPage() {
         <div className="mt-3 grid gap-2">
           {(team.members || []).map((member) => (
             <div key={member.user_id} className="rounded-xl border border-border bg-canvas px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-foreground">{member.display_name || member.nickname}</p>
                   <p className="truncate text-xs text-muted">@{member.nickname}</p>
@@ -126,7 +126,7 @@ export function TeamPublicPage() {
         ) : (
           <div className="mt-3 grid gap-2">
             {history.map((item) => (
-              <div key={item.id} className="flex items-center justify-between rounded-xl border border-border bg-canvas px-4 py-3">
+              <div key={item.id} className="flex flex-col gap-2 rounded-xl border border-border bg-canvas px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-foreground">Матч #{item.match_id ?? item.id}</p>
                 <div className="text-right">
                   <p className="text-xs uppercase tracking-wide text-muted">{item.result}</p>

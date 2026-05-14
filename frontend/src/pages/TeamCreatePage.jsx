@@ -53,7 +53,7 @@ export function TeamCreatePage() {
         {/* Decorative header */}
         <div className="h-2 w-full bg-gradient-to-r from-accent via-yellow-300 to-accent" />
 
-        <div className="p-6 space-y-5">
+        <div className="space-y-5 p-5 sm:p-6">
           {/* Name */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-2">
@@ -114,7 +114,7 @@ export function TeamCreatePage() {
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-2">
               Тип вступления
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <button
                 type="button"
                 onClick={() => setIsOpen(true)}

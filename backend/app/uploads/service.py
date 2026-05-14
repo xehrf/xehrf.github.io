@@ -110,6 +110,27 @@ def save_upload_file(file: UploadFile, subfolder: str) -> str:
         file.file.close()
 
 
+def save_profile_media_file(file: UploadFile, subfolder: str) -> str:
+    """Upload either image or video media for user profile fields.
+
+    Images keep the existing 5 MB limit. Videos reuse the background-video
+    validation rules and 15 MB cap.
+    """
+    if file is None:
+        return ""
+
+    content_type = file.content_type or ""
+    if content_type in ALLOWED_IMAGE_TYPES:
+        return save_upload_file(file, subfolder)
+    if content_type in ALLOWED_VIDEO_TYPES:
+        return save_video_file(file, subfolder)
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Unsupported media format. Allowed: JPG, PNG, GIF, WEBP, MP4, WebM, MOV.",
+    )
+
+
 def _detect_video_mime(header: bytes) -> str | None:
     """Best-effort magic-byte detection for the formats we accept.
 

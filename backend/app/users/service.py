@@ -4,7 +4,7 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.db.models import User
-from app.uploads.service import save_upload_file, save_video_file
+from app.uploads.service import save_profile_media_file, save_video_file
 
 
 def update_user_profile(
@@ -30,10 +30,10 @@ def update_user_profile(
         user.bio = bio.strip() if bio.strip() else None
 
     if avatar is not None:
-        user.avatar_url = save_upload_file(avatar, "avatars")
+        user.avatar_url = save_profile_media_file(avatar, "avatars")
 
     if banner is not None:
-        user.banner_url = save_upload_file(banner, "banners")
+        user.banner_url = save_profile_media_file(banner, "banners")
 
     db.add(user)
     db.commit()

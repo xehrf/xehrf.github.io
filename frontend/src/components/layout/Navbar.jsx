@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useAuth } from "../../auth/AuthProvider.jsx";
 import { resolveAssetUrl } from "../../api/client";
+import { MediaAsset } from "../ui/MediaAsset.jsx";
 
 const navLinkClass = ({ isActive }) =>
   [
@@ -82,7 +83,7 @@ export function Navbar({ user }) {
                 title="Профиль"
               >
                 {avatarUrl && !avatarFailed ? (
-                  <img
+                  <MediaAsset
                     src={avatarUrl}
                     alt="User avatar"
                     className="h-full w-full object-cover"

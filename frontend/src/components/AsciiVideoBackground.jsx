@@ -1,45 +1,69 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Renders a video as live ASCII/number art behind the page.
+ * Renders a user's uploaded video as a tightly packed symbol background.
  *
- * The user's uploaded video is decoded onto an offscreen canvas at a tiny
- * resolution (one pixel per "cell"). Each pixel is mapped to a character
- * based on luminance and drawn in monospace on a full-screen canvas. The
- * raw video element is hidden — only the rendered characters are visible.
- *
- * Two-tone rendering: bright pixels (luminance >= split) are drawn with
- * `colorLight` (white by default), darker ones with `colorDark` (accent
- * yellow). This produces a sharper, more readable matrix look without
- * having to sample two separate frames.
- *
- * Performance: scales render to a grid of ~`cellPx` blocks. On a 1080p screen
- * with cellPx=10 that's ~190x108 = 20k cells per frame. Frame budget is
- * roughly 4–6ms on a modern laptop. Cap at ~30fps to be friendly to mobile.
+ * The source video is sampled into a tiny offscreen canvas and re-drawn onto
+ * a visible canvas with a hybrid character ramp. By default the symbols keep
+ * the original video colors so the effect feels more alive.
  */
+const HYBRID_CHAR_SET = " .,:-~=+*#0123456789%@";
 
-// Combined gradient — sparse symbols at the dark end, denser glyphs +
-// digits near the bright end so highlights pick up Matrix-style numbers.
-const CHARS = " .,:;-=+*?#%@0123456789";
+const CHAR_SETS = {
+  hybrid: HYBRID_CHAR_SET,
+  ascii: HYBRID_CHAR_SET,
+  digits: HYBRID_CHAR_SET,
+  binary: HYBRID_CHAR_SET,
+};
+const FONT_FAMILY = `ui-monospace, "JetBrains Mono", monospace`;
+
+function clampByte(value) {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function clampNumber(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getVideoSymbolColor(red, green, blue, luminance) {
+  // Dark pixels need a small lift so they stay visible on the canvas
+  // background, while brighter pixels keep most of the original color.
+  const boost = luminance < 0.35 ? 1.35 : 1.12;
+  const lift = luminance < 0.35 ? 24 : 12;
+
+  return `rgb(${clampByte(red * boost + lift)}, ${clampByte(green * boost + lift)}, ${clampByte(blue * boost + lift)})`;
+}
+
+function getStableCellNoise(x, y) {
+  const raw = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+  return raw - Math.floor(raw);
+}
+
+function getVariableSymbolScale(luminance, x, y) {
+  const noise = getStableCellNoise(x, y);
+  const blended = luminance * 0.62 + noise * 0.38;
+
+  if (blended < 0.22) return 0.78;
+  if (blended < 0.45) return 0.92;
+  if (blended < 0.68) return 1.04;
+  if (blended < 0.84) return 1.16;
+  return 1.28;
+}
 
 export function AsciiVideoBackground({
   videoUrl,
+  variant = "hybrid",
   cellPx = 10,
-  colorDark = "#FFD700",
-  colorLight = "#FFFFFF",
-  splitLuminance = 0.55,
+  colorMode = "video",
+  lightColor = "#FFFFFF",
+  darkColor = "#FFD700",
   background = "#0D1117",
   opacity = 1,
   fps = 30,
+  lightThreshold = 0.62,
   className = "",
-  // When true (default) the component covers the viewport via `fixed inset-0`.
-  // When false it fills its containing block so it can be embedded inside a
-  // preview card or any other bounded layout.
   fullscreen = true,
-  // Legacy prop kept for backwards compatibility with older callers that
-  // used to pass variant="digits" / "binary" / "ascii". Ignored.
-  // eslint-disable-next-line no-unused-vars
-  variant,
+  variableSizing = true,
 }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -55,19 +79,19 @@ export function AsciiVideoBackground({
     const ctx = canvas.getContext("2d");
     if (!ctx) return undefined;
 
-    // Offscreen low-res sampler — created once per mount.
     if (!samplerRef.current) {
       samplerRef.current = document.createElement("canvas");
     }
+
     const sampler = samplerRef.current;
     const samplerCtx = sampler.getContext("2d", { willReadFrequently: true });
+    if (!samplerCtx) return undefined;
 
-    const chars = CHARS;
+    const chars = CHAR_SETS[variant] ?? CHAR_SETS.hybrid;
     const charsLastIdx = chars.length - 1;
-    const cellWidth = Math.max(6, cellPx);
-    const cellHeight = Math.max(6, Math.round(cellPx * 1.2));
     const frameInterval = Math.max(16, Math.floor(1000 / Math.max(10, fps)));
-    const clampedSplit = Math.min(0.95, Math.max(0.05, splitLuminance));
+    const baseFontSize = Math.max(7, Math.round(cellPx));
+    const cellHeight = Math.max(6, Math.round(baseFontSize * 0.94));
 
     let mounted = true;
     let rafId = 0;
@@ -75,15 +99,14 @@ export function AsciiVideoBackground({
 
     function resize() {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      // Use the actual rendered size of the canvas so the same component
-      // works fullscreen and inside a preview card.
       const rect = canvas.getBoundingClientRect();
-      const w = Math.max(1, Math.floor(rect.width || window.innerWidth));
-      const h = Math.max(1, Math.floor(rect.height || window.innerHeight));
-      canvas.width = Math.floor(w * dpr);
-      canvas.height = Math.floor(h * dpr);
-      canvas.style.width = `${w}px`;
-      canvas.style.height = `${h}px`;
+      const width = Math.max(1, Math.floor(rect.width || window.innerWidth));
+      const height = Math.max(1, Math.floor(rect.height || window.innerHeight));
+
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
@@ -91,29 +114,31 @@ export function AsciiVideoBackground({
       if (!mounted) return;
       rafId = window.requestAnimationFrame(tick);
 
-      // Throttle to target fps.
       if (now - lastFrameAt < frameInterval) return;
       lastFrameAt = now;
 
-      if (
-        video.readyState < 2 ||
-        video.videoWidth === 0 ||
-        video.videoHeight === 0
-      ) {
+      if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
         return;
       }
 
       const widthCss = canvas.clientWidth || window.innerWidth;
       const heightCss = canvas.clientHeight || window.innerHeight;
+
+      ctx.font = `700 ${baseFontSize}px ${FONT_FAMILY}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      const measuredCharWidth = ctx.measureText("8").width || baseFontSize * 0.62;
+      const cellWidth = Math.max(4, Math.round(measuredCharWidth * 0.9));
       const cols = Math.max(1, Math.ceil(widthCss / cellWidth));
       const rows = Math.max(1, Math.ceil(heightCss / cellHeight));
 
       sampler.width = cols;
       sampler.height = rows;
+
       try {
         samplerCtx.drawImage(video, 0, 0, cols, rows);
       } catch {
-        // Source may not be ready or CORS may have failed — skip this frame.
         return;
       }
 
@@ -121,54 +146,53 @@ export function AsciiVideoBackground({
       try {
         pixels = samplerCtx.getImageData(0, 0, cols, rows).data;
       } catch {
-        // CORS taint on the video. Caller must pass a cross-origin-safe URL.
         return;
       }
 
       ctx.fillStyle = background;
       ctx.fillRect(0, 0, widthCss, heightCss);
-      ctx.font = `${cellHeight}px ui-monospace, "JetBrains Mono", monospace`;
-      ctx.textBaseline = "top";
 
-      // Two passes — one per color — so we set fillStyle only twice per
-      // frame instead of once per cell. Marginally faster on large grids.
-      const lightCells = [];
-      const darkCells = [];
+      let activeFontSize = baseFontSize;
 
       for (let y = 0; y < rows; y++) {
         for (let x = 0; x < cols; x++) {
           const idx = (y * cols + x) * 4;
-          // Rec. 709 luminance approximation, normalized to 0..1.
-          const lum =
-            (pixels[idx] * 0.2126 +
-              pixels[idx + 1] * 0.7152 +
-              pixels[idx + 2] * 0.0722) /
-            255;
-          const charIdx = Math.min(
-            charsLastIdx,
-            Math.max(0, Math.round(lum * charsLastIdx))
-          );
+          const red = pixels[idx];
+          const green = pixels[idx + 1];
+          const blue = pixels[idx + 2];
+          const lum = (red * 0.2126 + green * 0.7152 + blue * 0.0722) / 255;
+          const charIdx = Math.min(charsLastIdx, Math.max(0, Math.round(lum * charsLastIdx)));
           const ch = chars[charIdx];
-          if (ch === " ") continue;
-          const cell = { ch, px: x * cellWidth, py: y * cellHeight };
-          if (lum >= clampedSplit) {
-            lightCells.push(cell);
-          } else {
-            darkCells.push(cell);
+
+          if (ch === " ") {
+            continue;
           }
+
+          const symbolColor =
+            colorMode === "duotone"
+              ? lum >= lightThreshold
+                ? lightColor
+                : darkColor
+              : getVideoSymbolColor(red, green, blue, lum);
+
+          const symbolFontSize = clampNumber(
+            Math.round(baseFontSize * (variableSizing ? getVariableSymbolScale(lum, x, y) : 1)),
+            Math.max(6, baseFontSize - 3),
+            baseFontSize + 4,
+          );
+
+          if (symbolFontSize !== activeFontSize) {
+            activeFontSize = symbolFontSize;
+            ctx.font = `700 ${activeFontSize}px ${FONT_FAMILY}`;
+          }
+
+          ctx.fillStyle = symbolColor;
+          ctx.fillText(
+            ch,
+            x * cellWidth + cellWidth / 2,
+            y * cellHeight + cellHeight / 2,
+          );
         }
-      }
-
-      ctx.fillStyle = colorDark;
-      for (let i = 0; i < darkCells.length; i++) {
-        const cell = darkCells[i];
-        ctx.fillText(cell.ch, cell.px, cell.py);
-      }
-
-      ctx.fillStyle = colorLight;
-      for (let i = 0; i < lightCells.length; i++) {
-        const cell = lightCells[i];
-        ctx.fillText(cell.ch, cell.px, cell.py);
       }
     }
 
@@ -177,11 +201,9 @@ export function AsciiVideoBackground({
 
     const playPromise = video.play();
     if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => {
-        // Autoplay can be blocked in some contexts — the canvas will simply
-        // remain on the last frame until something resumes playback.
-      });
+      playPromise.catch(() => {});
     }
+
     rafId = window.requestAnimationFrame(tick);
 
     return () => {
@@ -194,30 +216,16 @@ export function AsciiVideoBackground({
         // ignore
       }
     };
-  }, [
-    videoUrl,
-    cellPx,
-    colorDark,
-    colorLight,
-    splitLuminance,
-    background,
-    fps,
-  ]);
+  }, [videoUrl, variant, cellPx, colorMode, lightColor, darkColor, background, fps, lightThreshold, variableSizing]);
 
   if (!videoUrl) return null;
 
   const positionClasses = fullscreen
-    ? "pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+    ? "pointer-events-none fixed inset-0 z-0 overflow-hidden"
     : "pointer-events-none absolute inset-0 overflow-hidden";
 
   return (
-    <div
-      className={`${positionClasses} ${className}`}
-      style={{ opacity }}
-      aria-hidden="true"
-    >
-      {/* Hidden source. crossOrigin="anonymous" so the canvas isn't tainted
-          when the video is served from Cloudinary (it returns Access-Control-Allow-Origin: *). */}
+    <div className={`${positionClasses} ${className}`} style={{ opacity }} aria-hidden="true">
       <video
         ref={videoRef}
         src={videoUrl}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../components/ui/Card.jsx";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
+import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
 import {
@@ -146,7 +147,7 @@ function HistoryChart({ points }) {
       </div>
 
       {/* Metric cards */}
-      <div className="mb-5 grid grid-cols-3 gap-3">
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {[
           { label: "Начало", value: formatNumber(values[0]) + " PTS", sub: labels[0] || "—", accent: false },
           { label: "Сейчас", value: formatNumber(values[values.length - 1]) + " PTS", sub: labels[labels.length - 1] || "—", accent: false },
@@ -296,14 +297,14 @@ function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onT
     >
       <div className="relative h-20">
         {bannerUrl ? (
-          <img src={bannerUrl} alt={`Баннер ${displayName}`} className="h-full w-full object-cover" />
+          <MediaAsset src={bannerUrl} alt={`Баннер ${displayName}`} className="h-full w-full object-cover" />
         ) : (
           <div className="h-full w-full bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900" />
         )}
         <div className="absolute bottom-0 left-4 translate-y-1/2">
           <div className="h-16 w-16 overflow-hidden rounded-full border-[3px] border-canvas bg-elevated">
             {avatarUrl ? (
-              <img src={avatarUrl} alt={`Аватар ${displayName}`} className="h-full w-full object-cover" />
+              <MediaAsset src={avatarUrl} alt={`Аватар ${displayName}`} className="h-full w-full object-cover" />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-xl font-bold text-foreground">
                 {displayName[0]?.toUpperCase() || "?"}
@@ -378,9 +379,9 @@ function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onT
   );
 }
 
-function PodiumStand({ player, place, height }) {
+function PodiumStand({ player, place, height, className = "" }) {
   if (!player) {
-    return <div className={["rounded-btn border border-dashed border-border", height].join(" ")} />;
+    return <div className={["rounded-btn border border-dashed border-border", height, className].join(" ")} />;
   }
   const avatar = resolveAssetUrl(player.avatar_url || "");
   const name = player.display_name || player.nickname || "—";
@@ -389,7 +390,7 @@ function PodiumStand({ player, place, height }) {
   const isFirst = place === 1;
 
   return (
-    <div className="flex flex-col items-center">
+    <div className={["flex flex-col items-center", className].join(" ")}>
       {/* Аватар */}
       <div
         className={[
@@ -398,7 +399,7 @@ function PodiumStand({ player, place, height }) {
         ].join(" ")}
       >
         {avatar ? (
-          <img src={avatar} alt={name} className="h-full w-full object-cover" />
+          <MediaAsset src={avatar} alt={name} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-elevated text-2xl font-bold text-foreground">
             {name[0]?.toUpperCase() || "?"}
@@ -455,9 +456,26 @@ export function LeaderboardContent({ embedded = false }) {
   const [profileByUserId, setProfileByUserId] = useState({});
   const [profileLoadingByUserId, setProfileLoadingByUserId] = useState({});
   const [anchorRect, setAnchorRect] = useState(null);
+  const [supportsHover, setSupportsHover] = useState(true);
   const tableRef = useRef(null);
 
   const compareSectionRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const updateSupportsHover = () => setSupportsHover(mediaQuery.matches);
+
+    updateSupportsHover();
+    mediaQuery.addEventListener?.("change", updateSupportsHover);
+
+    return () => {
+      mediaQuery.removeEventListener?.("change", updateSupportsHover);
+    };
+  }, []);
 
   // Close pinned popup on click outside the table
   useEffect(() => {
@@ -606,12 +624,10 @@ export function LeaderboardContent({ embedded = false }) {
   }
 
   function handleLeaderboardRowHover(row, rect) {
-    // Only show hover preview if nothing is pinned
-    if (pinnedUserId == null) {
-      setHoveredUserId(row.user_id);
-      if (rect) setAnchorRect(rect);
-      ensureProfileLoaded(row.user_id);
-    }
+    if (!supportsHover || pinnedUserId != null) return;
+    setHoveredUserId(row.user_id);
+    if (rect) setAnchorRect(rect);
+    ensureProfileLoaded(row.user_id);
   }
 
   function handleLeaderboardRowClick(row, rect) {
@@ -662,17 +678,17 @@ export function LeaderboardContent({ embedded = false }) {
         <>
           {/* PODIUM — топ-3 на пьедестале */}
           {topThree.length >= 3 ? (
-            <Card className="p-6">
+            <Card className="p-4 sm:p-6">
               <h2 className="mb-5 text-center text-xs font-semibold uppercase tracking-[0.2em] text-accent">
                 Лучшие из лучших
               </h2>
-              <div className="grid grid-cols-3 items-end gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-end">
                 {/* 2-е место */}
-                <PodiumStand player={topThree[1]} place={2} height="h-28" />
+                <PodiumStand player={topThree[1]} place={2} height="h-28" className="order-2 sm:order-1" />
                 {/* 1-е место */}
-                <PodiumStand player={topThree[0]} place={1} height="h-36" />
+                <PodiumStand player={topThree[0]} place={1} height="h-36" className="order-1 sm:order-2" />
                 {/* 3-е место */}
-                <PodiumStand player={topThree[2]} place={3} height="h-20" />
+                <PodiumStand player={topThree[2]} place={3} height="h-20" className="order-3" />
               </div>
             </Card>
           ) : null}
@@ -693,16 +709,20 @@ export function LeaderboardContent({ embedded = false }) {
             </Card>
           </div>
 
-          <Card className="p-5">
+          <Card className="p-4 sm:p-5">
             <h2 className="text-lg font-semibold text-foreground">Таблица лидеров</h2>
             <p className="mt-1 text-xs text-muted">Игроков в выборке: {formatNumber(leaderboard.total || 0)}</p>
-            <p className="mt-1 text-xs text-muted">Hover показывает минипрофиль, клик закрепляет карточку и добавляет игрока в сравнение.</p>
+            <p className="mt-1 text-xs text-muted">
+              {supportsHover
+                ? "Наведение показывает мини-профиль, клик закрепляет карточку и добавляет игрока в сравнение."
+                : "Нажмите на строку, чтобы добавить игрока в сравнение и быстро перейти к сравнению ниже."}
+            </p>
 
             {(leaderboard.items || []).length === 0 ? (
               <p className="mt-3 text-sm text-muted">По этим фильтрам нет игроков.</p>
             ) : (
               <div ref={tableRef} className="mt-3 overflow-x-auto rounded-btn border border-border/70">
-                  <table className="min-w-full text-left text-sm">
+                  <table className="min-w-[720px] w-full text-left text-sm">
                     <thead>
                       <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
                         <th className="py-2 pl-3 pr-4">Место</th>
@@ -713,8 +733,7 @@ export function LeaderboardContent({ embedded = false }) {
                       </tr>
                     </thead>
                     <tbody onMouseLeave={() => {
-                      // Only clear hover preview, pinned stays
-                      if (pinnedUserId == null) {
+                      if (supportsHover && pinnedUserId == null) {
                         setHoveredUserId(null);
                         setAnchorRect(null);
                       }
@@ -762,7 +781,7 @@ export function LeaderboardContent({ embedded = false }) {
                               <div className="flex items-center gap-3">
                                 <div className="avatar-anchor h-9 w-9 overflow-hidden rounded-full border border-border bg-elevated">
                                   {avatarUrl ? (
-                                    <img src={avatarUrl} alt={`Аватар ${row.display_name}`} className="h-full w-full object-cover" />
+                                    <MediaAsset src={avatarUrl} alt={`Аватар ${row.display_name}`} className="h-full w-full object-cover" />
                                   ) : (
                                     <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-foreground">
                                       {(row.display_name || "?")[0]?.toUpperCase() || "?"}
@@ -790,27 +809,29 @@ export function LeaderboardContent({ embedded = false }) {
             )}
           </Card>
 
-          <LeaderboardMiniProfileCard
-            row={activePreviewRow}
-            profile={activePreviewProfile}
-            loading={activePreviewLoading}
-            pinned={Boolean(activePreviewRow && Number(pinnedUserId) === Number(activePreviewRow.user_id))}
-            isSelf={Boolean(activePreviewRow && Number(activePreviewRow.user_id) === Number(user?.id))}
-            anchorRect={anchorRect}
-            onTogglePin={() => {
-              if (!activePreviewRow) return;
-              const activeId = Number(activePreviewRow.user_id);
-              const isAlreadyPinned = Number(pinnedUserId) === activeId;
-              setPinnedUserId(isAlreadyPinned ? null : activeId);
-              ensureProfileLoaded(activeId);
-            }}
-            onCompare={() => {
-              if (!activePreviewRow) return;
-              selectUserForCompare(activePreviewRow.user_id, { scroll: true });
-            }}
-          />
+          {supportsHover ? (
+            <LeaderboardMiniProfileCard
+              row={activePreviewRow}
+              profile={activePreviewProfile}
+              loading={activePreviewLoading}
+              pinned={Boolean(activePreviewRow && Number(pinnedUserId) === Number(activePreviewRow.user_id))}
+              isSelf={Boolean(activePreviewRow && Number(activePreviewRow.user_id) === Number(user?.id))}
+              anchorRect={anchorRect}
+              onTogglePin={() => {
+                if (!activePreviewRow) return;
+                const activeId = Number(activePreviewRow.user_id);
+                const isAlreadyPinned = Number(pinnedUserId) === activeId;
+                setPinnedUserId(isAlreadyPinned ? null : activeId);
+                ensureProfileLoaded(activeId);
+              }}
+              onCompare={() => {
+                if (!activePreviewRow) return;
+                selectUserForCompare(activePreviewRow.user_id, { scroll: true });
+              }}
+            />
+          ) : null}
 
-          <Card className="p-5">
+          <Card className="p-4 sm:p-5">
             <h2 className="text-lg font-semibold text-foreground">График изменения PTS</h2>
             <p className="mt-1 text-xs text-muted">Накопленная дельта по выбранным фильтрам.</p>
             <div className="mt-3">
@@ -819,7 +840,7 @@ export function LeaderboardContent({ embedded = false }) {
           </Card>
 
           <div ref={compareSectionRef}>
-            <Card className="p-5">
+            <Card className="p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h2 className="text-lg font-semibold text-foreground">Сравнение игроков</h2>
@@ -833,7 +854,7 @@ export function LeaderboardContent({ embedded = false }) {
                     loadCompare(nextId);
                     ensureProfileLoaded(nextId);
                   }}
-                  className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground"
+                  className="w-full rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground sm:w-auto"
                 >
                   <option value="">Выберите игрока...</option>
                   {compareCandidates.map((item) => (
@@ -859,8 +880,8 @@ export function LeaderboardContent({ embedded = false }) {
                 return (
                   <div className="mt-5">
                     {/* Player headers */}
-                    <div className="grid grid-cols-[1fr_48px_1fr] items-center gap-2">
-                      <div className={`rounded-2xl border p-4 ${leftWins ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-canvas"}`}>
+                    <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_48px_1fr]">
+                      <div className={`order-1 rounded-2xl border p-4 ${leftWins ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-canvas"}`}>
                         <p className="text-[11px] uppercase tracking-wider text-muted">Вы</p>
                         <p className="mt-1 truncate text-base font-bold text-foreground">{compareData.left.display_name}</p>
                         <p className="mt-1 text-2xl font-bold text-foreground">{formatNumber(leftPts)}</p>
@@ -868,11 +889,11 @@ export function LeaderboardContent({ embedded = false }) {
                         {leftWins && <p className="mt-2 text-xs font-semibold text-yellow-400">👑 Лидер</p>}
                       </div>
 
-                      <div className="flex items-center justify-center">
+                      <div className="order-2 flex items-center justify-center sm:order-none">
                         <span className="rounded-full bg-elevated px-2 py-1 text-xs font-bold text-muted">VS</span>
                       </div>
 
-                      <div className={`rounded-2xl border p-4 ${!leftWins ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-canvas"}`}>
+                      <div className={`order-3 rounded-2xl border p-4 ${!leftWins ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-canvas"}`}>
                         <p className="text-[11px] uppercase tracking-wider text-muted">Соперник</p>
                         <p className="mt-1 truncate text-base font-bold text-foreground">{compareData.right.display_name}</p>
                         <p className="mt-1 text-2xl font-bold text-foreground">{formatNumber(rightPts)}</p>
@@ -900,7 +921,7 @@ export function LeaderboardContent({ embedded = false }) {
                     </div>
 
                     {/* Stats row */}
-                    <div className="mt-4 grid grid-cols-3 gap-2">
+                    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
                       <div className="rounded-2xl border border-border bg-canvas p-3 text-center">
                         <p className="text-[11px] uppercase tracking-wider text-muted">Место</p>
                         <p className="mt-1 text-lg font-bold text-foreground">#{compareData.left.rank ?? "-"}</p>

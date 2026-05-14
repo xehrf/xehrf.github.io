@@ -89,3 +89,62 @@ def test_save_upload_file_rejects_unknown_magic_bytes(monkeypatch) -> None:
 
     assert exc_info.value.status_code == 400
     assert "supported image format" in str(exc_info.value.detail).lower()
+
+
+def test_save_profile_media_file_routes_images_to_image_uploader(monkeypatch) -> None:
+    png_data = b"\x89PNG\r\n\x1a\n" + b"x" * 32
+    upload = _DummyUploadFile("image/png", png_data)
+    called: dict[str, object] = {}
+
+    def fake_save_image(file_obj, subfolder):
+        called["file_obj"] = file_obj
+        called["subfolder"] = subfolder
+        return "https://cdn.example.com/avatar.png"
+
+    monkeypatch.setattr(uploads_service, "save_upload_file", fake_save_image)
+    monkeypatch.setattr(
+        uploads_service,
+        "save_video_file",
+        lambda *_args, **_kwargs: pytest.fail("Video upload handler should not be called"),
+    )
+
+    url = uploads_service.save_profile_media_file(upload, "avatars")
+
+    assert url == "https://cdn.example.com/avatar.png"
+    assert called["file_obj"] is upload
+    assert called["subfolder"] == "avatars"
+
+
+def test_save_profile_media_file_routes_videos_to_video_uploader(monkeypatch) -> None:
+    mp4_data = b"\x00\x00\x00\x18ftypisom" + b"x" * 32
+    upload = _DummyUploadFile("video/mp4", mp4_data)
+    called: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        uploads_service,
+        "save_upload_file",
+        lambda *_args, **_kwargs: pytest.fail("Image upload handler should not be called"),
+    )
+
+    def fake_save_video(file_obj, subfolder):
+        called["file_obj"] = file_obj
+        called["subfolder"] = subfolder
+        return "https://cdn.example.com/avatar.mp4"
+
+    monkeypatch.setattr(uploads_service, "save_video_file", fake_save_video)
+
+    url = uploads_service.save_profile_media_file(upload, "avatars")
+
+    assert url == "https://cdn.example.com/avatar.mp4"
+    assert called["file_obj"] is upload
+    assert called["subfolder"] == "avatars"
+
+
+def test_save_profile_media_file_rejects_unsupported_media() -> None:
+    upload = _DummyUploadFile("application/pdf", b"%PDF-test")
+
+    with pytest.raises(HTTPException) as exc_info:
+        uploads_service.save_profile_media_file(upload, "avatars")
+
+    assert exc_info.value.status_code == 400
+    assert "unsupported media format" in str(exc_info.value.detail).lower()

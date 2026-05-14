@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
+import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client.js";
 import { useArenaStats } from "../hooks/useArenaStats.js";
 
@@ -55,21 +56,21 @@ function Hero({ stats, loading }) {
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <LinkButton
               to="/matchmaking"
-              className="min-w-[200px] px-8 py-3.5 text-base font-bold"
+              className="w-full py-3.5 text-base font-bold sm:min-w-[200px] sm:w-auto sm:px-8"
             >
               ⚔ Сыграть матч
             </LinkButton>
             <LinkButton
               to="/dashboard"
               variant="secondary"
-              className="min-w-[200px] px-8 py-3.5 text-base"
+              className="w-full py-3.5 text-base sm:min-w-[200px] sm:w-auto sm:px-8"
             >
               К задачам
             </LinkButton>
           </div>
 
           {/* Метрики */}
-          <div className="mt-14 grid grid-cols-3 gap-4 sm:gap-8">
+          <div className="mt-14 grid grid-cols-1 gap-6 sm:grid-cols-3 sm:gap-8">
             <Metric value={matchesToday} label="матчей сегодня" loading={loading} />
             <Metric value="30" label="минут на матч" suffix="мин" />
             <Metric value={online} label="онлайн прямо сейчас" loading={loading} />
@@ -163,13 +164,13 @@ function DemoSection() {
 
         <div className="mt-10 overflow-hidden rounded-card border border-border bg-canvas shadow-card">
           {/* Top bar: таймер и задача */}
-          <div className="flex items-center justify-between border-b border-border bg-elevated px-5 py-3">
+          <div className="flex flex-col gap-3 border-b border-border bg-elevated px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">
                 Two Sum · сложность 3/5
               </span>
             </div>
-            <div className="flex items-center gap-2 font-mono text-lg font-bold tabular-nums text-accent">
+            <div className="flex w-full items-center justify-between gap-2 font-mono text-lg font-bold tabular-nums text-accent sm:w-auto sm:justify-start">
               <span className="text-xs uppercase tracking-wider text-muted">Таймер</span>
               {mm}:{ss}
             </div>
@@ -189,7 +190,7 @@ function DemoSection() {
 function PlayerPane({ name, pts, code, linesShown, testsPassed, testsTotal, winning }) {
   return (
     <div className="bg-canvas">
-      <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
         <div className="flex items-center gap-2">
           <div
             className={`h-2 w-2 rounded-full ${winning ? "bg-accent" : "bg-muted"} ${winning ? "animate-pulse" : ""}`}
@@ -204,7 +205,7 @@ function PlayerPane({ name, pts, code, linesShown, testsPassed, testsTotal, winn
           </span>
         </span>
       </div>
-      <pre className="overflow-hidden p-4 font-mono text-xs leading-6 sm:text-[13px]">
+      <pre className="overflow-x-auto p-4 font-mono text-xs leading-6 sm:text-[13px]">
         {code.map((line, i) => (
           <div
             key={i}
@@ -411,7 +412,7 @@ function LeaderboardPreview() {
               return (
                 <li
                   key={`${rank}-${name}`}
-                  className={`flex items-center justify-between px-5 py-3.5 transition-colors hover:bg-accent/5 ${
+                  className={`flex flex-wrap items-start justify-between gap-2 px-5 py-3.5 transition-colors hover:bg-accent/5 sm:flex-nowrap sm:items-center ${
                     rank <= 3 ? "bg-accent/[0.03]" : ""
                   }`}
                 >
@@ -424,14 +425,14 @@ function LeaderboardPreview() {
                       {badge || `#${rank}`}
                     </span>
                     <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 overflow-hidden rounded-full border border-border bg-elevated">
-                        {avatar ? (
-                          <img
-                            src={avatar}
-                            alt={name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
+                        <div className="h-8 w-8 overflow-hidden rounded-full border border-border bg-elevated">
+                          {avatar ? (
+                            <MediaAsset
+                              src={avatar}
+                              alt={name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
                           <div className="flex h-full w-full items-center justify-center text-xs font-bold text-foreground">
                             {name[0]?.toUpperCase()}
                           </div>
@@ -440,7 +441,7 @@ function LeaderboardPreview() {
                       <span className="font-medium text-foreground">{name}</span>
                     </div>
                   </div>
-                  <span className="font-mono font-bold text-accent">
+                  <span className="w-full pl-12 text-right font-mono font-bold text-accent sm:w-auto sm:pl-0">
                     {Number(pts).toLocaleString("ru-RU")}{" "}
                     <span className="text-xs text-muted">PTS</span>
                   </span>
@@ -630,20 +631,20 @@ function FinalCTA() {
         <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <LinkButton
             to="/matchmaking"
-            className="min-w-[220px] px-10 py-4 text-base font-bold"
+            className="w-full py-4 text-base font-bold sm:min-w-[220px] sm:w-auto sm:px-10"
           >
             ⚔ Начать матч
           </LinkButton>
           <LinkButton
             to="/register"
             variant="secondary"
-            className="min-w-[220px] px-10 py-4 text-base"
+            className="w-full py-4 text-base sm:min-w-[220px] sm:w-auto sm:px-10"
           >
             Создать аккаунт
           </LinkButton>
         </div>
 
-        <div className="mt-12 flex items-center justify-center gap-6 text-sm text-muted">
+        <div className="mt-12 flex flex-wrap items-center justify-center gap-3 text-sm text-muted sm:gap-6">
           <a
             href="https://t.me/codearena"
             target="_blank"

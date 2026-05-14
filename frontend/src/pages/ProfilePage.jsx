@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
+import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
+import { isVideoAsset } from "../utils/media.js";
 import { jsPDF } from "jspdf";
 import * as html2canvasModule from "html2canvas";
 
@@ -89,7 +91,7 @@ function AchievementGrid({ achievements }) {
           {earnedCount}/{achievements.length}
         </span>
       </div>
-      <div className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {achievements.map((a) => (
           <div
             key={a.id}
@@ -113,6 +115,7 @@ function AchievementGrid({ achievements }) {
 async function generateResumePDF(profile, completedTasks, skillChips) {
 
   const avatarUrl = resolveAssetUrl(profile.avatar_url || "");
+  const canRenderAvatarImage = avatarUrl && !isVideoAsset(avatarUrl);
   const now = new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" });
 
   // Build HTML string for the resume
@@ -142,7 +145,7 @@ async function generateResumePDF(profile, completedTasks, skillChips) {
             display: flex; align-items: center; justify-content: center;
             font-size: 36px; font-weight: 700; color: #FFD600;
           ">
-            ${avatarUrl
+            ${canRenderAvatarImage
               ? `<img src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover;" crossorigin="anonymous" />`
               : (profile.nickname || profile.display_name || "?")[0].toUpperCase()
             }
@@ -386,9 +389,6 @@ export function ProfilePage() {
   }
 
   const u = profile;
-  const bannerBackground =
-    u.banner_url ||
-    "linear-gradient(135deg, rgba(30,41,59,0.9), rgba(15,23,42,0.95))";
   const bannerUrl = resolveAssetUrl(u.banner_url || "");
   const avatarUrl = resolveAssetUrl(u.avatar_url || "");
   const showBanner = bannerUrl && !bannerLoadError;
@@ -439,7 +439,7 @@ export function ProfilePage() {
       <Card className="overflow-hidden p-0">
         <div className="relative h-44 bg-canvas sm:h-56">
           {showBanner ? (
-            <img
+            <MediaAsset
               src={bannerUrl}
               alt="Banner"
               className="h-full w-full object-cover"
@@ -468,7 +468,7 @@ export function ProfilePage() {
             <div className="flex items-end gap-4">
               <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-canvas bg-elevated shadow-xl sm:h-32 sm:w-32">
                 {showAvatar ? (
-                  <img
+                  <MediaAsset
                     src={avatarUrl}
                     alt="Avatar"
                     className="h-full w-full object-cover"
@@ -488,7 +488,7 @@ export function ProfilePage() {
               </div>
             </div>
 
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
               <Button
                 variant="secondary"
                 onClick={async () => {
@@ -502,11 +502,11 @@ export function ProfilePage() {
                   }
                 }}
                 disabled={generatingPdf}
-                className="flex-1 sm:flex-initial"
+                className="w-full sm:flex-initial"
               >
                 {generatingPdf ? "Генерируем..." : "⬇ Резюме PDF"}
               </Button>
-              <LinkButton to="/profile/edit" className="flex-1 sm:flex-initial">
+              <LinkButton to="/profile/edit" className="w-full sm:flex-initial">
                 Редактировать
               </LinkButton>
             </div>
@@ -565,7 +565,7 @@ export function ProfilePage() {
               {skillChips.map((s) => (
                 <li
                   key={s.key}
-                  className="flex items-center justify-between rounded-btn border border-border bg-elevated/40 px-3 py-2.5 transition-colors hover:border-accent/40"
+                  className="flex flex-col items-start gap-2 rounded-btn border border-border bg-elevated/40 px-3 py-2.5 transition-colors hover:border-accent/40 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-foreground">{s.label}</span>
@@ -614,7 +614,7 @@ export function ProfilePage() {
                 <li key={row.taskId}>
                   <Link
                     to={`/tasks/${row.taskId}/solve`}
-                    className="flex items-center justify-between rounded-btn border border-border bg-elevated/40 px-4 py-3 text-sm text-foreground transition-all hover:border-accent/40 hover:bg-elevated active:scale-[0.99]"
+                    className="flex flex-col items-start gap-2 rounded-btn border border-border bg-elevated/40 px-4 py-3 text-sm text-foreground transition-all hover:border-accent/40 hover:bg-elevated active:scale-[0.99] sm:flex-row sm:items-center sm:justify-between"
                   >
                     <span className="font-medium">{row.title}</span>
                     <span className="font-mono text-xs text-accent">✓</span>

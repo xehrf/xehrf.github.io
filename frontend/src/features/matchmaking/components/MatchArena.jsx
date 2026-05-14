@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, getWebSocketBaseUrl, resolveAssetUrl } from "../../../api/client.js";
+import { MediaAsset } from "../../../components/ui/MediaAsset.jsx";
 import { useGameEngine } from "../useGameEngine.js";
 import { GameStageView, ScoreBar } from "./GameStageView.jsx";
 
@@ -240,7 +241,7 @@ function ChatPanel({ messages, myUserId, onSend }) {
 
           return (
             <div key={`${message.user_id}-${index}-${message.text}`} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-              <div className="max-w-[82%] rounded-xl px-3 py-2 text-xs" style={{ background: mine ? "#FFD600" : "rgba(255,255,255,0.06)", color: mine ? "#111" : "#f8fafc" }}>
+              <div className="max-w-[88%] rounded-xl px-3 py-2 text-xs sm:max-w-[82%]" style={{ background: mine ? "#FFD600" : "rgba(255,255,255,0.06)", color: mine ? "#111" : "#f8fafc" }}>
                 <p className="mb-1 text-[10px] font-semibold opacity-80">{mine ? "вы" : message.display_name || message.nickname}</p>
                 <p>{message.text}</p>
               </div>
@@ -249,7 +250,7 @@ function ChatPanel({ messages, myUserId, onSend }) {
         })}
         <div ref={bottomRef} />
       </div>
-      <form onSubmit={handleSubmit} className="flex gap-2 border-t px-3 py-3" style={{ borderColor: "rgba(255,214,0,0.1)" }}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2 border-t px-3 py-3 sm:flex-row" style={{ borderColor: "rgba(255,214,0,0.1)" }}>
         <input
           value={text}
           onChange={(event) => setText(event.target.value)}
@@ -323,12 +324,12 @@ function OpponentIntelPanel({ opponentUserId, online, myUserId }) {
           <div className="space-y-4">
             <div className="overflow-hidden rounded-2xl border" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
               <div className="relative h-24">
-                {bannerUrl ? <img src={bannerUrl} alt="Баннер" className="h-full w-full object-cover" /> : <div className="h-full w-full" style={{ background: "linear-gradient(135deg, rgba(25,38,66,1) 0%, rgba(10,15,25,1) 100%)" }} />}
+                {bannerUrl ? <MediaAsset src={bannerUrl} alt="Баннер" className="h-full w-full object-cover" /> : <div className="h-full w-full" style={{ background: "linear-gradient(135deg, rgba(25,38,66,1) 0%, rgba(10,15,25,1) 100%)" }} />}
               </div>
               <div className="px-4 pb-4">
                 <div className="-mt-7 flex items-end gap-3">
                   <div className="relative h-16 w-16 shrink-0 rounded-full border-[3px] border-[#111] bg-slate-800">
-                    {avatarUrl ? <img src={avatarUrl} alt="Аватар" className="h-full w-full rounded-full object-cover" /> : <div className="flex h-full w-full items-center justify-center rounded-full text-xl font-bold text-[#FFD600]">{displayName[0]?.toUpperCase() || "?"}</div>}
+                    {avatarUrl ? <MediaAsset src={avatarUrl} alt="Аватар" className="h-full w-full rounded-full object-cover" /> : <div className="flex h-full w-full items-center justify-center rounded-full text-xl font-bold text-[#FFD600]">{displayName[0]?.toUpperCase() || "?"}</div>}
                     <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-[#111]" style={{ background: online ? "#22c55e" : "#6b7280", boxShadow: online ? "0 0 10px rgba(34,197,94,0.8)" : "none" }} />
                   </div>
                   <div className="min-w-0 pb-1">
@@ -673,11 +674,11 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
               <span className="font-mono text-white">{formatCountdown(secondsRemaining)}</span>
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
             <button
               type="button"
               onClick={() => setShowChat((value) => !value)}
-              className="rounded-xl border px-4 py-2 text-sm text-white/70 transition-colors hover:text-white"
+              className="w-full rounded-xl border px-4 py-2 text-sm text-white/70 transition-colors hover:text-white sm:w-auto"
               style={{ borderColor: "rgba(255,214,0,0.2)", background: "transparent" }}
             >
               {showChat ? "🎮 Игра" : "💬 Чат"}
@@ -685,7 +686,7 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
             <button
               type="button"
               onClick={() => onNavigateTask(activeMatch.task_id)}
-              className="rounded-xl px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-85"
+              className="w-full rounded-xl px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-85 sm:w-auto"
               style={{ background: "rgba(255,214,0,0.15)", color: "#FFD600", border: "1px solid rgba(255,214,0,0.3)" }}
             >
               Задача
@@ -694,7 +695,7 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
               type="button"
               onClick={onSurrender}
               disabled={surrendering}
-              className="rounded-xl border px-4 py-2 text-sm text-white/50 transition-colors hover:text-white disabled:opacity-40"
+              className="w-full rounded-xl border px-4 py-2 text-sm text-white/50 transition-colors hover:text-white disabled:opacity-40 sm:w-auto"
               style={{ borderColor: "rgba(255,255,255,0.1)", background: "transparent" }}
             >
               Сдаться
