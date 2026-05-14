@@ -15,9 +15,14 @@ const CHAR_SETS = {
   digits: HYBRID_CHAR_SET,
   binary: HYBRID_CHAR_SET,
 };
+const FONT_FAMILY = `ui-monospace, "JetBrains Mono", monospace`;
 
 function clampByte(value) {
   return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function clampNumber(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function getVideoSymbolColor(red, green, blue, luminance) {
@@ -27,6 +32,22 @@ function getVideoSymbolColor(red, green, blue, luminance) {
   const lift = luminance < 0.35 ? 24 : 12;
 
   return `rgb(${clampByte(red * boost + lift)}, ${clampByte(green * boost + lift)}, ${clampByte(blue * boost + lift)})`;
+}
+
+function getStableCellNoise(x, y) {
+  const raw = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+  return raw - Math.floor(raw);
+}
+
+function getVariableSymbolScale(luminance, x, y) {
+  const noise = getStableCellNoise(x, y);
+  const blended = luminance * 0.62 + noise * 0.38;
+
+  if (blended < 0.22) return 0.78;
+  if (blended < 0.45) return 0.92;
+  if (blended < 0.68) return 1.04;
+  if (blended < 0.84) return 1.16;
+  return 1.28;
 }
 
 export function AsciiVideoBackground({
@@ -42,6 +63,7 @@ export function AsciiVideoBackground({
   lightThreshold = 0.62,
   className = "",
   fullscreen = true,
+  variableSizing = true,
 }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -68,8 +90,8 @@ export function AsciiVideoBackground({
     const chars = CHAR_SETS[variant] ?? CHAR_SETS.hybrid;
     const charsLastIdx = chars.length - 1;
     const frameInterval = Math.max(16, Math.floor(1000 / Math.max(10, fps)));
-    const fontSize = Math.max(7, Math.round(cellPx));
-    const cellHeight = Math.max(6, Math.round(fontSize * 0.9));
+    const baseFontSize = Math.max(7, Math.round(cellPx));
+    const cellHeight = Math.max(6, Math.round(baseFontSize * 0.94));
 
     let mounted = true;
     let rafId = 0;
@@ -102,10 +124,11 @@ export function AsciiVideoBackground({
       const widthCss = canvas.clientWidth || window.innerWidth;
       const heightCss = canvas.clientHeight || window.innerHeight;
 
-      ctx.font = `700 ${fontSize}px ui-monospace, "JetBrains Mono", monospace`;
-      ctx.textBaseline = "top";
+      ctx.font = `700 ${baseFontSize}px ${FONT_FAMILY}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
 
-      const measuredCharWidth = ctx.measureText("8").width || fontSize * 0.62;
+      const measuredCharWidth = ctx.measureText("8").width || baseFontSize * 0.62;
       const cellWidth = Math.max(4, Math.round(measuredCharWidth * 0.9));
       const cols = Math.max(1, Math.ceil(widthCss / cellWidth));
       const rows = Math.max(1, Math.ceil(heightCss / cellHeight));
@@ -129,19 +152,9 @@ export function AsciiVideoBackground({
       ctx.fillStyle = background;
       ctx.fillRect(0, 0, widthCss, heightCss);
 
+      let activeFontSize = baseFontSize;
+
       for (let y = 0; y < rows; y++) {
-        let runText = "";
-        let runColor = null;
-        let runStartX = 0;
-
-        function flushRun() {
-          if (!runText || !runColor) return;
-          ctx.fillStyle = runColor;
-          ctx.fillText(runText, runStartX * cellWidth, y * cellHeight);
-          runText = "";
-          runColor = null;
-        }
-
         for (let x = 0; x < cols; x++) {
           const idx = (y * cols + x) * 4;
           const red = pixels[idx];
@@ -152,7 +165,6 @@ export function AsciiVideoBackground({
           const ch = chars[charIdx];
 
           if (ch === " ") {
-            flushRun();
             continue;
           }
 
@@ -162,25 +174,25 @@ export function AsciiVideoBackground({
                 ? lightColor
                 : darkColor
               : getVideoSymbolColor(red, green, blue, lum);
-          if (!runText) {
-            runText = ch;
-            runColor = symbolColor;
-            runStartX = x;
-            continue;
+
+          const symbolFontSize = clampNumber(
+            Math.round(baseFontSize * (variableSizing ? getVariableSymbolScale(lum, x, y) : 1)),
+            Math.max(6, baseFontSize - 3),
+            baseFontSize + 4,
+          );
+
+          if (symbolFontSize !== activeFontSize) {
+            activeFontSize = symbolFontSize;
+            ctx.font = `700 ${activeFontSize}px ${FONT_FAMILY}`;
           }
 
-          if (runColor !== symbolColor) {
-            flushRun();
-            runText = ch;
-            runColor = symbolColor;
-            runStartX = x;
-            continue;
-          }
-
-          runText += ch;
+          ctx.fillStyle = symbolColor;
+          ctx.fillText(
+            ch,
+            x * cellWidth + cellWidth / 2,
+            y * cellHeight + cellHeight / 2,
+          );
         }
-
-        flushRun();
       }
     }
 
@@ -204,7 +216,7 @@ export function AsciiVideoBackground({
         // ignore
       }
     };
-  }, [videoUrl, variant, cellPx, colorMode, lightColor, darkColor, background, fps, lightThreshold]);
+  }, [videoUrl, variant, cellPx, colorMode, lightColor, darkColor, background, fps, lightThreshold, variableSizing]);
 
   if (!videoUrl) return null;
 
