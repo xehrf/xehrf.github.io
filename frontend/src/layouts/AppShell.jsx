@@ -22,7 +22,7 @@ export function AppShell() {
           videoUrl={bgVideoUrl}
           opacity={0.24}
           cellPx={18}
-          symbolScale={1.18}
+          symbolScale={0.6}
           fps={12}
           variableSizing={false}
           renderDpr={1}

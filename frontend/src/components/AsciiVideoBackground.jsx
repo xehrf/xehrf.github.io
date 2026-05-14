@@ -96,7 +96,8 @@ export function AsciiVideoBackground({
     const charsLastIdx = chars.length - 1;
     const frameInterval = Math.max(16, Math.floor(1000 / Math.max(10, fps)));
     const sampleFontSize = Math.max(7, Math.round(cellPx));
-    const drawBaseFontSize = Math.max(sampleFontSize, Math.round(sampleFontSize * Math.max(0.9, symbolScale)));
+    const effectiveSymbolScale = clampNumber(Number(symbolScale) || 1, 0.35, 2.5);
+    const drawBaseFontSize = Math.max(6, Math.round(sampleFontSize * effectiveSymbolScale));
     const cellHeight = Math.max(6, Math.round(sampleFontSize * 0.94));
     const effectiveMaxCols = Number.isFinite(maxCols) ? Math.max(1, Math.floor(maxCols)) : Infinity;
     const effectiveMaxRows = Number.isFinite(maxRows) ? Math.max(1, Math.floor(maxRows)) : Infinity;
