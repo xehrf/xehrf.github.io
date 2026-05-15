@@ -667,7 +667,7 @@ function FinalCTA() {
           </a>
           <span className="text-border">•</span>
           <a
-            href="https://github.com/xehrf/codearena"
+            href="https://github.com/xehrf/xehrf.github.io"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-2 transition-colors hover:text-accent"
