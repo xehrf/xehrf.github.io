@@ -137,6 +137,21 @@ def is_friend(db: Session, me_id: int, other_id: int) -> bool:
     return row is not None and row.status == FriendshipStatus.accepted
 
 
+def get_friendship_status(db: Session, me_id: int, other_id: int) -> dict:
+    if me_id == other_id:
+        return {"status": "self", "friendship_id": None}
+    row = _find_friendship(db, me_id, other_id)
+    if row is None:
+        return {"status": "none", "friendship_id": None}
+    if row.status == FriendshipStatus.accepted:
+        return {"status": "friend", "friendship_id": row.id}
+    if row.status == FriendshipStatus.pending:
+        direction = "pending_incoming" if row.addressee_id == me_id else "pending_outgoing"
+        return {"status": direction, "friendship_id": row.id}
+    # declined or blocked — treat as no relation for re-send
+    return {"status": "none", "friendship_id": row.id}
+
+
 # ----- DMs -----
 
 def list_dm_conversations(db: Session, me_id: int) -> list[dict]:

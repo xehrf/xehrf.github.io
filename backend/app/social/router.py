@@ -12,6 +12,7 @@ from app.social.schemas import (
     DMSendIn,
     FriendRequestIn,
     FriendshipOut,
+    FriendshipStatusOut,
     FriendUserOut,
 )
 
@@ -104,6 +105,15 @@ def search_users(
     db: Session = Depends(get_db),
 ):
     return service.search_users(db, user.id, q)
+
+
+@router.get("/friendship/{user_id}", response_model=FriendshipStatusOut)
+def get_friendship_status(
+    user_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return service.get_friendship_status(db, user.id, user_id)
 
 
 # ----- DMs -----

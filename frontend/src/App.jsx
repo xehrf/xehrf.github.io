@@ -21,6 +21,7 @@ import { TaskDetailPage } from "./pages/TaskDetailPage.jsx";
 import { FriendsPage } from "./pages/FriendsPage.jsx";
 import { MessagesPage } from "./pages/MessagesPage.jsx";
 import { ActivityPage } from "./pages/ActivityPage.jsx";
+import { PublicProfilePage } from "./pages/PublicProfilePage.jsx";
 import { RequireAuth } from "./auth/RequireAuth.jsx";
 
 export default function App() {
@@ -188,6 +189,14 @@ export default function App() {
           element={
             <RequireAuth>
               <ActivityPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/users/:userId"
+          element={
+            <RequireAuth>
+              <PublicProfilePage />
             </RequireAuth>
           }
         />

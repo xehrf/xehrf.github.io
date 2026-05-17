@@ -57,3 +57,8 @@ class ActivityEventOut(BaseModel):
     created_at: datetime
     actor: FriendUserOut
     payload: dict = {}
+
+
+class FriendshipStatusOut(BaseModel):
+    status: str  # "none" | "self" | "friend" | "pending_outgoing" | "pending_incoming"
+    friendship_id: int | None = None
