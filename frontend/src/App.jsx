@@ -18,6 +18,9 @@ import { TaskSolvePage } from "./pages/TaskSolvePage.jsx";
 import { TeamCreatePage } from "./pages/TeamCreatePage.jsx";
 import { TeamsPage } from "./pages/TeamsPage.jsx";
 import { TaskDetailPage } from "./pages/TaskDetailPage.jsx";
+import { FriendsPage } from "./pages/FriendsPage.jsx";
+import { MessagesPage } from "./pages/MessagesPage.jsx";
+import { ActivityPage } from "./pages/ActivityPage.jsx";
 import { RequireAuth } from "./auth/RequireAuth.jsx";
 
 export default function App() {
@@ -153,6 +156,38 @@ export default function App() {
           element={
             <RequireAuth>
               <EditProfilePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/social/friends"
+          element={
+            <RequireAuth>
+              <FriendsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/social/messages"
+          element={
+            <RequireAuth>
+              <MessagesPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/social/messages/:partnerId"
+          element={
+            <RequireAuth>
+              <MessagesPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/social/activity"
+          element={
+            <RequireAuth>
+              <ActivityPage />
             </RequireAuth>
           }
         />

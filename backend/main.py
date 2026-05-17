@@ -30,6 +30,7 @@ from app.payments.router import router as payments_router
 from app.rating.router import router as rating_router
 from app.stats.router import router as stats_router
 from app.submissions.router import router as submissions_router
+from app.social.router import router as social_router
 from app.team_matchmaking.router import router as team_matchmaking_router, team_router
 from app.tasks.router import router as tasks_router
 from app.users.router import router as users_router
@@ -201,6 +202,7 @@ app.include_router(rating_router)
 app.include_router(stats_router)
 app.include_router(payments_router)
 app.include_router(freelance_router)
+app.include_router(social_router)
 app.include_router(match_ws_router)
 
 
