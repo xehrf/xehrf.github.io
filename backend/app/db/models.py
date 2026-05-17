@@ -459,3 +459,41 @@ class ContractEvent(Base):
 
     contract: Mapped["Contract"] = relationship(back_populates="events")
     actor: Mapped["User | None"] = relationship(foreign_keys=[actor_id])
+
+
+class FriendshipStatus(str, enum.Enum):
+    pending = "pending"
+    accepted = "accepted"
+    declined = "declined"
+    blocked = "blocked"
+
+
+class Friendship(Base):
+    __tablename__ = "friendships"
+    __table_args__ = (UniqueConstraint("requester_id", "addressee_id", name="uq_friendship_pair"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    requester_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    addressee_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    status: Mapped[FriendshipStatus] = mapped_column(
+        Enum(FriendshipStatus), default=FriendshipStatus.pending, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    requester: Mapped["User"] = relationship(foreign_keys=[requester_id])
+    addressee: Mapped["User"] = relationship(foreign_keys=[addressee_id])
+
+
+class DirectMessage(Base):
+    __tablename__ = "direct_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    sender_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    recipient_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    body: Mapped[str] = mapped_column(Text)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    sender: Mapped["User"] = relationship(foreign_keys=[sender_id])
+    recipient: Mapped["User"] = relationship(foreign_keys=[recipient_id])

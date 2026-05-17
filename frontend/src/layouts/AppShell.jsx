@@ -3,6 +3,7 @@ import { AsciiVideoBackground } from "../components/AsciiVideoBackground.jsx";
 import { Navbar } from "../components/layout/Navbar.jsx";
 import { MobileHeader } from "../components/layout/MobileHeader.jsx";
 import { BottomNav } from "../components/layout/BottomNav.jsx";
+import { SocialSidebar } from "../components/layout/SocialSidebar.jsx";
 import { useAuth } from "../auth/AuthProvider.jsx";
 import { resolveAssetUrl } from "../api/client";
 
@@ -37,9 +38,12 @@ export function AppShell() {
       <div className="relative z-10">
         <MobileHeader user={user} />
       </div>
-      <main className="relative z-10 min-h-0 flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
-        <Outlet />
-      </main>
+      <div className="relative z-10 flex min-h-0 flex-1">
+        {user ? <SocialSidebar /> : null}
+        <main className="min-h-0 flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
+          <Outlet />
+        </main>
+      </div>
       {user ? (
         <div className="relative z-10">
           <BottomNav />
