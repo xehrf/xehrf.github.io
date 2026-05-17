@@ -38,12 +38,15 @@ export function AppShell() {
       <div className="relative z-10">
         <MobileHeader user={user} />
       </div>
-      <div className="relative z-10 flex min-h-0 flex-1">
-        {user ? <SocialSidebar /> : null}
-        <main className="min-h-0 flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
-          <Outlet />
-        </main>
-      </div>
+      {user ? <SocialSidebar /> : null}
+      <main
+        className={[
+          "relative z-10 min-h-0 flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0",
+          user ? "md:pl-16" : "",
+        ].join(" ")}
+      >
+        <Outlet />
+      </main>
       {user ? (
         <div className="relative z-10">
           <BottomNav />
