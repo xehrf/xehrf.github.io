@@ -39,10 +39,13 @@ function IconButton({ to, icon, label, badge }) {
  * Discord-style narrow social sidebar. Lives on the left edge on desktop
  * and is hidden on mobile (bottom nav handles small screens).
  *
- * Polls /social/friends/pending and /social/dms in the background so the
- * red-dot badges stay roughly fresh.
+ * - When `collapsed`, the bar slides off to the left and a small tab with a
+ *   right-chevron appears so the user can pull it back. State lives in the
+ *   parent (AppShell) and is persisted to localStorage.
+ * - Polls /social/friends/pending and /social/dms in the background so the
+ *   red-dot badges stay roughly fresh.
  */
-export function SocialSidebar() {
+export function SocialSidebar({ collapsed = false, onToggleCollapsed }) {
   const [counters, setCounters] = useState({ pending: 0, unread: 0 });
 
   useEffect(() => {
@@ -76,22 +79,61 @@ export function SocialSidebar() {
     };
   }, []);
 
+  const totalBadge = (counters.pending || 0) + (counters.unread || 0);
+
   return (
-    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-16 flex-col items-center gap-2 overflow-y-auto border-r border-border bg-canvas pb-4 pt-[4.5rem] md:flex">
-      <div className="flex flex-col gap-2">
-        {ICON_ITEMS.map((item) => (
-          <IconButton
-            key={item.to}
-            to={item.to}
-            icon={item.icon}
-            label={item.label}
-            badge={item.badgeKey ? counters[item.badgeKey] : 0}
-          />
-        ))}
-      </div>
-      <div className="mt-auto px-2 text-center text-[9px] uppercase tracking-wider text-muted/60">
-        social
-      </div>
-    </aside>
+    <>
+      <aside
+        aria-hidden={collapsed}
+        className={[
+          "fixed left-0 top-0 z-40 hidden h-screen w-16 flex-col items-center gap-2 overflow-y-auto border-r border-border bg-canvas pb-4 pt-[4.5rem] transition-transform duration-200 md:flex",
+          collapsed ? "-translate-x-full" : "translate-x-0",
+        ].join(" ")}
+      >
+        <div className="flex flex-col gap-2">
+          {ICON_ITEMS.map((item) => (
+            <IconButton
+              key={item.to}
+              to={item.to}
+              icon={item.icon}
+              label={item.label}
+              badge={item.badgeKey ? counters[item.badgeKey] : 0}
+            />
+          ))}
+        </div>
+
+        {/* Collapse button at bottom of sidebar */}
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          title="Свернуть"
+          aria-label="Свернуть сайдбар"
+          className="mt-auto flex h-8 w-8 items-center justify-center rounded-full border border-border bg-elevated/60 text-muted transition hover:border-accent/40 hover:text-accent"
+        >
+          <span className="text-sm leading-none">◀</span>
+        </button>
+        <div className="mt-1 px-2 text-center text-[9px] uppercase tracking-wider text-muted/60">
+          social
+        </div>
+      </aside>
+
+      {/* Floating "pull out" tab while collapsed */}
+      {collapsed ? (
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          title="Открыть социал"
+          aria-label="Открыть сайдбар"
+          className="fixed left-0 top-1/2 z-40 hidden -translate-y-1/2 items-center justify-center rounded-r-2xl border border-l-0 border-border bg-elevated/90 px-1.5 py-3 text-muted shadow-card backdrop-blur transition hover:border-accent/50 hover:text-accent md:flex"
+        >
+          <span className="text-sm leading-none">▶</span>
+          {totalBadge > 0 ? (
+            <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+              {totalBadge > 9 ? "9+" : totalBadge}
+            </span>
+          ) : null}
+        </button>
+      ) : null}
+    </>
   );
 }
