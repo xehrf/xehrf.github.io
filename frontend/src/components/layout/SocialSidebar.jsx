@@ -77,7 +77,7 @@ export function SocialSidebar() {
   }, []);
 
   return (
-    <aside className="fixed left-0 top-14 z-40 hidden h-[calc(100vh-3.5rem)] w-16 flex-col items-center gap-2 overflow-y-auto border-r border-border bg-canvas py-4 md:flex">
+    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-16 flex-col items-center gap-2 overflow-y-auto border-r border-border bg-canvas pb-4 pt-[4.5rem] md:flex">
       <div className="flex flex-col gap-2">
         {ICON_ITEMS.map((item) => (
           <IconButton

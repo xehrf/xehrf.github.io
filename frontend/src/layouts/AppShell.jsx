@@ -32,7 +32,7 @@ export function AppShell() {
           maxRows={68}
         />
       ) : null}
-      <div className="relative z-10 hidden md:block">
+      <div className="sticky top-0 z-50 hidden md:block">
         <Navbar user={user} />
       </div>
       <div className="relative z-10">
