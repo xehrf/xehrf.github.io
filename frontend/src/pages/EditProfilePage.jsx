@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SocialAuthButtons } from "../components/auth/SocialAuthButtons.jsx";
 import { AsciiVideoBackground } from "../components/AsciiVideoBackground.jsx";
+import { PREVIEW_BACKGROUND_PRESET } from "../components/asciiBackgroundPresets.js";
 import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
@@ -46,9 +47,7 @@ function AsciiBackgroundPreview({ videoUrl }) {
     <AsciiVideoBackground
       videoUrl={videoUrl}
       fullscreen={false}
-      // Tighter cell size keeps the effect readable inside the small preview.
-      cellPx={8}
-      fps={24}
+      {...PREVIEW_BACKGROUND_PRESET}
     />
   );
 }
@@ -296,9 +295,9 @@ export function EditProfilePage() {
               Видео-фон (ASCII / Matrix)
             </h2>
             <p className="text-sm text-muted">
-              Загрузи короткое видео (MP4 / WebM / MOV, до 15 МБ). На странице
-              профиля оно будет нарисовано символами — настоящие пиксели
-              скрыты, видны только цифры или ASCII-знаки.
+              Загрузи короткое видео (MP4 / WebM / MOV, до 15 МБ). Оно будет
+              отрисовано символами как фон по всему сайту. Превью ниже
+              показывает ровно тот вид, который увидят все.
             </p>
           </div>
 
