@@ -30,3 +30,34 @@ export const PREVIEW_BACKGROUND_PRESET = {
   maxCols: Infinity,
   maxRows: Infinity,
 };
+
+/**
+ * Plain (non-ASCII) video background tuning. Used when the user prefers the
+ * raw footage as a wallpaper rather than the symbol overlay.
+ */
+export const PLAIN_VIDEO_PAGE_PRESET = {
+  opacity: 0.28,
+  brightness: 0.55,
+  blurPx: 0,
+};
+
+export const PLAIN_VIDEO_PREVIEW_PRESET = {
+  opacity: 0.85,
+  brightness: 0.7,
+  blurPx: 0,
+};
+
+export const BG_MODE_ASCII = "ascii";
+export const BG_MODE_PLAIN = "plain";
+export const BG_MODE_STORAGE_KEY = "bg_video_mode";
+
+export function getStoredBgMode() {
+  if (typeof window === "undefined") return BG_MODE_ASCII;
+  const raw = window.localStorage.getItem(BG_MODE_STORAGE_KEY);
+  return raw === BG_MODE_PLAIN ? BG_MODE_PLAIN : BG_MODE_ASCII;
+}
+
+export function setStoredBgMode(mode) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(BG_MODE_STORAGE_KEY, mode);
+}

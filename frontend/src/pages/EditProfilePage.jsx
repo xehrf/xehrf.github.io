@@ -2,7 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SocialAuthButtons } from "../components/auth/SocialAuthButtons.jsx";
 import { AsciiVideoBackground } from "../components/AsciiVideoBackground.jsx";
-import { PREVIEW_BACKGROUND_PRESET } from "../components/asciiBackgroundPresets.js";
+import { VideoBackground } from "../components/VideoBackground.jsx";
+import {
+  BG_MODE_ASCII,
+  BG_MODE_PLAIN,
+  PLAIN_VIDEO_PREVIEW_PRESET,
+  PREVIEW_BACKGROUND_PRESET,
+  getStoredBgMode,
+  setStoredBgMode,
+} from "../components/asciiBackgroundPresets.js";
 import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
@@ -42,7 +50,16 @@ function ConnectionBadge({ label, connected }) {
   );
 }
 
-function AsciiBackgroundPreview({ videoUrl }) {
+function BackgroundPreview({ videoUrl, mode }) {
+  if (mode === BG_MODE_PLAIN) {
+    return (
+      <VideoBackground
+        videoUrl={videoUrl}
+        fullscreen={false}
+        {...PLAIN_VIDEO_PREVIEW_PRESET}
+      />
+    );
+  }
   return (
     <AsciiVideoBackground
       videoUrl={videoUrl}
@@ -61,6 +78,16 @@ export function EditProfilePage() {
   const [bgVideoFile, setBgVideoFile] = useState(null);
   const [bgUploading, setBgUploading] = useState(false);
   const [bgError, setBgError] = useState("");
+  const [bgMode, setBgMode] = useState(() => getStoredBgMode());
+
+  function handleBgModeChange(nextMode) {
+    setBgMode(nextMode);
+    setStoredBgMode(nextMode);
+    // Let AppShell react without waiting for a page reload.
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("bg-mode-change"));
+    }
+  }
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -288,24 +315,64 @@ export function EditProfilePage() {
           </div>
         </Card>
 
-        {/* Видео-фон в стиле ASCII / Matrix */}
+        {/* Видео-фон */}
         <Card className="p-6">
           <div className="flex flex-col gap-2">
             <h2 className="text-lg font-semibold text-foreground">
-              Видео-фон (ASCII / Matrix)
+              Видео-фон
             </h2>
             <p className="text-sm text-muted">
-              Загрузи короткое видео (MP4 / WebM / MOV, до 15 МБ). Оно будет
-              отрисовано символами как фон по всему сайту. Превью ниже
-              показывает ровно тот вид, который увидят все.
+              Загрузи короткое видео (MP4 / WebM / MOV, до 15 МБ) и выбери,
+              как оно будет показываться: символами в стиле Matrix или просто
+              видео как обои. Превью обновляется сразу.
             </p>
           </div>
 
-          {/* Live preview of the ASCII effect inside a bordered viewport. */}
+          {/* Mode selector */}
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleBgModeChange(BG_MODE_ASCII)}
+              className={[
+                "flex-1 rounded-2xl border px-4 py-3 text-left transition",
+                bgMode === BG_MODE_ASCII
+                  ? "border-accent/60 bg-accent/10"
+                  : "border-border bg-canvas hover:border-accent/30",
+              ].join(" ")}
+            >
+              <p className={[
+                "text-sm font-semibold",
+                bgMode === BG_MODE_ASCII ? "text-accent" : "text-foreground",
+              ].join(" ")}>
+                ASCII / Matrix
+              </p>
+              <p className="mt-0.5 text-xs text-muted">Видео нарисовано символами</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBgModeChange(BG_MODE_PLAIN)}
+              className={[
+                "flex-1 rounded-2xl border px-4 py-3 text-left transition",
+                bgMode === BG_MODE_PLAIN
+                  ? "border-accent/60 bg-accent/10"
+                  : "border-border bg-canvas hover:border-accent/30",
+              ].join(" ")}
+            >
+              <p className={[
+                "text-sm font-semibold",
+                bgMode === BG_MODE_PLAIN ? "text-accent" : "text-foreground",
+              ].join(" ")}>
+                Видео как обои
+              </p>
+              <p className="mt-0.5 text-xs text-muted">Без эффектов, приглушённое</p>
+            </button>
+          </div>
+
+          {/* Live preview of the chosen mode inside a bordered viewport. */}
           <div className="relative mt-4 h-56 overflow-hidden rounded-2xl border border-border bg-canvas">
             {bgVideoPreview ? (
               <div className="absolute inset-0">
-                <AsciiBackgroundPreview videoUrl={bgVideoPreview} />
+                <BackgroundPreview videoUrl={bgVideoPreview} mode={bgMode} />
               </div>
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-muted">
