@@ -3,18 +3,22 @@ import { Button } from "../../../../components/ui/Button.jsx";
 import { Card } from "../../../../components/ui/Card.jsx";
 import { apiFetch, ApiError } from "../../../../api/client.js";
 import { BugHunterStage } from "./BugHunterStage.jsx";
+import { CodeReviewStage } from "./CodeReviewStage.jsx";
 import { DialogStage } from "./DialogStage.jsx";
 import { pickBugHunterScenario } from "./bugHunter.js";
+import { pickCodeReviewScenario } from "./codeReview.js";
 import { buildDialogRun } from "./dialog.js";
 
 /**
- * Solo "Собеседование" — two fundamentally different mini-games behind a
- * single mode entry. At session start we coin-flip:
+ * Solo "Собеседование" — several fundamentally different mini-games behind
+ * a single mode entry. At session start we pick one at random:
  *
  *   - Bug Hunter:  one buggy file, multi-select, timer. Find all bugs.
  *   - HR Dialog:   6-turn branching conversation with a live mood gauge.
+ *   - Code Review: read a snippet, identify the issue, improve it, and
+ *                  choose a senior-level review comment.
  *
- * Both surfaces feed the same {correct, total} into
+ * Every surface feeds the same {correct, total} into
  * POST /matchmaking/interview/complete so the backend's verdict /
  * daily-PTS-cap logic stays untouched.
  */
@@ -44,9 +48,18 @@ const GRADES = [
 ];
 
 const LAST_VERDICT_KEY = "codearena:interview:last";
+const GAMES = ["bug-hunter", "dialog", "code-review"];
 
 function pickGame(random = Math.random) {
-  return random() < 0.5 ? "bug-hunter" : "dialog";
+  return GAMES[Math.floor(random() * GAMES.length)];
+}
+
+function getGameLabel(game) {
+  return {
+    "bug-hunter": "Bug Hunter",
+    dialog: "Диалог",
+    "code-review": "Code Review",
+  }[game] ?? "Собеседование";
 }
 
 function loadLastVerdict() {
@@ -96,9 +109,9 @@ function IntroScreen({ onStart, gradeId, setGradeId, lastVerdict }) {
         <div className="text-5xl">💼</div>
         <h2 className="mt-3 text-3xl font-bold text-foreground">Собеседование</h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted">
-          Случайно выпадает либо <b className="text-foreground">Bug Hunter</b> (найти все баги в файле),
-          либо <b className="text-foreground">диалог с HR</b> (6 ходов с гейджем настроения). Получи Offer —
-          забираешь PTS (раз в сутки на грейд).
+          Случайно выпадает <b className="text-foreground">Bug Hunter</b>, <b className="text-foreground">диалог с HR</b>{" "}
+          или <b className="text-foreground">Code Review</b> с senior-разбором. Получи Offer — забираешь PTS
+          (раз в сутки на грейд).
         </p>
       </div>
 
@@ -111,7 +124,7 @@ function IntroScreen({ onStart, gradeId, setGradeId, lastVerdict }) {
       {lastVerdict ? (
         <div className="mx-auto mt-5 max-w-md rounded-btn border border-border bg-elevated/30 px-4 py-3 text-center text-xs text-muted">
           Прошлый раунд: <b className="text-foreground">{lastVerdict.verdict}</b> в режиме{" "}
-          <b className="text-foreground">{lastVerdict.game === "bug-hunter" ? "Bug Hunter" : "Диалог"}</b>{" "}
+          <b className="text-foreground">{getGameLabel(lastVerdict.game)}</b>{" "}
           на грейде <b className="text-foreground">{lastVerdict.grade}</b> — {lastVerdict.correct}/
           {lastVerdict.total}
           {lastVerdict.reward_pts > 0 ? ` (+${lastVerdict.reward_pts} PTS)` : ""}
@@ -121,6 +134,18 @@ function IntroScreen({ onStart, gradeId, setGradeId, lastVerdict }) {
       <div className="mt-6 flex justify-center">
         <Button onClick={onStart} className="min-w-[240px]">
           ▶ Начать (режим вслепую)
+        </Button>
+      </div>
+
+      <div className="mx-auto mt-3 grid max-w-md grid-cols-1 gap-2 sm:grid-cols-3">
+        <Button variant="secondary" onClick={() => onStart("bug-hunter")}>
+          Bug Hunter
+        </Button>
+        <Button variant="secondary" onClick={() => onStart("code-review")}>
+          Code Review
+        </Button>
+        <Button variant="secondary" onClick={() => onStart("dialog")}>
+          Диалог
         </Button>
       </div>
 
@@ -165,7 +190,11 @@ function ResultScreen({ result, error, game, onRestart, onExit }) {
   }[result.verdict] ?? { emoji: "❓", title: result.verdict, tone: "text-foreground" };
 
   const pct = Math.round((result.accuracy ?? 0) * 100);
-  const gameLabel = game === "bug-hunter" ? "Bug Hunter" : "Диалог с HR";
+  const gameLabel = {
+    "bug-hunter": "Bug Hunter",
+    dialog: "Диалог с HR",
+    "code-review": "Code Review",
+  }[game] ?? "Собеседование";
 
   return (
     <Card className="p-8 text-center">
@@ -201,8 +230,9 @@ function ResultScreen({ result, error, game, onRestart, onExit }) {
 export function InterviewMode() {
   const [phase, setPhase] = useState("intro"); // "intro" | "playing" | "done"
   const [gradeId, setGradeId] = useState("middle");
-  const [game, setGame] = useState(null); // "bug-hunter" | "dialog"
+  const [game, setGame] = useState(null); // "bug-hunter" | "dialog" | "code-review"
   const [bugScenario, setBugScenario] = useState(null);
+  const [codeReviewScenario, setCodeReviewScenario] = useState(null);
   const [dialogSlots, setDialogSlots] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -211,18 +241,24 @@ export function InterviewMode() {
 
   const grade = useMemo(() => GRADES.find((g) => g.id === gradeId) ?? GRADES[1], [gradeId]);
 
-  function startSession() {
+  function startSession(preferredGame = null) {
     submitGuardRef.current = false;
     setError(null);
     setResult(null);
-    const nextGame = pickGame();
+    const nextGame = GAMES.includes(preferredGame) ? preferredGame : pickGame();
     setGame(nextGame);
     if (nextGame === "bug-hunter") {
       setBugScenario(pickBugHunterScenario());
+      setCodeReviewScenario(null);
+      setDialogSlots(null);
+    } else if (nextGame === "code-review") {
+      setCodeReviewScenario(pickCodeReviewScenario());
+      setBugScenario(null);
       setDialogSlots(null);
     } else {
       setDialogSlots(buildDialogRun());
       setBugScenario(null);
+      setCodeReviewScenario(null);
     }
     setPhase("playing");
   }
@@ -277,6 +313,9 @@ export function InterviewMode() {
     if (phase === "playing" && game === "dialog" && dialogSlots) {
       return <DialogStage slots={dialogSlots} onSubmit={handleSubmit} />;
     }
+    if (phase === "playing" && game === "code-review" && codeReviewScenario) {
+      return <CodeReviewStage scenario={codeReviewScenario} onSubmit={handleSubmit} />;
+    }
     if (phase === "done") {
       return (
         <ResultScreen
@@ -290,7 +329,7 @@ export function InterviewMode() {
     }
     return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- view is derived; handlers read latest state imperatively
-  }, [phase, game, bugScenario, dialogSlots, gradeId, lastVerdict, result, error]);
+  }, [phase, game, bugScenario, codeReviewScenario, dialogSlots, gradeId, lastVerdict, result, error]);
 
-  return <div className="mx-auto max-w-3xl">{view}</div>;
+  return <div className="mx-auto max-w-4xl">{view}</div>;
 }

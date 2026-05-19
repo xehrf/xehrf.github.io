@@ -1,8 +1,8 @@
 /**
  * Metadata for the solo "Собеседование" matchmaking mode.
  *
- * Solo, no opponent, no WebSocket. Each session randomly picks one of two
- * mini-games (Bug Hunter or branching HR dialog) so replays feel different.
+ * Solo, no opponent, no WebSocket. Each session randomly picks one of three
+ * mini-games (Bug Hunter, Code Review, or branching HR dialog) so replays feel different.
  * The only backend coupling is a single POST to
  * /matchmaking/interview/complete at the end of the round.
  */
@@ -13,7 +13,7 @@ export const interviewMeta = {
   title: "Собеседование",
   short: "Соло",
   icon: "💼",
-  blurb: "Рандомный режим: либо охота на баги в файле, либо диалог с HR на 6 ходов. Получи Offer — забираешь PTS.",
+  blurb: "Рандомный режим: баги в файле, code review с senior-разбором или диалог с HR. Offer даёт PTS.",
   partySize: 1,
   requiresMatchmaking: false,
   Component: InterviewMode,
