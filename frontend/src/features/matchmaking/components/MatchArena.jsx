@@ -3,6 +3,7 @@ import { apiFetch, getWebSocketBaseUrl, resolveAssetUrl } from "../../../api/cli
 import { Card } from "../../../components/ui/Card.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
 import { MediaAsset } from "../../../components/ui/MediaAsset.jsx";
+import { PlayerHoverCard } from "../../../components/ui/PlayerHoverCard.jsx";
 import { useGameEngine } from "../useGameEngine.js";
 import { GameStageView, ScoreBar } from "./GameStageView.jsx";
 
@@ -270,6 +271,8 @@ function ChatPanel({ messages, myUserId, onSend }) {
 function OpponentIntelPanel({ opponentUserId, online, myUserId }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [bannerBroken, setBannerBroken] = useState(false);
+  const [avatarBroken, setAvatarBroken] = useState(false);
   const safeId = opponentUserId != null && !isSameUserId(opponentUserId, myUserId) ? opponentUserId : null;
 
   useEffect(() => {
@@ -280,6 +283,8 @@ function OpponentIntelPanel({ opponentUserId, online, myUserId }) {
 
     let mounted = true;
     setLoading(true);
+    setBannerBroken(false);
+    setAvatarBroken(false);
 
     apiFetch(`/users/${safeId}/profile`)
       .then((data) => {
@@ -312,6 +317,8 @@ function OpponentIntelPanel({ opponentUserId, online, myUserId }) {
   const avatarUrl = resolveAssetUrl(profile?.avatar_url || "");
   const displayName = profile?.nickname || profile?.display_name || "Unknown";
   const mentionName = profile?.nickname || profile?.display_name || "unknown";
+  const showBanner = bannerUrl && !bannerBroken;
+  const showAvatar = avatarUrl && !avatarBroken;
 
   return (
     <aside className="rounded-2xl border p-4" style={{ borderColor: "rgba(255,214,0,0.15)", background: "#111" }}>
@@ -324,28 +331,30 @@ function OpponentIntelPanel({ opponentUserId, online, myUserId }) {
         : !profile ? <p className="text-sm text-white/50">Профиль недоступен.</p>
         : (
           <div className="space-y-4">
-            <div className="overflow-hidden rounded-2xl border" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-              <div className="relative h-24">
-                {bannerUrl ? <MediaAsset src={bannerUrl} alt="Баннер" className="h-full w-full object-cover" /> : <div className="h-full w-full" style={{ background: "linear-gradient(135deg, rgba(25,38,66,1) 0%, rgba(10,15,25,1) 100%)" }} />}
-              </div>
-              <div className="px-4 pb-4">
-                <div className="-mt-7 flex items-end gap-3">
-                  <div className="relative h-16 w-16 shrink-0 rounded-full border-[3px] border-[#111] bg-slate-800">
-                    {avatarUrl ? <MediaAsset src={avatarUrl} alt="Аватар" className="h-full w-full rounded-full object-cover" /> : <div className="flex h-full w-full items-center justify-center rounded-full text-xl font-bold text-[#FFD600]">{displayName[0]?.toUpperCase() || "?"}</div>}
-                    <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-[#111]" style={{ background: online ? "#22c55e" : "#6b7280", boxShadow: online ? "0 0 10px rgba(34,197,94,0.8)" : "none" }} />
-                  </div>
-                  <div className="min-w-0 pb-1">
-                    <p className="truncate text-base font-semibold text-white">{displayName}</p>
-                    <p className="truncate text-xs text-white/60">@{mentionName}</p>
-                  </div>
+            <PlayerHoverCard userId={safeId}>
+              <div className="overflow-hidden rounded-2xl border cursor-pointer" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+                <div className="relative h-24">
+                  {showBanner ? <MediaAsset src={bannerUrl} alt="Баннер" className="h-full w-full object-cover" onError={() => setBannerBroken(true)} /> : <div className="h-full w-full" style={{ background: "linear-gradient(135deg, rgba(25,38,66,1) 0%, rgba(10,15,25,1) 100%)" }} />}
                 </div>
-                <div className="mt-2 flex items-center justify-between text-xs text-white/70">
-                  <span>PTS {profile.pts ?? 0}</span>
-                  <span style={{ color: online ? "#4ade80" : "rgba(255,255,255,0.5)" }}>{online ? "онлайн" : "оффлайн"}</span>
+                <div className="px-4 pb-4">
+                  <div className="-mt-7 flex items-end gap-3">
+                    <div className="relative h-16 w-16 shrink-0 rounded-full border-[3px] border-[#111] bg-slate-800">
+                      {showAvatar ? <MediaAsset src={avatarUrl} alt="Аватар" className="h-full w-full rounded-full object-cover" onError={() => setAvatarBroken(true)} /> : <div className="flex h-full w-full items-center justify-center rounded-full text-xl font-bold text-[#FFD600]">{displayName[0]?.toUpperCase() || "?"}</div>}
+                      <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-[#111]" style={{ background: online ? "#22c55e" : "#6b7280", boxShadow: online ? "0 0 10px rgba(34,197,94,0.8)" : "none" }} />
+                    </div>
+                    <div className="min-w-0 pb-1">
+                      <p className="truncate text-base font-semibold text-white">{displayName}</p>
+                      <p className="truncate text-xs text-white/60">@{mentionName}</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-xs text-white/70">
+                    <span>PTS {profile.pts ?? 0}</span>
+                    <span style={{ color: online ? "#4ade80" : "rgba(255,255,255,0.5)" }}>{online ? "онлайн" : "оффлайн"}</span>
+                  </div>
+                  {profile.bio ? <p className="mt-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs leading-5 text-white/75">{profile.bio}</p> : null}
                 </div>
-                {profile.bio ? <p className="mt-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs leading-5 text-white/75">{profile.bio}</p> : null}
               </div>
-            </div>
+            </PlayerHoverCard>
             <div>
               <p className="mb-2 text-[11px] uppercase tracking-wider text-white/50">Роль</p>
               <div className="flex flex-wrap gap-2">

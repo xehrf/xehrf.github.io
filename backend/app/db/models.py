@@ -57,30 +57,22 @@ class AttemptStatus(str, enum.Enum):
     failed = "failed"
 
 
-class FreelancePostStatus(str, enum.Enum):
-    open = "open"
-    in_progress = "in_progress"
-    completed = "completed"
+class AnnouncementCategory(str, enum.Enum):
+    work_search = "work_search"
+    job_offer = "job_offer"
 
 
-class ProposalStatus(str, enum.Enum):
-    pending = "pending"
-    accepted = "accepted"
-    rejected = "rejected"
+class AnnouncementSkillLevel(str, enum.Enum):
+    junior = "junior"
+    middle = "middle"
+    senior = "senior"
+    lead = "lead"
 
 
-class ContractStatus(str, enum.Enum):
-    active = "active"
-    submitted = "submitted"
-    completed = "completed"
-
-
-class ContractEventType(str, enum.Enum):
-    contract_started = "contract_started"
-    result_submitted = "result_submitted"
-    revision_requested = "revision_requested"
-    contract_completed = "contract_completed"
-    message_sent = "message_sent"
+class AnnouncementSource(str, enum.Enum):
+    manual = "manual"
+    telegram = "telegram"
+    hh = "hh"
 
 
 class User(Base):
@@ -368,94 +360,121 @@ class SoloTaskReview(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
-class FreelancePost(Base):
-    __tablename__ = "freelance_posts"
+class Announcement(Base):
+    __tablename__ = "announcements"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text)
-    tech_stack: Mapped[str] = mapped_column(String(255))
-    budget: Mapped[int] = mapped_column(Integer)
-    deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    status: Mapped[FreelancePostStatus] = mapped_column(
-        Enum(FreelancePostStatus), default=FreelancePostStatus.open, index=True
+    category: Mapped[AnnouncementCategory] = mapped_column(Enum(AnnouncementCategory), index=True)
+    skill_level: Mapped[AnnouncementSkillLevel | None] = mapped_column(
+        Enum(AnnouncementSkillLevel), nullable=True, index=True
     )
-    client_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    author_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True
+    )
+    contact_handle: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    contact_link: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    contact_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    contact_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tags: Mapped[list[str]] = mapped_column(ARRAY(String(100)), nullable=False, server_default="{}")
+    source_type: Mapped[AnnouncementSource] = mapped_column(
+        Enum(AnnouncementSource), default=AnnouncementSource.manual, server_default="manual", index=True
+    )
+    telegram_channel: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    message_link: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # External-source fields (HH and future integrations)
+    external_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    external_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    salary_from: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    salary_to: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    salary_currency: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    employer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    area_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    view_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    click_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    save_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
-    client: Mapped["User"] = relationship(foreign_keys=[client_id])
-    proposals: Mapped[list["Proposal"]] = relationship(back_populates="post", cascade="all, delete-orphan")
-    contracts: Mapped[list["Contract"]] = relationship(back_populates="post", cascade="all, delete-orphan")
-
-
-class Proposal(Base):
-    __tablename__ = "proposals"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    post_id: Mapped[int] = mapped_column(ForeignKey("freelance_posts.id", ondelete="CASCADE"), index=True)
-    developer_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    message: Mapped[str] = mapped_column(Text)
-    portfolio_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    status: Mapped[ProposalStatus] = mapped_column(Enum(ProposalStatus), default=ProposalStatus.pending, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    post: Mapped["FreelancePost"] = relationship(back_populates="proposals")
-    developer: Mapped["User"] = relationship(foreign_keys=[developer_id])
-
-
-class Contract(Base):
-    __tablename__ = "contracts"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    post_id: Mapped[int] = mapped_column(ForeignKey("freelance_posts.id", ondelete="CASCADE"), index=True)
-    client_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    developer_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    status: Mapped[ContractStatus] = mapped_column(Enum(ContractStatus), default=ContractStatus.active, index=True)
-    result_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    post: Mapped["FreelancePost"] = relationship(back_populates="contracts")
-    client: Mapped["User"] = relationship(foreign_keys=[client_id])
-    developer: Mapped["User"] = relationship(foreign_keys=[developer_id])
-    reviews: Mapped[list["Review"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
-    messages: Mapped[list["ContractMessage"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
-    events: Mapped[list["ContractEvent"]] = relationship(back_populates="contract", cascade="all, delete-orphan")
+    author: Mapped["User | None"] = relationship(foreign_keys=[author_id])
+    ratings: Mapped[list["AnnouncementRating"]] = relationship(
+        back_populates="announcement", cascade="all, delete-orphan"
+    )
+    saves: Mapped[list["AnnouncementSave"]] = relationship(
+        back_populates="announcement", cascade="all, delete-orphan"
+    )
 
 
-class Review(Base):
-    __tablename__ = "reviews"
+class AnnouncementRating(Base):
+    __tablename__ = "announcement_ratings"
+    __table_args__ = (UniqueConstraint("announcement_id", "user_id", name="uq_announcement_rating_user"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id", ondelete="CASCADE"), index=True)
+    announcement_id: Mapped[int] = mapped_column(
+        ForeignKey("announcements.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     rating: Mapped[int] = mapped_column(Integer)
-    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_skill_level: Mapped[AnnouncementSkillLevel | None] = mapped_column(
+        Enum(AnnouncementSkillLevel), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    contract: Mapped["Contract"] = relationship(back_populates="reviews")
+    announcement: Mapped["Announcement"] = relationship(back_populates="ratings")
+    user: Mapped["User"] = relationship(foreign_keys=[user_id])
 
 
-class ContractMessage(Base):
-    __tablename__ = "contract_messages"
+class AnnouncementSave(Base):
+    __tablename__ = "announcement_saves"
+    __table_args__ = (UniqueConstraint("announcement_id", "user_id", name="uq_announcement_save_user"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id", ondelete="CASCADE"), index=True)
+    announcement_id: Mapped[int] = mapped_column(
+        ForeignKey("announcements.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    announcement: Mapped["Announcement"] = relationship(back_populates="saves")
+    user: Mapped["User"] = relationship(foreign_keys=[user_id])
+
+
+class FriendshipStatus(str, enum.Enum):
+    pending = "pending"
+    accepted = "accepted"
+    declined = "declined"
+    blocked = "blocked"
+
+
+class Friendship(Base):
+    __tablename__ = "friendships"
+    __table_args__ = (UniqueConstraint("requester_id", "addressee_id", name="uq_friendship_pair"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    requester_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    addressee_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    status: Mapped[FriendshipStatus] = mapped_column(
+        Enum(FriendshipStatus), default=FriendshipStatus.pending, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    requester: Mapped["User"] = relationship(foreign_keys=[requester_id])
+    addressee: Mapped["User"] = relationship(foreign_keys=[addressee_id])
+
+
+class DirectMessage(Base):
+    __tablename__ = "direct_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     sender_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    message: Mapped[str] = mapped_column(Text)
+    recipient_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    body: Mapped[str] = mapped_column(Text)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
-    contract: Mapped["Contract"] = relationship(back_populates="messages")
     sender: Mapped["User"] = relationship(foreign_keys=[sender_id])
-
-
-class ContractEvent(Base):
-    __tablename__ = "contract_events"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    contract_id: Mapped[int] = mapped_column(ForeignKey("contracts.id", ondelete="CASCADE"), index=True)
-    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True)
-    event_type: Mapped[ContractEventType] = mapped_column(Enum(ContractEventType), index=True)
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
-
-    contract: Mapped["Contract"] = relationship(back_populates="events")
-    actor: Mapped["User | None"] = relationship(foreign_keys=[actor_id])
+    recipient: Mapped["User"] = relationship(foreign_keys=[recipient_id])

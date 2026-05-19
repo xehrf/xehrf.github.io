@@ -43,8 +43,8 @@ export function Navbar({ user }) {
           <NavLink to="/dashboard" className={navLinkClass}>
             Задачи
           </NavLink>
-          <NavLink to="/freelance" className={navLinkClass}>
-            Фриланс
+          <NavLink to="/announcements" className={navLinkClass}>
+            Объявления
           </NavLink>
           <NavLink to="/matchmaking" className={navLinkClass}>
             Матчмейкинг

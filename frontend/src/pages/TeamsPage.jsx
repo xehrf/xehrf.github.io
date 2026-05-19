@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
+import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
 
 export function TeamsPage() {
@@ -91,6 +92,8 @@ function TeamCard({ team }) {
   const memberCount = team.member_count ?? 0;
   const maxMembers = team.max_members ?? 5;
   const fillPct = Math.round((memberCount / maxMembers) * 100);
+  const [bannerBroken, setBannerBroken] = useState(false);
+  const [avatarBroken, setAvatarBroken] = useState(false);
 
   return (
     <Link
@@ -99,8 +102,8 @@ function TeamCard({ team }) {
     >
       {/* Banner */}
       <div className="relative h-24 overflow-hidden">
-        {bannerUrl ? (
-          <img src={bannerUrl} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        {bannerUrl && !bannerBroken ? (
+          <MediaAsset src={bannerUrl} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" onError={() => setBannerBroken(true)} />
         ) : (
           <div className="h-full w-full bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950" />
         )}
@@ -114,8 +117,8 @@ function TeamCard({ team }) {
         <div className="flex items-center gap-3">
           {/* Avatar */}
           <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-2xl border-2 border-border bg-elevated shadow-md">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt={team.name} className="h-full w-full object-cover" />
+            {avatarUrl && !avatarBroken ? (
+              <MediaAsset src={avatarUrl} alt={team.name} className="h-full w-full object-cover" onError={() => setAvatarBroken(true)} />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-lg font-bold text-foreground">
                 {team.name?.[0]?.toUpperCase() ?? "T"}

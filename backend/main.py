@@ -14,15 +14,16 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from app.announcements.router import router as announcements_router
+from app.announcements.sources.hh_poller import run_forever as run_hh_poller
 from app.auth.router import router as auth_router
 from app.core.config import get_settings
 from app.core.errors import ApiError, build_error_body
 from app.db.bootstrap import seed_if_empty
-from app.db.models import Match, MatchStatus
+from app.db.models import Announcement, Match, MatchStatus
 from app.db.session import SessionLocal
 from app.db.upgrade import upgrade_to_head
 from app.uploads.service import UPLOAD_DIR
-from app.freelance.router import router as freelance_router
 from app.matchmaking.router import router as mm_router
 from app.matchmaking import service as mm_service
 from app.matchmaking.ws import manager as matchmaking_manager
@@ -30,6 +31,7 @@ from app.payments.router import router as payments_router
 from app.rating.router import router as rating_router
 from app.stats.router import router as stats_router
 from app.submissions.router import router as submissions_router
+from app.social.router import router as social_router
 from app.team_matchmaking.router import router as team_matchmaking_router, team_router
 from app.tasks.router import router as tasks_router
 from app.users.router import router as users_router
@@ -40,6 +42,8 @@ from app.core.redis_client import get_redis
 logger = logging.getLogger(__name__)
 MATCH_TIMEOUT_SWEEP_LOCK_KEY = "mm:timeout_sweep_lock"
 MATCH_TIMEOUT_SWEEP_INTERVAL_SECONDS = 10
+ANNOUNCEMENT_SWEEP_LOCK_KEY = "announcements:sweep_lock"
+ANNOUNCEMENT_SWEEP_INTERVAL_SECONDS = 300  # check every 5 minutes
 
 
 async def _emit_match_finished(participant_ids: list[int], payload: dict) -> None:
@@ -93,23 +97,64 @@ async def _match_timeout_sweeper() -> None:
         await asyncio.sleep(MATCH_TIMEOUT_SWEEP_INTERVAL_SECONDS)
 
 
+async def _announcement_expiry_sweeper() -> None:
+    while True:
+        db = SessionLocal()
+        r = get_redis()
+        lock_acquired = False
+        try:
+            lock_acquired = bool(r.set(ANNOUNCEMENT_SWEEP_LOCK_KEY, "1", ex=120, nx=True))
+            if lock_acquired:
+                deleted = (
+                    db.query(Announcement)
+                    .filter(Announcement.expires_at <= datetime.now(timezone.utc))
+                    .delete(synchronize_session=False)
+                )
+                if deleted:
+                    db.commit()
+                    logger.info("Hard-deleted %d expired announcements", deleted)
+        except Exception:
+            logger.exception("Failed to sweep expired announcements")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+        finally:
+            if lock_acquired:
+                try:
+                    r.delete(ANNOUNCEMENT_SWEEP_LOCK_KEY)
+                except Exception:
+                    pass
+            r.close()
+            db.close()
+
+        await asyncio.sleep(ANNOUNCEMENT_SWEEP_INTERVAL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     upgrade_to_head()
     db = SessionLocal()
     sweep_task: asyncio.Task | None = None
+    announcement_sweep_task: asyncio.Task | None = None
     try:
         seed_if_empty(db)
     finally:
         db.close()
     sweep_task = asyncio.create_task(_match_timeout_sweeper())
+    announcement_sweep_task = asyncio.create_task(_announcement_expiry_sweeper())
+    hh_poller_task = asyncio.create_task(run_hh_poller())
     try:
         yield
     finally:
-        if sweep_task is not None:
-            sweep_task.cancel()
+        # Cancel every task FIRST so none of them gets an event-loop cycle to
+        # execute body code while we await another task's cancellation.
+        tasks = [t for t in (sweep_task, announcement_sweep_task, hh_poller_task) if t is not None]
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
             try:
-                await sweep_task
+                await task
             except asyncio.CancelledError:
                 pass
 
@@ -200,7 +245,8 @@ app.include_router(submissions_router)
 app.include_router(rating_router)
 app.include_router(stats_router)
 app.include_router(payments_router)
-app.include_router(freelance_router)
+app.include_router(announcements_router)
+app.include_router(social_router)
 app.include_router(match_ws_router)
 
 

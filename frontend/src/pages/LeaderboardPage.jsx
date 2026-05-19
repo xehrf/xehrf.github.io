@@ -235,6 +235,13 @@ function buildFilterQuery(filters) {
 function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onTogglePin, onCompare, anchorRect }) {
   const cardRef = useRef(null);
   const [pos, setPos] = useState({ top: 0, left: 0, ready: false });
+  const [bannerBroken, setBannerBroken] = useState(false);
+  const [avatarBroken, setAvatarBroken] = useState(false);
+
+  useEffect(() => {
+    setBannerBroken(false);
+    setAvatarBroken(false);
+  }, [row?.user_id]);
 
   useEffect(() => {
     if (!anchorRect || !cardRef.current) return;
@@ -262,6 +269,8 @@ function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onT
   const bannerUrl = resolveAssetUrl(profile?.banner_url || "");
   const bio = profile?.bio?.trim() || "Пока без описания. Нажмите «Сравнить», чтобы посмотреть разницу по PTS.";
   const role = typeof profile?.role === "string" ? profile.role.trim() : "";
+  const showBanner = bannerUrl && !bannerBroken;
+  const showAvatar = avatarUrl && !avatarBroken;
 
   const hasProfileSkills = Array.isArray(profile?.skills) && profile.skills.length > 0;
   const skillChips = hasProfileSkills
@@ -297,15 +306,15 @@ function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onT
       className="overflow-hidden rounded-btn border border-border bg-canvas shadow-2xl"
     >
       <div className="relative h-20">
-        {bannerUrl ? (
-          <MediaAsset src={bannerUrl} alt={`Баннер ${displayName}`} className="h-full w-full object-cover" />
+        {showBanner ? (
+          <MediaAsset src={bannerUrl} alt={`Баннер ${displayName}`} className="h-full w-full object-cover" onError={() => setBannerBroken(true)} />
         ) : (
           <div className="h-full w-full bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900" />
         )}
         <div className="absolute bottom-0 left-4 translate-y-1/2">
           <div className="h-16 w-16 overflow-hidden rounded-full border-[3px] border-canvas bg-elevated">
-            {avatarUrl ? (
-              <MediaAsset src={avatarUrl} alt={`Аватар ${displayName}`} className="h-full w-full object-cover" />
+            {showAvatar ? (
+              <MediaAsset src={avatarUrl} alt={`Аватар ${displayName}`} className="h-full w-full object-cover" onError={() => setAvatarBroken(true)} />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-xl font-bold text-foreground">
                 {displayName[0]?.toUpperCase() || "?"}

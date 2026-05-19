@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import { apiFetch, resolveAssetUrl } from "../../api/client.js";
 import { Button } from "./Button.jsx";
 import { MediaAsset } from "./MediaAsset.jsx";
@@ -52,16 +53,52 @@ async function loadProfile(userId) {
 }
 
 function MiniProfileCard({ profile, loading, error, onClose }) {
+  const navigate = useNavigate();
   // Image errors are surfaced via `onError` so a broken Cloudinary asset
   // doesn't show its alt text on top of the banner gradient. Hooks live
   // here because the early returns below would otherwise violate rules.
   const [bannerBroken, setBannerBroken] = useState(false);
   const [avatarBroken, setAvatarBroken] = useState(false);
+  const [friendStatus, setFriendStatus] = useState(null);
+  const [friendBusy, setFriendBusy] = useState(false);
 
   useEffect(() => {
     setBannerBroken(false);
     setAvatarBroken(false);
+    setFriendStatus(null);
+    if (!profile?.id) return;
+    apiFetch(`/social/friendship/${profile.id}`)
+      .then((data) => setFriendStatus(data))
+      .catch(() => setFriendStatus(null));
   }, [profile?.id]);
+
+  async function handleAddFriend() {
+    if (!profile?.id || friendBusy) return;
+    setFriendBusy(true);
+    try {
+      await apiFetch("/social/friends/requests", { method: "POST", body: { user_id: profile.id } });
+      const next = await apiFetch(`/social/friendship/${profile.id}`);
+      setFriendStatus(next);
+    } catch (e) {
+      // swallow — keep card open
+    } finally {
+      setFriendBusy(false);
+    }
+  }
+
+  async function handleAcceptRequest() {
+    if (!friendStatus?.friendship_id || friendBusy) return;
+    setFriendBusy(true);
+    try {
+      await apiFetch(`/social/friends/requests/${friendStatus.friendship_id}/accept`, { method: "POST" });
+      const next = await apiFetch(`/social/friendship/${profile.id}`);
+      setFriendStatus(next);
+    } catch (e) {
+      // swallow
+    } finally {
+      setFriendBusy(false);
+    }
+  }
 
   if (loading && !profile) {
     return (
@@ -204,20 +241,48 @@ function MiniProfileCard({ profile, loading, error, onClose }) {
           </div>
         ) : null}
 
-        {/* Footer action */}
-        <div className="mt-4">
-          <a
-            href={`/users/${profile.id ?? ""}`}
-            onClick={(e) => {
-              e.preventDefault();
-              window.location.assign(`/users/${profile.id}`);
+        {/* Footer actions */}
+        <div className="mt-4 space-y-2">
+          {friendStatus && friendStatus.status !== "self" ? (
+            friendStatus.status === "friend" ? (
+              <div className="inline-flex w-full items-center justify-center gap-1.5 rounded-btn border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs font-semibold text-green-400">
+                ✓ В друзьях
+              </div>
+            ) : friendStatus.status === "pending_outgoing" ? (
+              <div className="inline-flex w-full items-center justify-center gap-1.5 rounded-btn border border-border bg-elevated px-3 py-2 text-xs font-semibold text-muted">
+                Заявка отправлена
+              </div>
+            ) : friendStatus.status === "pending_incoming" ? (
+              <Button
+                variant="primary"
+                className="h-9 w-full text-xs"
+                onClick={handleAcceptRequest}
+                disabled={friendBusy}
+              >
+                {friendBusy ? "..." : "✓ Принять заявку"}
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                className="h-9 w-full text-xs"
+                onClick={handleAddFriend}
+                disabled={friendBusy}
+              >
+                {friendBusy ? "..." : "+ В друзья"}
+              </Button>
+            )
+          ) : null}
+          <Button
+            variant="secondary"
+            className="h-9 w-full text-xs"
+            onClick={() => {
+              if (!profile?.id) return;
+              onClose?.();
+              navigate(`/users/${profile.id}`);
             }}
-            className="block"
           >
-            <Button variant="secondary" className="h-9 w-full text-xs">
-              Перейти в профиль →
-            </Button>
-          </a>
+            Перейти в профиль →
+          </Button>
         </div>
       </div>
     </div>

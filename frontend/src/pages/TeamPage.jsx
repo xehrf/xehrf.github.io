@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Card } from "../components/ui/Card.jsx";
 import { MediaAsset } from "../components/ui/MediaAsset.jsx";
+import { PlayerHoverCard } from "../components/ui/PlayerHoverCard.jsx";
 import { apiFetch, getWebSocketBaseUrl, resolveAssetUrl } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
 
@@ -13,36 +14,42 @@ function getWebSocketUrl(teamId) {
 
 function MemberCard({ member, isCaptain, captainId, currentUserId, readyVotes, onKick }) {
   const avatarUrl = resolveAssetUrl(member.avatar_url || "");
+  const [avatarBroken, setAvatarBroken] = useState(false);
   const isReady = readyVotes[member.user_id];
   const isCap = member.user_id === captainId;
+  const isSelf = member.user_id === currentUserId;
 
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-border bg-canvas p-3 transition hover:border-border/80">
-      {/* Avatar */}
-      <div className="relative flex-shrink-0">
-        <div className="h-10 w-10 overflow-hidden rounded-xl bg-elevated">
-          {avatarUrl ? (
-            <MediaAsset src={avatarUrl} alt={member.nickname} className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-sm font-bold text-foreground">
-              {member.nickname?.[0]?.toUpperCase() ?? "?"}
+      <PlayerHoverCard userId={member.user_id} disabled={isSelf}>
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          {/* Avatar */}
+          <div className="relative flex-shrink-0">
+            <div className="h-10 w-10 overflow-hidden rounded-xl bg-elevated">
+              {avatarUrl && !avatarBroken ? (
+                <MediaAsset src={avatarUrl} alt={member.nickname} className="h-full w-full object-cover" onError={() => setAvatarBroken(true)} />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-sm font-bold text-foreground">
+                  {member.nickname?.[0]?.toUpperCase() ?? "?"}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        {/* Online dot */}
-        <span className={[
-          "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-canvas",
-          member.online ? "bg-green-400" : "bg-slate-600",
-        ].join(" ")} />
-      </div>
+            {/* Online dot */}
+            <span className={[
+              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-canvas",
+              member.online ? "bg-green-400" : "bg-slate-600",
+            ].join(" ")} />
+          </div>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <p className="truncate text-sm font-semibold text-foreground">{member.nickname}</p>
-          {isCap && <span className="text-[10px] text-accent">👑</span>}
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <p className="truncate text-sm font-semibold text-foreground">{member.nickname}</p>
+              {isCap && <span className="text-[10px] text-accent">👑</span>}
+            </div>
+            <p className="truncate text-[11px] text-muted">{member.role || "Участник"}</p>
+          </div>
         </div>
-        <p className="truncate text-[11px] text-muted">{member.role || "Участник"}</p>
-      </div>
+      </PlayerHoverCard>
 
       <div className="flex flex-shrink-0 items-center gap-2">
         <span className={[
@@ -54,7 +61,7 @@ function MemberCard({ member, isCaptain, captainId, currentUserId, readyVotes, o
         {isCaptain && member.user_id !== currentUserId && (
           <button
             type="button"
-            onClick={() => onKick(member.user_id)}
+            onClick={(e) => { e.stopPropagation(); onKick(member.user_id); }}
             className="rounded-lg border border-border px-2 py-1 text-[10px] text-muted transition hover:border-red-500/40 hover:text-red-400"
           >
             Kick
@@ -279,6 +286,8 @@ export function TeamPage() {
 
   const bannerUrl = resolveAssetUrl(team.banner_url || "");
   const avatarUrl = resolveAssetUrl(team.avatar_url || "");
+  const [teamBannerBroken, setTeamBannerBroken] = useState(false);
+  const [teamAvatarBroken, setTeamAvatarBroken] = useState(false);
 
   const TABS = [
     { id: "chat", label: "💬 Чат" },
@@ -294,8 +303,8 @@ export function TeamPage() {
       {/* Team Banner Header */}
       <Card className="mb-6 overflow-hidden p-0">
         <div className="relative h-36 sm:h-44">
-          {bannerUrl ? (
-            <img src={bannerUrl} alt="" className="h-full w-full object-cover" />
+          {bannerUrl && !teamBannerBroken ? (
+            <MediaAsset src={bannerUrl} alt="" className="h-full w-full object-cover" onError={() => setTeamBannerBroken(true)} />
           ) : (
             <div className="h-full w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950" />
           )}
@@ -315,8 +324,8 @@ export function TeamPage() {
           {/* Bottom info */}
           <div className="absolute bottom-0 left-0 right-0 flex flex-col items-start gap-3 p-4 sm:flex-row sm:items-end sm:gap-4">
             <div className="h-16 w-16 overflow-hidden rounded-2xl border-2 border-white/20 bg-elevated shadow-xl">
-              {avatarUrl ? (
-                <img src={avatarUrl} alt={team.name} className="h-full w-full object-cover" />
+              {avatarUrl && !teamAvatarBroken ? (
+                <MediaAsset src={avatarUrl} alt={team.name} className="h-full w-full object-cover" onError={() => setTeamAvatarBroken(true)} />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-white">
                   {team.name?.[0]?.toUpperCase() ?? "T"}
@@ -636,11 +645,12 @@ export function TeamPage() {
                         className="h-20 w-20 flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-elevated transition hover:border-accent/60"
                         onClick={() => avatarInputRef.current?.click()}
                       >
-                        {avatarPreview || resolveAssetUrl(team.avatar_url || "") ? (
-                          <img
+                        {avatarPreview || (resolveAssetUrl(team.avatar_url || "") && !teamAvatarBroken) ? (
+                          <MediaAsset
                             src={avatarPreview || resolveAssetUrl(team.avatar_url)}
                             alt="avatar"
                             className="h-full w-full object-cover"
+                            onError={() => setTeamAvatarBroken(true)}
                           />
                         ) : (
                           <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-muted">
@@ -679,12 +689,13 @@ export function TeamPage() {
                       className="relative h-32 w-full cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-elevated transition hover:border-accent/60"
                       onClick={() => bannerInputRef.current?.click()}
                     >
-                      {bannerPreview || resolveAssetUrl(team.banner_url || "") ? (
+                      {bannerPreview || (resolveAssetUrl(team.banner_url || "") && !teamBannerBroken) ? (
                         <>
-                          <img
+                          <MediaAsset
                             src={bannerPreview || resolveAssetUrl(team.banner_url)}
                             alt="banner"
                             className="h-full w-full object-cover"
+                            onError={() => setTeamBannerBroken(true)}
                           />
                           <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition hover:opacity-100">
                             <span className="rounded-xl bg-black/60 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
