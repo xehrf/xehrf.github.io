@@ -1,10 +1,10 @@
 /**
  * Metadata for the solo "Собеседование" matchmaking mode.
  *
- * Solo, no opponent, no WebSocket. The only backend coupling is a single
- * POST to /matchmaking/interview/complete at the end of the round — the
- * questions themselves come from the shared `questionBank`, so the mode
- * adds no new DB tables or queue infrastructure.
+ * Solo, no opponent, no WebSocket. Each session randomly picks one of two
+ * mini-games (Bug Hunter or branching HR dialog) so replays feel different.
+ * The only backend coupling is a single POST to
+ * /matchmaking/interview/complete at the end of the round.
  */
 import { InterviewMode } from "./InterviewMode.jsx";
 
@@ -13,7 +13,7 @@ export const interviewMeta = {
   title: "Собеседование",
   short: "Соло",
   icon: "💼",
-  blurb: "Скрининг + soft skills. Выбери грейд (Junior / Middle / Senior), получи Offer — забираешь PTS.",
+  blurb: "Рандомный режим: либо охота на баги в файле, либо диалог с HR на 6 ходов. Получи Offer — забираешь PTS.",
   partySize: 1,
   requiresMatchmaking: false,
   Component: InterviewMode,
