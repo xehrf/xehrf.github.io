@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "../components/ui/Card.jsx";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
+import { CompyraEmoji, CompyraText } from "../components/ui/CompyraEmoji.jsx";
 import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { PlayerHoverCard } from "../components/ui/PlayerHoverCard.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
@@ -417,7 +418,9 @@ function PodiumStand({ player, place, height, className = "" }) {
                 {name[0]?.toUpperCase() || "?"}
               </div>
             )}
-            <div className="absolute -bottom-1 -right-1 text-2xl">{medal}</div>
+            <div className="absolute -bottom-1 -right-1 text-2xl">
+              <CompyraText size={26}>{medal}</CompyraText>
+            </div>
           </div>
 
           <div className="mb-2 max-w-full text-center">
@@ -668,7 +671,8 @@ export function LeaderboardContent({ embedded = false }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
-            🏆 Арена · сезон
+            <CompyraEmoji name="trophy" size={14} />
+            Арена · сезон
           </div>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
             Рейтинг <span className="text-gradient-accent">PvP</span>
@@ -898,7 +902,12 @@ export function LeaderboardContent({ embedded = false }) {
                         <p className="mt-1 truncate text-base font-bold text-foreground">{compareData.left.display_name}</p>
                         <p className="mt-1 text-2xl font-bold text-foreground">{formatNumber(leftPts)}</p>
                         <p className="text-xs text-muted">PTS общий</p>
-                        {leftWins && <p className="mt-2 text-xs font-semibold text-yellow-400">👑 Лидер</p>}
+                        {leftWins && (
+                          <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-yellow-400">
+                            <CompyraEmoji name="crown" size={14} />
+                            Лидер
+                          </p>
+                        )}
                       </div>
 
                       <div className="order-2 flex items-center justify-center sm:order-2">
@@ -910,7 +919,12 @@ export function LeaderboardContent({ embedded = false }) {
                         <p className="mt-1 truncate text-base font-bold text-foreground">{compareData.right.display_name}</p>
                         <p className="mt-1 text-2xl font-bold text-foreground">{formatNumber(rightPts)}</p>
                         <p className="text-xs text-muted">PTS общий</p>
-                        {!leftWins && <p className="mt-2 text-xs font-semibold text-yellow-400">👑 Лидер</p>}
+                        {!leftWins && (
+                          <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-yellow-400">
+                            <CompyraEmoji name="crown" size={14} />
+                            Лидер
+                          </p>
+                        )}
                       </div>
                     </div>
 

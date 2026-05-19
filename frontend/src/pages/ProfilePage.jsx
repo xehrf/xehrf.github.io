@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
+import { CompyraText } from "../components/ui/CompyraEmoji.jsx";
 import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
 import { isVideoAsset } from "../utils/media.js";
@@ -102,7 +103,9 @@ function AchievementGrid({ achievements }) {
                 : "border-border bg-elevated/30 opacity-40"
             }`}
           >
-            <div className={`text-2xl ${a.earned ? "" : "grayscale"}`}>{a.icon}</div>
+            <div className={`text-2xl ${a.earned ? "" : "grayscale"}`}>
+              <CompyraText size={28}>{a.icon}</CompyraText>
+            </div>
             <div className="mt-2 text-[11px] font-semibold text-foreground">{a.title}</div>
             <div className="mt-0.5 text-[9px] uppercase tracking-wider text-muted">{a.desc}</div>
           </div>
@@ -457,7 +460,8 @@ export function ProfilePage() {
           <div className="absolute inset-0 bg-gradient-to-t from-canvas/95 via-canvas/30 to-transparent" />
           {currentStreak >= 3 ? (
             <div className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full border border-accent/40 bg-canvas/80 px-3 py-1 text-xs font-semibold text-accent backdrop-blur">
-              {currentStreak >= 7 ? "🔥🔥🔥" : "🔥"} серия {currentStreak}
+              <CompyraText size={16}>{currentStreak >= 7 ? "🔥🔥🔥" : "🔥"}</CompyraText>
+              серия {currentStreak}
             </div>
           ) : null}
         </div>

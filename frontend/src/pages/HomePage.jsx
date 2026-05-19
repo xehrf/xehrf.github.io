@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
+import { CompyraEmoji, CompyraText } from "../components/ui/CompyraEmoji.jsx";
 import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { PlayerHoverCard } from "../components/ui/PlayerHoverCard.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client.js";
@@ -59,7 +60,8 @@ function Hero({ stats, loading }) {
               to="/matchmaking"
               className="w-full py-3.5 text-base font-bold sm:min-w-[200px] sm:w-auto sm:px-8"
             >
-              ⚔ Сыграть матч
+              <CompyraEmoji name="swords" size={20} />
+              Сыграть матч
             </LinkButton>
             <LinkButton
               to="/dashboard"
@@ -265,7 +267,9 @@ function HowItWorks() {
               <div className="absolute right-4 top-3 font-mono text-5xl font-bold text-accent/10">
                 {s.n}
               </div>
-              <div className="text-3xl">{s.icon}</div>
+              <div className="text-3xl">
+                <CompyraText size={34}>{s.icon}</CompyraText>
+              </div>
               <h3 className="mt-4 text-lg font-semibold text-foreground">{s.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted">{s.desc}</p>
             </Card>
@@ -314,7 +318,9 @@ function Benefits() {
               key={b.title}
               className="transition-transform duration-200 hover:-translate-y-1 hover:border-accent/40"
             >
-              <div className="text-3xl">{b.icon}</div>
+              <div className="text-3xl">
+                <CompyraText size={34}>{b.icon}</CompyraText>
+              </div>
               <h3 className="mt-4 text-lg font-semibold text-foreground">{b.title}</h3>
               <p className="mt-3 text-sm leading-relaxed text-muted">{b.desc}</p>
             </Card>
@@ -424,7 +430,7 @@ function LeaderboardPreview() {
                           rank <= 3 ? "text-accent" : "text-muted"
                         }`}
                       >
-                        {badge || `#${rank}`}
+                        {badge ? <CompyraText size={20}>{badge}</CompyraText> : `#${rank}`}
                       </span>
                       <div className="flex items-center gap-3">
                         <div className="h-8 w-8 overflow-hidden rounded-full border border-border bg-elevated">
@@ -636,7 +642,8 @@ function FinalCTA() {
             to="/matchmaking"
             className="w-full py-4 text-base font-bold sm:min-w-[220px] sm:w-auto sm:px-10"
           >
-            ⚔ Начать матч
+            <CompyraEmoji name="swords" size={20} />
+            Начать матч
           </LinkButton>
           <LinkButton
             to="/register"
@@ -663,7 +670,10 @@ function FinalCTA() {
             rel="noreferrer"
             className="inline-flex items-center gap-2 transition-colors hover:text-accent"
           >
-            <span>💬</span> Discord
+            <span>
+              <CompyraEmoji name="speech" size={16} />
+            </span>{" "}
+            Discord
           </a>
           <span className="text-border">•</span>
           <a

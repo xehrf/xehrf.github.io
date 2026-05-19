@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
+import { CompyraEmoji } from "../components/ui/CompyraEmoji.jsx";
 import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { PlayerHoverCard } from "../components/ui/PlayerHoverCard.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
@@ -43,7 +44,7 @@ function FriendRow({ friend, onRemove, onMessage }) {
           onClick={onMessage}
           className="rounded-xl border border-border bg-elevated px-3 py-1.5 text-xs font-semibold text-foreground transition hover:border-accent/50 hover:text-accent"
         >
-          💬
+          <CompyraEmoji name="speech" size={16} />
         </Link>
         <button
           type="button"
@@ -366,7 +367,9 @@ export function FriendsPage() {
             <div className="space-y-2">
               {friends.length === 0 ? (
                 <div className="py-10 text-center">
-                  <p className="text-4xl">🤝</p>
+                  <p className="text-4xl">
+                    <CompyraEmoji name="handshake" size={46} />
+                  </p>
                   <p className="mt-2 text-sm text-muted">Пока нет друзей. Поищите кого-нибудь во вкладке «Поиск».</p>
                 </div>
               ) : (

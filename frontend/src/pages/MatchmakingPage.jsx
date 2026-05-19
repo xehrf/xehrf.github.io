@@ -2,6 +2,7 @@ import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider.jsx";
 import { ModePicker } from "../features/matchmaking/components/ModePicker.jsx";
 import { DEFAULT_MODE_ID, getModeById } from "../features/matchmaking/modes/index.js";
+import { CompyraEmoji } from "../components/ui/CompyraEmoji.jsx";
 import { LeaderboardContent } from "./LeaderboardPage.jsx";
 
 /**
@@ -91,7 +92,10 @@ export function MatchmakingPage() {
                 : "text-muted hover:text-foreground",
             ].join(" ")}
           >
-            🎮 Играть
+            <span className="inline-flex items-center justify-center gap-1.5">
+              <CompyraEmoji name="gamepad" size={16} />
+              Играть
+            </span>
           </button>
           <button
             type="button"
@@ -103,7 +107,10 @@ export function MatchmakingPage() {
                 : "text-muted hover:text-foreground",
             ].join(" ")}
           >
-            🏆 Рейтинг
+            <span className="inline-flex items-center justify-center gap-1.5">
+              <CompyraEmoji name="trophy" size={16} />
+              Рейтинг
+            </span>
           </button>
         </div>
 

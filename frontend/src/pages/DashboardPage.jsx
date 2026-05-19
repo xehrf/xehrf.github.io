@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { TaskCard } from "../components/tasks/TaskCard.jsx";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
+import { CompyraEmoji } from "../components/ui/CompyraEmoji.jsx";
 import { apiFetch } from "../api/client";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { ptsForDifficulty } from "../utils/taskPts.js";
@@ -71,7 +72,8 @@ function DailyChallengeCard({ task, alreadySolved, onSolve }) {
       <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0 flex-1">
           <div className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
-            ⚡ Челлендж дня
+            <CompyraEmoji name="bolt" size={14} />
+            Челлендж дня
           </div>
           <h2 className="mt-3 truncate text-2xl font-bold text-foreground sm:text-3xl">
             {task.title}
@@ -106,7 +108,14 @@ function DailyChallengeCard({ task, alreadySolved, onSolve }) {
             </span>
           ) : null}
           <Button onClick={onSolve} className="min-w-[160px]">
-            {alreadySolved ? "Пересмотреть" : "⚔ Принять вызов"}
+            {alreadySolved ? (
+              "Пересмотреть"
+            ) : (
+              <>
+                <CompyraEmoji name="swords" size={16} />
+                Принять вызов
+              </>
+            )}
           </Button>
         </div>
       </div>
@@ -215,7 +224,8 @@ export function DashboardPage() {
       {/* Hero header */}
       <div className="mb-8 text-center">
         <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
-          🎯 Solo-арена
+          <CompyraEmoji name="target" size={14} />
+          Solo-арена
         </div>
         <h1 className="mt-4 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
           <span className="text-gradient-accent">Задачи</span>

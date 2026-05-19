@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
+import { CompyraEmoji } from "../components/ui/CompyraEmoji.jsx";
 import { apiFetch } from "../api/client";
 import {
   CATEGORY_META,
@@ -253,7 +254,10 @@ function FilterSection({ filters, setFilter, onReset, onSubmit }) {
         </div>
 
         <div className="grid gap-2">
-          <span className="text-[11px] uppercase tracking-wider text-muted">🎯 Уровень скила</span>
+          <span className="inline-flex items-center gap-1 text-[11px] uppercase tracking-wider text-muted">
+            <CompyraEmoji name="target" size={13} />
+            Уровень скила
+          </span>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -341,7 +345,7 @@ function FilterSection({ filters, setFilter, onReset, onSubmit }) {
           onChange={(e) => setFilter("min_rating", e.target.value)}
           className="rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/60"
         >
-          <option value="">⭐ Любой рейтинг</option>
+          <option value="">Любой рейтинг</option>
           <option value="3">★★★ 3.0+</option>
           <option value="4">★★★★ 4.0+</option>
           <option value="4.5">★★★★★ 4.5+</option>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../../../components/ui/Button.jsx";
 import { Card } from "../../../../components/ui/Card.jsx";
+import { CompyraEmoji, CompyraText } from "../../../../components/ui/CompyraEmoji.jsx";
 import { ROUND_QUESTIONS, ROUND_SECONDS } from "../../questionBank.js";
 
 const TOTAL_QUESTIONS = 10;
@@ -56,7 +57,7 @@ function RoundTypeBadge({ type }) {
   const badge = map[type] ?? map.quiz;
   return (
     <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${badge.classes}`}>
-      {badge.label}
+      <CompyraText size={13}>{badge.label}</CompyraText>
     </span>
   );
 }
@@ -94,7 +95,9 @@ function TimerRing({ timeLeft, total = ROUND_SECONDS }) {
 function IntroScreen({ onStart, highScore }) {
   return (
     <Card className="p-8 text-center">
-      <div className="text-5xl">🎯</div>
+      <div className="text-5xl">
+        <CompyraEmoji name="target" size={58} />
+      </div>
       <h2 className="mt-3 text-3xl font-bold text-foreground">Тренировка</h2>
       <p className="mx-auto mt-2 max-w-md text-sm text-muted">
         {TOTAL_QUESTIONS} случайных вопросов из дуэльного банка. {ROUND_SECONDS} секунд на ответ.
@@ -120,9 +123,13 @@ function IntroScreen({ onStart, highScore }) {
 
       <div className="mx-auto mt-6 max-w-md rounded-btn border border-border/60 bg-elevated/30 px-4 py-3 text-left text-xs text-muted">
         <p className="mb-1 font-semibold uppercase tracking-wider text-accent">3 типа вопросов</p>
-        <p>⚡ <b className="text-foreground">Output</b> — что выведет код</p>
+        <p>
+          <CompyraText size={14}>⚡</CompyraText> <b className="text-foreground">Output</b> — что выведет код
+        </p>
         <p>🐛 <b className="text-foreground">Bug</b> — где ошибка</p>
-        <p>🧠 <b className="text-foreground">Quiz</b> — теория</p>
+        <p>
+          <CompyraText size={14}>🧠</CompyraText> <b className="text-foreground">Quiz</b> — теория
+        </p>
       </div>
     </Card>
   );
@@ -216,7 +223,9 @@ function ResultScreen({ score, total, isNewRecord, onRestart, onExit }) {
 
   return (
     <Card className="p-8 text-center">
-      <div className="text-6xl">{verdict.emoji}</div>
+      <div className="text-6xl">
+        <CompyraText size={70}>{verdict.emoji}</CompyraText>
+      </div>
       <h2 className={`mt-3 text-3xl font-bold ${verdict.tone}`}>{verdict.title}</h2>
       <p className="mt-1 font-mono text-2xl font-bold text-foreground">
         {score} <span className="text-muted">/</span> {total}
@@ -225,7 +234,8 @@ function ResultScreen({ score, total, isNewRecord, onRestart, onExit }) {
 
       {isNewRecord ? (
         <div className="mx-auto mt-5 inline-flex items-center gap-2 rounded-full border border-accent/50 bg-accent/10 px-4 py-1.5 text-sm font-bold text-accent">
-          ⭐ Новый рекорд!
+          <CompyraEmoji name="star" size={18} />
+          Новый рекорд!
         </div>
       ) : null}
 

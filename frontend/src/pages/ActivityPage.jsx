@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card } from "../components/ui/Card.jsx";
+import { CompyraText } from "../components/ui/CompyraEmoji.jsx";
 import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { PlayerHoverCard } from "../components/ui/PlayerHoverCard.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
@@ -52,7 +53,9 @@ function EventRow({ event }) {
 
   return (
     <div className="flex items-start gap-3 rounded-2xl border border-border bg-canvas/70 p-3">
-      <div className="text-2xl">{pres.icon}</div>
+      <div className="text-2xl">
+        <CompyraText size={26}>{pres.icon}</CompyraText>
+      </div>
       <PlayerHoverCard userId={event.actor?.id}>
         <div className="flex flex-1 cursor-pointer items-start gap-3 min-w-0">
           <Avatar user={event.actor} />

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
+import { CompyraEmoji } from "../components/ui/CompyraEmoji.jsx";
 import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
 
@@ -71,7 +72,9 @@ export function TeamsPage() {
         <Card className="p-5 text-sm text-accent">{error}</Card>
       ) : teams.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-canvas py-20 text-center">
-          <div className="text-4xl">🛡️</div>
+          <div className="text-4xl">
+            <CompyraEmoji name="shield" size={46} />
+          </div>
           <p className="mt-3 text-base font-semibold text-foreground">Команды не найдены</p>
           <p className="mt-1 text-sm text-muted">Попробуйте другой запрос или создайте свою команду</p>
         </div>
@@ -109,7 +112,10 @@ function TeamCard({ team }) {
         )}
         {/* Rating badge */}
         <div className="absolute right-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-bold text-accent backdrop-blur-sm">
-          ⭐ {team.team_rating ?? 0}
+          <span className="inline-flex items-center gap-1">
+            <CompyraEmoji name="star" size={13} />
+            {team.team_rating ?? 0}
+          </span>
         </div>
       </div>
 

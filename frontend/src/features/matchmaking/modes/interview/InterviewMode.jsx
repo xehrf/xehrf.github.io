@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Button } from "../../../../components/ui/Button.jsx";
 import { Card } from "../../../../components/ui/Card.jsx";
+import { CompyraEmoji, CompyraText } from "../../../../components/ui/CompyraEmoji.jsx";
 import { apiFetch, ApiError } from "../../../../api/client.js";
 import { BugHunterStage } from "./BugHunterStage.jsx";
 import { CodeReviewStage } from "./CodeReviewStage.jsx";
@@ -151,7 +152,9 @@ function IntroScreen({ onStart, gradeId, setGradeId, lastVerdict }) {
 
       <div className="mx-auto mt-6 max-w-md rounded-btn border border-border/60 bg-elevated/30 px-4 py-3 text-xs text-muted">
         <p className="mb-1 font-semibold uppercase tracking-wider text-accent">Как оценивается</p>
-        <p>🏆 <b className="text-foreground">Offer</b> — ≥85% правильных</p>
+        <p>
+          <CompyraEmoji name="trophy" size={14} /> <b className="text-foreground">Offer</b> — ≥85% правильных
+        </p>
         <p>🔁 <b className="text-foreground">Next round</b> — ≥65%</p>
         <p>❌ <b className="text-foreground">Rejected</b> — меньше 65%</p>
       </div>
@@ -198,7 +201,9 @@ function ResultScreen({ result, error, game, onRestart, onExit }) {
 
   return (
     <Card className="p-8 text-center">
-      <div className="text-6xl">{verdictMeta.emoji}</div>
+      <div className="text-6xl">
+        <CompyraText size={70}>{verdictMeta.emoji}</CompyraText>
+      </div>
       <h2 className={`mt-3 text-3xl font-bold ${verdictMeta.tone}`}>{verdictMeta.title}</h2>
       <p className="mt-1 font-mono text-2xl font-bold text-foreground">
         {result.correct} <span className="text-muted">/</span> {result.total}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, resolveAssetUrl } from "../../../../api/client.js";
 import { Button } from "../../../../components/ui/Button.jsx";
 import { Card } from "../../../../components/ui/Card.jsx";
+import { CompyraText } from "../../../../components/ui/CompyraEmoji.jsx";
 import { PlayerHoverCard } from "../../../../components/ui/PlayerHoverCard.jsx";
 
 /**
@@ -258,7 +259,9 @@ function FinishOverlay({ result, myUserId, opponent, onClose }) {
         className={`w-full max-w-md p-8 text-center ${iWon ? "border-accent/60" : ""}`}
         style={iWon ? { boxShadow: "0 0 64px rgba(255,215,0,0.25)" } : {}}
       >
-        <div className="text-7xl">{emoji}</div>
+        <div className="text-7xl">
+          <CompyraText size={82}>{emoji}</CompyraText>
+        </div>
         <h2
           className={`mt-3 text-4xl font-bold tracking-tight ${headlineColor}`}
           style={iWon ? { textShadow: "0 0 32px rgba(255,215,0,0.5)" } : undefined}

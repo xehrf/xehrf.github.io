@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
+import { CompyraEmoji, CompyraText } from "../components/ui/CompyraEmoji.jsx";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
 import {
@@ -545,7 +546,10 @@ export function AnnouncementDetailsPage() {
           </Card>
         ) : (
           <Card className="grid gap-4">
-            <h2 className="text-sm font-semibold text-foreground">🎯 Анализ уровня</h2>
+            <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
+              <CompyraEmoji name="target" size={16} />
+              Анализ уровня
+            </h2>
             <RecommendedSkillBar stats={stats} />
             <SkillBucketsBlock stats={stats} />
           </Card>
@@ -559,7 +563,10 @@ export function AnnouncementDetailsPage() {
       ) : (
         <Card className="mt-4 grid gap-3 p-4">
           <h2 className="text-sm font-semibold text-foreground">
-            ⭐ Оцените это объявление
+            <span className="inline-flex items-center gap-1.5">
+              <CompyraEmoji name="star" size={16} />
+              Оцените это объявление
+            </span>
           </h2>
           <p className="text-xs text-muted">
             Ваша оценка поможет другим. Укажите свой уровень — это сделает рекомендацию точнее.
@@ -621,7 +628,9 @@ function Metric({ icon, value, label }) {
   return (
     <div className="rounded-xl border border-border bg-canvas px-3 py-2 text-center">
       <p className="text-xl font-bold text-foreground tabular-nums">
-        <span className="mr-1" aria-hidden>{icon}</span>
+        <span className="mr-1" aria-hidden>
+          <CompyraText size={20}>{icon}</CompyraText>
+        </span>
         {value}
       </p>
       <p className="text-[10px] uppercase tracking-wider text-muted">{label}</p>

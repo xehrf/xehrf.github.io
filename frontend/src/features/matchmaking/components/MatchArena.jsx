@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, getWebSocketBaseUrl, resolveAssetUrl } from "../../../api/client.js";
 import { Card } from "../../../components/ui/Card.jsx";
 import { Button } from "../../../components/ui/Button.jsx";
+import { CompyraText } from "../../../components/ui/CompyraEmoji.jsx";
 import { MediaAsset } from "../../../components/ui/MediaAsset.jsx";
 import { PlayerHoverCard } from "../../../components/ui/PlayerHoverCard.jsx";
 import { useGameEngine } from "../useGameEngine.js";
@@ -446,7 +447,7 @@ function ComboBadge({ combo }) {
             : "border-accent/40 bg-accent/5 text-accent"
       }`}
     >
-      {isLegend ? "🔥🔥🔥" : isFire ? "🔥" : "⚡"}
+      <CompyraText size={15}>{isLegend ? "🔥🔥🔥" : isFire ? "🔥" : "⚡"}</CompyraText>
       <span className="font-mono">×{combo}</span>
       <span>комбо</span>
     </div>
@@ -793,7 +794,7 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
               onClick={() => setShowChat((v) => !v)}
               className="inline-flex flex-1 items-center justify-center rounded-btn border border-border bg-elevated/50 px-3 py-2 text-xs font-semibold text-muted transition-colors hover:border-accent/40 hover:text-foreground sm:flex-initial"
             >
-              {showChat ? "🎮 Игра" : "💬 Чат"}
+              <CompyraText size={14}>{showChat ? "🎮 Игра" : "💬 Чат"}</CompyraText>
             </button>
             <button
               type="button"

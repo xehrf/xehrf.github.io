@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { apiFetch } from "../../api/client";
+import { CompyraText } from "../ui/CompyraEmoji.jsx";
 
 const ICON_ITEMS = [
   { to: "/social/friends", icon: "👥", label: "Друзья", badgeKey: "pending" },
@@ -21,7 +22,9 @@ function IconButton({ to, icon, label, badge }) {
         ].join(" ")
       }
     >
-      <span className="text-xl">{icon}</span>
+      <span className="text-xl">
+        <CompyraText size={22}>{icon}</CompyraText>
+      </span>
       {badge ? (
         <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
           {badge > 9 ? "9+" : badge}

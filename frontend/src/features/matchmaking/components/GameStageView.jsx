@@ -1,6 +1,7 @@
 import {
   ROUND_SECONDS,
 } from "../questionBank.js";
+import { CompyraEmoji, CompyraText } from "../../../components/ui/CompyraEmoji.jsx";
 
 function TimerRing({ timeLeft, total = ROUND_SECONDS }) {
   const pct = timeLeft / total;
@@ -84,7 +85,7 @@ function RoundTypeBadge({ type }) {
       className="inline-block rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider"
       style={{ color: badge.color, background: badge.bg, border: `1px solid ${badge.color}44` }}
     >
-      {badge.label}
+      <CompyraText size={14}>{badge.label}</CompyraText>
     </span>
   );
 }
@@ -106,7 +107,9 @@ function GameWaiting({ opponentName, totalRounds, readinessState, onToggleReady 
 
   return (
     <div className="flex flex-col items-center justify-center gap-6 py-10 text-center">
-      <div className="text-5xl">⚔️</div>
+      <div className="text-5xl">
+        <CompyraEmoji name="swords" size={58} />
+      </div>
       <div>
         <p className="text-xl font-black text-white">Готовы к битве?</p>
         <p className="mt-1 text-sm text-white/55">
@@ -115,9 +118,13 @@ function GameWaiting({ opponentName, totalRounds, readinessState, onToggleReady 
       </div>
       <div className="max-w-xs space-y-1.5 rounded-2xl border border-white/10 bg-black/20 px-5 py-4 text-left text-sm text-white/70">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#FFD600]">Как играть</p>
-        <p>⚡ <b>Output</b> — угадай что выведет код</p>
+        <p>
+          <CompyraText size={14}>⚡</CompyraText> <b>Output</b> — угадай что выведет код
+        </p>
         <p>🐛 <b>Баг</b> — найди строку с ошибкой</p>
-        <p>🧠 <b>Quiz</b> — быстрый вопрос по разработке</p>
+        <p>
+          <CompyraText size={14}>🧠</CompyraText> <b>Quiz</b> — быстрый вопрос по разработке
+        </p>
         <p className="pt-1 text-xs text-white/45">{totalRounds} раундов · {ROUND_SECONDS}с на ответ · кто быстрее и точнее</p>
       </div>
       <div className="w-full max-w-xs space-y-2 rounded-2xl border border-white/10 bg-black/25 px-5 py-4 text-left text-sm text-white/75">
@@ -203,7 +210,10 @@ function GamePlaying({
         <RoundTypeBadge type={question.type} />
         <div className="flex items-center justify-between gap-3 sm:justify-start">
           {opponentAnswered && !myAnswer ? (
-            <span className="animate-pulse text-xs text-indigo-400">⚡ Соперник ответил</span>
+            <span className="inline-flex animate-pulse items-center gap-1 text-xs text-indigo-400">
+              <CompyraEmoji name="bolt" size={13} />
+              Соперник ответил
+            </span>
           ) : null}
           <TimerRing timeLeft={timeLeft} />
         </div>
@@ -309,7 +319,9 @@ function GameFinished({ myScore, opponentScore, totalRounds, onPlayAgain, onSurr
 
   return (
     <div className="flex flex-col items-center justify-center gap-5 py-8 text-center">
-      <div className="text-6xl">{won ? "🏆" : tied ? "🤝" : "💀"}</div>
+      <div className="text-6xl">
+        <CompyraText size={70}>{won ? "🏆" : tied ? "🤝" : "💀"}</CompyraText>
+      </div>
       <div>
         <p className="text-2xl font-black text-white">
           {won ? "Победа!" : tied ? "Ничья!" : "Поражение"}

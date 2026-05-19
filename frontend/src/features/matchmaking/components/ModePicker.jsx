@@ -1,4 +1,5 @@
 import { MODES } from "../modes/index.js";
+import { CompyraText } from "../../../components/ui/CompyraEmoji.jsx";
 
 /**
  * Horizontal list of matchmaking modes shown above the active mode's
@@ -31,7 +32,7 @@ export function ModePicker({ activeId, onSelect, disabled = false }) {
                 isActive ? "bg-accent/15 text-accent" : "bg-border/30 text-foreground/80"
               }`}
             >
-              {mode.icon}
+              <CompyraText size={24}>{mode.icon}</CompyraText>
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">

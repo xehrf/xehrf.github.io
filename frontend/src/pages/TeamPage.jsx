@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Card } from "../components/ui/Card.jsx";
+import { CompyraEmoji, CompyraText } from "../components/ui/CompyraEmoji.jsx";
 import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { PlayerHoverCard } from "../components/ui/PlayerHoverCard.jsx";
 import { apiFetch, getWebSocketBaseUrl, resolveAssetUrl } from "../api/client";
@@ -44,7 +45,7 @@ function MemberCard({ member, isCaptain, captainId, currentUserId, readyVotes, o
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="truncate text-sm font-semibold text-foreground">{member.nickname}</p>
-              {isCap && <span className="text-[10px] text-accent">👑</span>}
+              {isCap && <CompyraEmoji name="crown" size={12} />}
             </div>
             <p className="truncate text-[11px] text-muted">{member.role || "Участник"}</p>
           </div>
@@ -475,7 +476,7 @@ export function TeamPage() {
                         : "text-muted hover:text-foreground",
                     ].join(" ")}
                   >
-                    {tab.label}
+                    <CompyraText size={14}>{tab.label}</CompyraText>
                   </button>
                 ))}
               </div>

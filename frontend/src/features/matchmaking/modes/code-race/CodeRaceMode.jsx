@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../../../../components/ui/Button.jsx";
 import { Card } from "../../../../components/ui/Card.jsx";
+import { CompyraEmoji, CompyraText } from "../../../../components/ui/CompyraEmoji.jsx";
 import { useMatchQueue } from "../../useMatchQueue.js";
 import { CodeRaceArena } from "./CodeRaceArena.jsx";
 
@@ -102,7 +103,9 @@ function RaceResult({ result, myUserId, onRace, onDismiss, rematchLoading, onRem
         background: iWon ? "rgba(255,214,0,0.07)" : isDraw ? "rgba(255,255,255,0.03)" : "rgba(239,68,68,0.05)",
       }}
     >
-      <div className="text-5xl">{iWon ? "🏆" : isDraw ? "🤝" : "💀"}</div>
+      <div className="text-5xl">
+        <CompyraText size={58}>{iWon ? "🏆" : isDraw ? "🤝" : "💀"}</CompyraText>
+      </div>
       <h2
         className="mt-3 text-3xl font-bold"
         style={{ color: iWon ? "#FFD600" : isDraw ? "#E6EDF3" : "#f87171" }}
@@ -126,7 +129,14 @@ function RaceResult({ result, myUserId, onRace, onDismiss, rematchLoading, onRem
       <div className="mx-auto mt-6 flex max-w-sm flex-col gap-2 sm:flex-row">
         {result?.match_id ? (
           <Button onClick={onRematch} disabled={rematchLoading} className="flex-1">
-            {rematchLoading ? "Запускаем..." : "⚡ Реванш"}
+            {rematchLoading ? (
+              "Запускаем..."
+            ) : (
+              <>
+                <CompyraEmoji name="bolt" size={16} />
+                Реванш
+              </>
+            )}
           </Button>
         ) : null}
         <Button variant="secondary" onClick={onRace} className="flex-1">🏁 Новая гонка</Button>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { Card } from "../components/ui/Card.jsx";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
+import { CompyraEmoji } from "../components/ui/CompyraEmoji.jsx";
 import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
@@ -212,7 +213,8 @@ export function PublicProfilePage() {
                 {status === "friend" ? (
                   <>
                     <LinkButton to={`/social/messages/${profile.id}`} variant="primary" className="h-10 px-4 text-sm">
-                      💬 Написать
+                      <CompyraEmoji name="speech" size={16} />
+                      Написать
                     </LinkButton>
                     <Button
                       variant="secondary"

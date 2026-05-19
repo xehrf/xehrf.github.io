@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card } from "../components/ui/Card.jsx";
+import { CompyraEmoji } from "../components/ui/CompyraEmoji.jsx";
 import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { PlayerHoverCard } from "../components/ui/PlayerHoverCard.jsx";
 import { apiFetch, resolveAssetUrl } from "../api/client";
@@ -181,7 +182,9 @@ export function MessagesPage() {
           {!partnerId ? (
             <div className="flex flex-1 items-center justify-center p-8 text-center">
               <div>
-                <p className="text-4xl">💬</p>
+                <p className="text-4xl">
+                  <CompyraEmoji name="speech" size={46} />
+                </p>
                 <p className="mt-2 text-sm text-muted">Выберите диалог слева</p>
               </div>
             </div>

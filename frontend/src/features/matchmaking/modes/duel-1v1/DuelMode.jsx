@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { apiFetch, getWebSocketBaseUrl } from "../../../../api/client.js";
 import { Button } from "../../../../components/ui/Button.jsx";
 import { Card } from "../../../../components/ui/Card.jsx";
+import { CompyraEmoji, CompyraText } from "../../../../components/ui/CompyraEmoji.jsx";
 import {
   useArenaStats,
   formatWait,
@@ -86,7 +87,9 @@ function SearchRadar({ state, queueSize, queuePosition }) {
       >
         {isMatched ? (
           <>
-            <div className="text-4xl">⚔</div>
+            <div className="text-4xl">
+              <CompyraEmoji name="swords" size={46} />
+            </div>
             <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-accent">МАТЧ</div>
           </>
         ) : isSearching ? (
@@ -101,7 +104,9 @@ function SearchRadar({ state, queueSize, queuePosition }) {
           </>
         ) : (
           <>
-            <div className="text-4xl">🎯</div>
+            <div className="text-4xl">
+              <CompyraEmoji name="target" size={46} />
+            </div>
             <div className="mt-1 text-[10px] uppercase tracking-wider text-muted">готов</div>
           </>
         )}
@@ -135,7 +140,9 @@ function StreakIndicator({ current, best }) {
           </div>
           <p className="mt-1 text-xs text-muted">Рекорд: <span className="text-foreground">{best}</span></p>
         </div>
-        <div className="text-4xl">{isLegendary ? "🔥🔥🔥" : isHot ? "🔥" : "💤"}</div>
+        <div className="text-4xl">
+          <CompyraText size={46}>{isLegendary ? "🔥🔥🔥" : isHot ? "🔥" : "💤"}</CompyraText>
+        </div>
       </div>
       {isHot && (
         <div className="mt-3 rounded-btn border border-accent/30 bg-accent/5 px-3 py-2 text-[11px] leading-snug text-accent">
@@ -291,7 +298,9 @@ function PostMatchScreen({ result, myUserId, opponentSnapshot, onRematch, onNewM
           background: iWon ? "rgba(255,214,0,0.07)" : isDraw ? "rgba(255,255,255,0.03)" : "rgba(239,68,68,0.05)",
         }}
       >
-        <div className="text-5xl">{iWon ? "🏆" : isDraw ? "🤝" : "💀"}</div>
+        <div className="text-5xl">
+          <CompyraText size={58}>{iWon ? "🏆" : isDraw ? "🤝" : "💀"}</CompyraText>
+        </div>
         <h2
           className="mt-3 text-3xl font-bold tracking-tight"
           style={{ color: iWon ? "#FFD600" : isDraw ? "#E6EDF3" : "#f87171", textShadow: iWon ? "0 0 32px rgba(255,214,0,0.4)" : "none" }}
@@ -311,8 +320,9 @@ function PostMatchScreen({ result, myUserId, opponentSnapshot, onRematch, onNewM
               <div className="h-px w-20 bg-border sm:h-12 sm:w-px" />
               <div>
                 <p className="text-xs uppercase tracking-widest text-muted">Серия побед</p>
-                <p className="mt-1 text-2xl font-bold text-accent">
-                  🔥 {streak}
+                <p className="mt-1 inline-flex items-center gap-1 text-2xl font-bold text-accent">
+                  <CompyraEmoji name="fire" size={24} />
+                  {streak}
                   {streakBonus > 0 && <span className="ml-1 text-lg text-green-400">+{streakBonus}</span>}
                 </p>
               </div>
@@ -330,13 +340,22 @@ function PostMatchScreen({ result, myUserId, opponentSnapshot, onRematch, onNewM
             <p className="truncate font-semibold text-foreground">{opponentName}</p>
             {opponentPts != null && <p className="text-xs text-muted">{opponentPts} PTS</p>}
           </div>
-          <div className="text-2xl">{iWon ? "😞" : isDraw ? "🤝" : "😎"}</div>
+          <div className="text-2xl">
+            <CompyraText size={28}>{iWon ? "😞" : isDraw ? "🤝" : "😎"}</CompyraText>
+          </div>
         </Card>
       )}
       <div className="flex flex-col gap-3">
         {result?.match_id && (
           <Button onClick={onRematch} disabled={rematchLoading} className="h-12">
-            {rematchLoading ? "Запускаем..." : "⚡ Реванш"}
+            {rematchLoading ? (
+              "Запускаем..."
+            ) : (
+              <>
+                <CompyraEmoji name="bolt" size={16} />
+                Реванш
+              </>
+            )}
           </Button>
         )}
         <Button variant="secondary" onClick={onNewMatch} className="h-12">Найти нового соперника</Button>
@@ -749,7 +768,8 @@ export function DuelMode({ user }) {
                     onClick={runFindMatch}
                     className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-btn bg-accent text-base font-bold text-black shadow-glow transition-all hover:bg-accent-hover hover:shadow-[0_0_32px_rgba(255,215,0,0.4)] active:scale-[0.99]"
                   >
-                    ⚔ Найти матч 1v1
+                    <CompyraEmoji name="swords" size={18} />
+                    Найти матч 1v1
                   </button>
                 ) : (
                   <button
