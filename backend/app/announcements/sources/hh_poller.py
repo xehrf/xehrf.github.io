@@ -41,10 +41,14 @@ def _build_searches(settings) -> list[dict[str, Any]]:
     swapped for a DB-backed list managed via an admin UI.
     """
     search: dict[str, Any] = {}
+    if settings.hh_search_text:
+        search["text"] = settings.hh_search_text
     if settings.hh_default_area:
         search["area"] = settings.hh_default_area
     if settings.hh_default_experience:
         search["experience"] = settings.hh_default_experience
+    if settings.hh_professional_role:
+        search["professional_role"] = settings.hh_professional_role
     return [search]
 
 # Description size cap so we don't bloat the DB with hh's HTML-heavy text.

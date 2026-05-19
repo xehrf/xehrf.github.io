@@ -50,10 +50,12 @@ class Settings(BaseSettings):
     hh_announcement_ttl_hours: int = 168  # 7 days; refreshed on each poll
     hh_per_page: int = 50  # 1..100
     hh_max_pages: int = 4  # safety cap per poll cycle (200 vacancies)
+    hh_search_text: str = ""
+    hh_professional_role: int | None = 96  # 96 = Programmer/developer in hh.ru dictionary
     # Default area filter. 40 = Kazakhstan, 113 = Russia, 1 = Moscow, etc.
     # See https://api.hh.ru/areas for the full tree.
-    hh_default_area: int = 40
-    hh_default_experience: str = "noExperience"  # noExperience | between1And3 | between3And6 | moreThan6
+    hh_default_area: int | None = 40
+    hh_default_experience: str = ""  # noExperience | between1And3 | between3And6 | moreThan6
 
     @field_validator("debug", mode="before")
     @classmethod
@@ -84,12 +86,22 @@ class Settings(BaseSettings):
         "github_oauth_client_id",
         "github_oauth_client_secret",
         "github_oauth_redirect_uri",
+        "hh_user_agent",
+        "hh_search_text",
+        "hh_default_experience",
         mode="before",
     )
     @classmethod
     def strip_string_settings(cls, value: object) -> object:
         if isinstance(value, str):
             return value.strip()
+        return value
+
+    @field_validator("hh_default_area", "hh_professional_role", mode="before")
+    @classmethod
+    def empty_string_to_none(cls, value: object) -> object:
+        if isinstance(value, str) and value.strip() == "":
+            return None
         return value
 
     @model_validator(mode="after")

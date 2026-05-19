@@ -23,6 +23,14 @@ def test_urls_are_trimmed(monkeypatch):
     assert settings.redis_url == "redis://host:6379/0"
 
 
+def test_hh_optional_integer_filters_accept_empty_strings(monkeypatch):
+    monkeypatch.setenv("HH_DEFAULT_AREA", "")
+    monkeypatch.setenv("HH_PROFESSIONAL_ROLE", "")
+    settings = Settings(_env_file=None)
+    assert settings.hh_default_area is None
+    assert settings.hh_professional_role is None
+
+
 def test_jwt_secret_is_required(monkeypatch):
     monkeypatch.delenv("JWT_SECRET", raising=False)
     monkeypatch.delenv("SECRET_KEY", raising=False)
