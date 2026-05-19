@@ -346,7 +346,7 @@ def get_announcement(
     )
 
 
-@router.delete("/{ann_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{ann_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 def delete_announcement(
     ann_id: int,
     user: User = Depends(get_current_user),
@@ -364,7 +364,7 @@ def delete_announcement(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{ann_id}/view", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/{ann_id}/view", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 def increment_view(ann_id: int, db: Session = Depends(get_db)) -> None:
     affected = (
         db.query(Announcement)
@@ -376,7 +376,7 @@ def increment_view(ann_id: int, db: Session = Depends(get_db)) -> None:
     db.commit()
 
 
-@router.post("/{ann_id}/click", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/{ann_id}/click", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 def increment_click(ann_id: int, db: Session = Depends(get_db)) -> None:
     affected = (
         db.query(Announcement)
