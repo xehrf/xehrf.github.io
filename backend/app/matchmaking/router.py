@@ -11,6 +11,8 @@ from app.db.session import get_db
 from app.matchmaking import service as mm_service
 from app.matchmaking.schemas import (
     ActiveMatchResponse,
+    InterviewCompleteRequest,
+    InterviewCompleteResponse,
     MatchmakingJoinRequest,
     MatchmakingJoinResponse,
     RematchRequestIn,
@@ -256,6 +258,32 @@ async def request_rematch(
         ends_at=rematch_match.ends_at.isoformat() if rematch_match.ends_at else None,
         opponent=_opponent_payload(db, rematch_match, user.id),
     )
+
+
+@router.post("/interview/complete", response_model=InterviewCompleteResponse)
+def complete_interview(
+    body: InterviewCompleteRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> InterviewCompleteResponse:
+    if body.total < 0 or body.correct < 0 or body.correct > body.total:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid interview score (correct must be in [0, total])",
+        )
+    r = get_redis()
+    try:
+        result = mm_service.complete_interview(
+            db,
+            r,
+            user,
+            grade=body.grade,
+            correct=body.correct,
+            total=body.total,
+        )
+    finally:
+        r.close()
+    return InterviewCompleteResponse(**result)
 
 
 @router.post("/surrender")

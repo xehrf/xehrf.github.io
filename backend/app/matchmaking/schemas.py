@@ -45,3 +45,24 @@ class ActiveMatchResponse(BaseModel):
 
 class RematchRequestIn(BaseModel):
     match_id: int
+
+
+class InterviewCompleteRequest(BaseModel):
+    # Solo "interview" mode result submission. Grade picks the reward tier
+    # and difficulty band; the actual question selection lives on the
+    # frontend because the round is purely client-side (same model as the
+    # "practice" mode — no per-round backend persistence).
+    grade: str
+    correct: int
+    total: int
+
+
+class InterviewCompleteResponse(BaseModel):
+    verdict: str  # "offer" | "next_round" | "rejected"
+    grade: str
+    correct: int
+    total: int
+    accuracy: float
+    reward_pts: int
+    already_claimed_today: bool
+    updated_pts: int
