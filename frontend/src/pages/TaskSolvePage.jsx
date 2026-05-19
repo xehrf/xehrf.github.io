@@ -5,6 +5,7 @@ import { Card } from "../components/ui/Card.jsx";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
 import { ptsForDifficulty } from "../utils/taskPts.js";
+import { TaskCard } from "../components/tasks/TaskCard.jsx";
 
 function toTaskTypeLabel(taskType) {
   if (taskType === "solo") return "Solo";
@@ -87,6 +88,21 @@ export function TaskSolvePage() {
     if (!task) return;
     loadAttempt();
   }, [task, loadAttempt]);
+
+  // Card action: start attempt if none, else submit if possible, else focus editor
+  async function onCardSolve() {
+    if (!attempt?.id) {
+      await handleStartTask();
+      return;
+    }
+    if (canSubmit && !submitting) {
+      await handleSubmit({ preventDefault: () => {} });
+      return;
+    }
+    // focus code editor textarea if present
+    const ta = document.querySelector('textarea');
+    if (ta) ta.focus();
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -311,48 +327,13 @@ export function TaskSolvePage() {
         <Card className="p-6 text-sm text-muted">{error}</Card>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <Card className="p-6">
-            <div className="flex flex-col gap-1">
-              <div className="text-sm text-muted">Тип: {toTaskTypeLabel(task.task_type)}</div>
-              <div className="text-sm text-muted">Сложность: ★{task.difficulty}</div>
-              <div className="text-sm text-muted">Лимит: {task.time_limit_minutes} мин</div>
-            </div>
-            <h2 className="mt-3 text-xl font-semibold text-foreground">{task.title}</h2>
-            {task.description && <p className="mt-2 text-sm text-muted">{task.description}</p>}
-          </Card>
-
-          {result?.verdict === "correct" ? (
-            <Card className="p-6 text-sm text-emerald-400">
-              Задача выполнена и засчитана. Повторный старт не требуется.
-            </Card>
-          ) : !attempt?.id ? (
-            <Card className="p-6">
-              <p className="text-sm text-muted">Нажмите «Принять задание», чтобы запустить таймер.</p>
-              <Button
-                type="button"
-                className="mt-4 h-12 w-full rounded-[12px] md:h-auto md:w-auto md:rounded-btn"
-                onClick={handleStartTask}
-                disabled={starting}
-              >
-                {starting ? "Старт..." : "Принять задание"}
-              </Button>
-            </Card>
-          ) : (
-            <Card className="p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-medium uppercase tracking-wider text-muted">Осталось времени</div>
-                  <div className={timerClass}>{formatCountdown(remainingSec)}</div>
-                </div>
-                <div className="text-xs text-muted">
-                  Дедлайн (сервер): {attempt.deadline ? new Date(attempt.deadline).toLocaleString() : "—"}
-                </div>
-              </div>
-              {timeUp ? (
-                <p className="mt-3 text-sm font-medium text-red-400">Время вышло. Отправка заблокирована. Можно принять задание снова.</p>
-              ) : null}
-            </Card>
-          )}
+          <TaskCard
+            task={task}
+            onSolve={onCardSolve}
+            actionLabel={attempt?.id ? (canSubmit ? "Отправить" : "Решить") : "Принять задание"}
+            showPts={true}
+            solved={result?.verdict === "correct"}
+          />
 
           <Card className="p-6">
             <label htmlFor="code" className="block text-xs font-medium text-muted">
