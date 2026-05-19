@@ -55,18 +55,16 @@ export function AppShell() {
 
   return (
     <div className="relative isolate flex min-h-screen flex-col bg-canvas text-foreground">
-      {bgVideoUrl ? (
+      {bgVideoUrl && bgMode === BG_MODE_ASCII ? (
         <AsciiVideoBackground
           videoUrl={bgVideoUrl}
-          opacity={0.53}
-          cellPx={18}
-          symbolScale={0.48}
-          densityScale={1.28}
-          fps={12}
-          variableSizing={false}
-          renderDpr={1}
-          maxCols={120}
-          maxRows={68}
+          {...PAGE_BACKGROUND_PRESET}
+        />
+      ) : null}
+      {bgVideoUrl && bgMode === BG_MODE_PLAIN ? (
+        <VideoBackground
+          videoUrl={bgVideoUrl}
+          {...PLAIN_VIDEO_PAGE_PRESET}
         />
       ) : null}
       <div className="sticky top-0 z-50 hidden md:block">
