@@ -1,10 +1,10 @@
 /**
  * Metadata for the solo "Собеседование" matchmaking mode.
  *
- * Solo, no opponent, no WebSocket. Each session randomly picks one of two
- * mini-games (Bug Hunter or branching HR dialog) so replays feel different.
- * The only backend coupling is a single POST to
- * /matchmaking/interview/complete at the end of the round.
+ * Pure on-call incident response sim: 4 services, noisy logs, action
+ * cooldowns, a 60–120s timer and a cascade waiting to fire. Replays
+ * randomize one of 5 scenarios so the round is never the same.
+ * Backend coupling is one POST to /matchmaking/interview/complete.
  */
 import { InterviewMode } from "./InterviewMode.jsx";
 
@@ -12,8 +12,8 @@ export const interviewMeta = {
   id: "interview",
   title: "Собеседование",
   short: "Соло",
-  icon: "💼",
-  blurb: "Рандомный режим: либо охота на баги в файле, либо диалог с HR на 6 ходов. Получи Offer — забираешь PTS.",
+  icon: "🚨",
+  blurb: "Ты — дежурный SRE. Найди причину инцидента и примени правильный фикс до того, как каскад уронит соседние сервисы.",
   partySize: 1,
   requiresMatchmaking: false,
   Component: InterviewMode,

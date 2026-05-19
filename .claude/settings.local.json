@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(python -m pytest app/ -x -q --tb=short)",
+      "Bash(.venv\\\\Scripts\\\\python.exe -c \"from app.matchmaking import service, router; print\\('imports ok'\\)\")",
+      "Bash(where python *)",
+      "Bash(python -c \"import slowapi; print\\('slowapi ok'\\)\")",
+      "Bash(python -m pip install slowapi==0.1.9)",
+      "Bash(python -c \"from main import app; print\\('server imports ok'\\)\")",
+      "Bash(\"C:\\\\Users\\\\Asus\\\\Analiz\\\\.venv\\\\Scripts\\\\python.exe\" -c \"from main import app; print\\('server imports ok'\\)\")",
+      "Bash(dir \"c:\\\\Users\\\\Asus\\\\Analiz\\\\backend\" /B)",
+      "Bash(dir \"c:\\\\Users\\\\Asus\\\\Analiz\" /B)",
+      "Bash(\"c:\\\\Users\\\\Asus\\\\Analiz\\\\.venv\\\\Scripts\\\\python.exe\" -m pip list)",
+      "Bash(python -m py_compile app/core/config.py app/core/limiter.py app/db/session.py app/auth/security.py app/auth/router.py app/submissions/router.py app/submissions/sandbox_worker.py main.py)",
+      "Bash(python -m py_compile app/matchmaking/service.py app/matchmaking/router.py app/matchmaking/ws.py app/matchmaking/match_ws.py)"
+    ]
+  }
+}
