@@ -24,6 +24,8 @@ from app.db.models import (
     AnnouncementSource,
     User,
 )
+
+SOURCE_TYPE_FILTERS = {"manual", "telegram", "hh", "community"}
 from app.db.session import get_db
 
 router = APIRouter(prefix="/announcements", tags=["announcements"])
@@ -88,6 +90,13 @@ def _serialize(
         source_type=_enum_value(row.source_type),
         telegram_channel=row.telegram_channel,
         message_link=row.message_link,
+        external_id=row.external_id,
+        external_url=row.external_url,
+        salary_from=row.salary_from,
+        salary_to=row.salary_to,
+        salary_currency=row.salary_currency,
+        employer_name=row.employer_name,
+        area_name=row.area_name,
         view_count=row.view_count,
         click_count=row.click_count,
         save_count=row.save_count,
@@ -168,6 +177,7 @@ def list_announcements(
     q: str | None = Query(default=None),
     category: AnnouncementCategory | None = Query(default=None),
     skill_level: AnnouncementSkillLevel | None = Query(default=None),
+    source: str | None = Query(default=None, description="manual|telegram|hh|community"),
     min_rating: float | None = Query(default=None, ge=0, le=5),
     tag: str | None = Query(default=None),
     fresh_hours: int | None = Query(default=None, ge=1, le=168),
@@ -191,6 +201,12 @@ def list_announcements(
         query = query.filter(Announcement.category == category)
     if skill_level is not None:
         query = query.filter(Announcement.skill_level == skill_level)
+    if source and source in SOURCE_TYPE_FILTERS:
+        if source == "community":
+            # "Community" = anything the users themselves created (manual/telegram).
+            query = query.filter(Announcement.source_type != AnnouncementSource.hh)
+        else:
+            query = query.filter(Announcement.source_type == AnnouncementSource(source))
     if tag:
         query = query.filter(Announcement.tags.any(tag))
     if fresh_hours is not None:
@@ -404,6 +420,11 @@ def rate_announcement(
     db: Session = Depends(get_db),
 ) -> AnnouncementOut:
     row = _get_or_404(ann_id, db)
+    if row.source_type == AnnouncementSource.hh:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="External (hh.ru) announcements cannot be rated",
+        )
     if row.author_id == user.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot rate your own announcement")
 

@@ -72,6 +72,7 @@ class AnnouncementSkillLevel(str, enum.Enum):
 class AnnouncementSource(str, enum.Enum):
     manual = "manual"
     telegram = "telegram"
+    hh = "hh"
 
 
 class User(Base):
@@ -369,7 +370,9 @@ class Announcement(Base):
     skill_level: Mapped[AnnouncementSkillLevel | None] = mapped_column(
         Enum(AnnouncementSkillLevel), nullable=True, index=True
     )
-    author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    author_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True
+    )
     contact_handle: Mapped[str | None] = mapped_column(String(255), nullable=True)
     contact_link: Mapped[str | None] = mapped_column(String(500), nullable=True)
     contact_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -380,6 +383,14 @@ class Announcement(Base):
     )
     telegram_channel: Mapped[str | None] = mapped_column(String(255), nullable=True)
     message_link: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # External-source fields (HH and future integrations)
+    external_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    external_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    salary_from: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    salary_to: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    salary_currency: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    employer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    area_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     view_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     click_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     save_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
@@ -388,7 +399,7 @@ class Announcement(Base):
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
-    author: Mapped["User"] = relationship(foreign_keys=[author_id])
+    author: Mapped["User | None"] = relationship(foreign_keys=[author_id])
     ratings: Mapped[list["AnnouncementRating"]] = relationship(
         back_populates="announcement", cascade="all, delete-orphan"
     )

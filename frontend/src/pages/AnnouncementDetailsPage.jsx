@@ -10,9 +10,11 @@ import {
   calcRemainingPercent,
   extractContactLink,
   formatDateTime,
+  formatSalary,
   formatTtl,
   getCategoryMeta,
   getSkillMeta,
+  getSourceMeta,
   getTtlColor,
 } from "../utils/announcements.js";
 
@@ -244,7 +246,8 @@ export function AnnouncementDetailsPage() {
   const [savedToast, setSavedToast] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  const isOwner = announcement?.author_id === user?.id;
+  const isOwner = announcement?.author_id === user?.id && announcement?.author_id != null;
+  const isHH = announcement?.source_type === "hh";
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -378,19 +381,39 @@ export function AnnouncementDetailsPage() {
               {catMeta.icon} {catMeta.label}
             </span>
             <SkillBadge level={announcement.skill_level} size="lg" />
-            {announcement.source_type === "telegram" ? (
-              <span className="rounded-full border border-sky-400/40 bg-sky-400/15 px-3 py-1 text-xs font-semibold text-sky-200">
-                📡 Telegram
-              </span>
-            ) : null}
+            {(() => {
+              const sm = getSourceMeta(announcement.source_type, announcement.external_url);
+              return (
+                <span
+                  className="rounded-full border px-3 py-1 text-xs font-bold uppercase"
+                  style={{ color: sm.color, backgroundColor: sm.bg, borderColor: sm.border }}
+                >
+                  {sm.icon} {sm.label}
+                </span>
+              );
+            })()}
           </div>
 
           <h1 className="text-2xl font-bold leading-tight text-foreground sm:text-3xl">
             {announcement.title}
           </h1>
 
+          {formatSalary(announcement) ? (
+            <p className="text-lg font-bold text-accent">💰 {formatSalary(announcement)}</p>
+          ) : null}
+
           <div className="text-xs text-muted">
-            Опубликовано {formatDateTime(announcement.created_at)} • {announcement.author_display_name ?? "Аноним"}
+            {isHH ? (
+              <>
+                {announcement.employer_name ?? "Работодатель"}
+                {announcement.area_name ? ` • ${announcement.area_name}` : ""}
+                {" • "}Опубликовано {formatDateTime(announcement.created_at)}
+              </>
+            ) : (
+              <>
+                Опубликовано {formatDateTime(announcement.created_at)} • {announcement.author_display_name ?? "Аноним"}
+              </>
+            )}
           </div>
         </div>
 
@@ -423,32 +446,113 @@ export function AnnouncementDetailsPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="grid gap-3">
-          <h2 className="text-sm font-semibold text-foreground">📞 Контакты</h2>
-          <ContactsBlock announcement={announcement} onLinkClick={trackClick} />
-          <div className="flex flex-col gap-2 pt-2 sm:flex-row">
-            <button
-              type="button"
-              onClick={handleSave}
-              className={[
-                "flex-1 rounded-btn border px-4 py-2.5 text-sm font-semibold transition",
-                announcement.is_saved_by_me
-                  ? "border-accent/60 bg-accent/15 text-accent"
-                  : "border-border bg-canvas text-muted hover:border-accent/40 hover:text-accent",
-              ].join(" ")}
-            >
-              {announcement.is_saved_by_me ? "✓ Сохранено" : "💾 Сохранить"}
-            </button>
-          </div>
+          {isHH ? (
+            <>
+              {(() => {
+                const sm = getSourceMeta(announcement.source_type, announcement.external_url);
+                return (
+                  <>
+                    <h2 className="text-sm font-semibold text-foreground">💼 Вакансия на {sm.label}</h2>
+                    <p className="text-xs text-muted">
+                      Это вакансия с {sm.label}. Контакты соискателя доступны только зарегистрированному
+                      пользователю HH. Откликнитесь на сайте.
+                    </p>
+                    {announcement.external_url ? (
+                      <a
+                        href={announcement.external_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={trackClick}
+                        className="inline-flex items-center justify-center gap-2 rounded-btn px-4 py-3 text-sm font-bold text-white transition hover:opacity-90"
+                        style={{ backgroundColor: "#D6001C" }}
+                      >
+                        🔗 Откликнуться на {sm.label}
+                      </a>
+                    ) : null}
+                  </>
+                );
+              })()}
+              <button
+                type="button"
+                onClick={handleSave}
+                className={[
+                  "rounded-btn border px-4 py-2.5 text-sm font-semibold transition",
+                  announcement.is_saved_by_me
+                    ? "border-accent/60 bg-accent/15 text-accent"
+                    : "border-border bg-canvas text-muted hover:border-accent/40 hover:text-accent",
+                ].join(" ")}
+              >
+                {announcement.is_saved_by_me ? "✓ Сохранено" : "💾 Сохранить"}
+              </button>
+            </>
+          ) : (
+            <>
+              <h2 className="text-sm font-semibold text-foreground">📞 Контакты</h2>
+              <ContactsBlock announcement={announcement} onLinkClick={trackClick} />
+              <div className="flex flex-col gap-2 pt-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className={[
+                    "flex-1 rounded-btn border px-4 py-2.5 text-sm font-semibold transition",
+                    announcement.is_saved_by_me
+                      ? "border-accent/60 bg-accent/15 text-accent"
+                      : "border-border bg-canvas text-muted hover:border-accent/40 hover:text-accent",
+                  ].join(" ")}
+                >
+                  {announcement.is_saved_by_me ? "✓ Сохранено" : "💾 Сохранить"}
+                </button>
+              </div>
+            </>
+          )}
         </Card>
 
-        <Card className="grid gap-4">
-          <h2 className="text-sm font-semibold text-foreground">🎯 Анализ уровня</h2>
-          <RecommendedSkillBar stats={stats} />
-          <SkillBucketsBlock stats={stats} />
-        </Card>
+        {isHH ? (
+          <Card className="grid gap-3">
+            <h2 className="text-sm font-semibold text-foreground">📊 Сводка</h2>
+            <div className="grid gap-1.5 text-sm text-foreground">
+              {announcement.employer_name ? (
+                <div className="flex justify-between">
+                  <span className="text-muted">Компания:</span>
+                  <span className="font-semibold">{announcement.employer_name}</span>
+                </div>
+              ) : null}
+              {announcement.area_name ? (
+                <div className="flex justify-between">
+                  <span className="text-muted">Регион:</span>
+                  <span className="font-semibold">{announcement.area_name}</span>
+                </div>
+              ) : null}
+              {announcement.skill_level ? (
+                <div className="flex justify-between">
+                  <span className="text-muted">Уровень:</span>
+                  <span className="font-semibold">
+                    {SKILL_META[announcement.skill_level]?.label ?? announcement.skill_level}
+                  </span>
+                </div>
+              ) : null}
+              {formatSalary(announcement) ? (
+                <div className="flex justify-between">
+                  <span className="text-muted">Зарплата:</span>
+                  <span className="font-semibold text-accent">{formatSalary(announcement)}</span>
+                </div>
+              ) : null}
+            </div>
+            <p className="mt-2 text-[11px] text-muted">
+              Источник: {getSourceMeta(announcement.source_type, announcement.external_url).label}.
+              Данные обновляются автоматически.
+            </p>
+          </Card>
+        ) : (
+          <Card className="grid gap-4">
+            <h2 className="text-sm font-semibold text-foreground">🎯 Анализ уровня</h2>
+            <RecommendedSkillBar stats={stats} />
+            <SkillBucketsBlock stats={stats} />
+          </Card>
+        )}
       </div>
 
-      {isOwner ? (
+      {isHH ? null : isOwner ? (
         <Card className="mt-4 p-4 text-xs text-muted">
           Это ваше объявление — оценка от автора отключена. Вы видите полный номер телефона.
         </Card>

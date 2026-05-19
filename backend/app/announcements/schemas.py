@@ -49,7 +49,7 @@ class AnnouncementOut(BaseModel):
     description: str
     category: str
     skill_level: str | None
-    author_id: int
+    author_id: int | None = None
     author_display_name: str | None = None
     contact_handle: str | None = None
     contact_link: str | None = None
@@ -59,6 +59,13 @@ class AnnouncementOut(BaseModel):
     source_type: str
     telegram_channel: str | None = None
     message_link: str | None = None
+    external_id: str | None = None
+    external_url: str | None = None
+    salary_from: int | None = None
+    salary_to: int | None = None
+    salary_currency: str | None = None
+    employer_name: str | None = None
+    area_name: str | None = None
     view_count: int
     click_count: int
     save_count: int

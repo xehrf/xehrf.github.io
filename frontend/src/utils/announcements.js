@@ -118,3 +118,50 @@ export function buildStarString(value) {
   const filled = Math.round(Math.max(0, Math.min(5, Number(value) || 0)));
   return "★".repeat(filled) + "☆".repeat(5 - filled);
 }
+
+export const SOURCE_META = {
+  manual: { label: "Сообщество", icon: "👤", color: "#8B949E", bg: "rgba(139, 148, 158, 0.12)", border: "rgba(139, 148, 158, 0.4)" },
+  telegram: { label: "Telegram", icon: "📡", color: "#38BDF8", bg: "rgba(56, 189, 248, 0.15)", border: "rgba(56, 189, 248, 0.4)" },
+  hh: { label: "HH", icon: "💼", color: "#D6001C", bg: "rgba(214, 0, 28, 0.15)", border: "rgba(214, 0, 28, 0.4)" },
+};
+
+/**
+ * Returns metadata for the announcement's source. For hh.*, the displayed
+ * label is derived from the URL so KZ vacancies say "hh.kz" instead of "hh.ru".
+ */
+export function getSourceMeta(source, externalUrl) {
+  const base = SOURCE_META[source] ?? SOURCE_META.manual;
+  if (source === "hh" && externalUrl) {
+    try {
+      const host = new URL(externalUrl).host.replace(/^www\./, "");
+      return { ...base, label: host };
+    } catch {
+      return base;
+    }
+  }
+  return base;
+}
+
+const CURRENCY_SYMBOL = {
+  RUR: "₽",
+  RUB: "₽",
+  USD: "$",
+  EUR: "€",
+  KZT: "₸",
+  BYR: "Br",
+  BYN: "Br",
+  UAH: "₴",
+  GEL: "₾",
+};
+
+function fmtNumber(n) {
+  return new Intl.NumberFormat("ru-RU").format(n);
+}
+
+export function formatSalary({ salary_from, salary_to, salary_currency } = {}) {
+  if (!salary_from && !salary_to) return null;
+  const sym = CURRENCY_SYMBOL[salary_currency] ?? (salary_currency || "");
+  if (salary_from && salary_to) return `${fmtNumber(salary_from)}–${fmtNumber(salary_to)} ${sym}`.trim();
+  if (salary_from) return `от ${fmtNumber(salary_from)} ${sym}`.trim();
+  return `до ${fmtNumber(salary_to)} ${sym}`.trim();
+}

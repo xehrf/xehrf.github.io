@@ -8,9 +8,11 @@ import {
   SKILL_LEVELS,
   SKILL_META,
   calcRemainingPercent,
+  formatSalary,
   formatTtl,
   getCategoryMeta,
   getSkillMeta,
+  getSourceMeta,
   getTtlColor,
 } from "../utils/announcements.js";
 
@@ -18,6 +20,7 @@ const INITIAL_FILTERS = {
   q: "",
   category: "",
   skill_level: "",
+  source: "",
   min_rating: "",
   tag: "",
   fresh_hours: "",
@@ -100,9 +103,27 @@ function StatPill({ icon, value, label }) {
   );
 }
 
+function SourceChip({ source, externalUrl }) {
+  const meta = getSourceMeta(source, externalUrl);
+  return (
+    <span
+      className="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+      style={{ color: meta.color, backgroundColor: meta.bg, borderColor: meta.border }}
+    >
+      {meta.icon} {meta.label}
+    </span>
+  );
+}
+
 function AnnouncementCard({ announcement, onSaveToggle }) {
   const navigate = useNavigate();
   const catMeta = getCategoryMeta(announcement.category);
+  const isHH = announcement.source_type === "hh";
+  const salary = formatSalary(announcement);
+  const subtitle = isHH
+    ? [announcement.employer_name, announcement.area_name].filter(Boolean).join(" • ")
+    : (announcement.author_display_name ?? "Аноним") +
+      (announcement.contact_handle ? ` • ${announcement.contact_handle}` : "");
 
   function handleOpen() {
     // View counter is incremented on the details page mount — avoid double count here.
@@ -131,6 +152,7 @@ function AnnouncementCard({ announcement, onSaveToggle }) {
           </h2>
           <div className="flex flex-shrink-0 flex-col items-end gap-1">
             <SkillLevelChip level={announcement.skill_level} />
+            <SourceChip source={announcement.source_type} externalUrl={announcement.external_url} />
             {announcement.rating_count > 0 ? (
               <span className="flex items-center gap-1 text-[11px] text-muted">
                 <span className="text-accent">★</span>
@@ -142,6 +164,10 @@ function AnnouncementCard({ announcement, onSaveToggle }) {
             ) : null}
           </div>
         </div>
+
+        {salary ? (
+          <div className="text-sm font-bold text-accent">💰 {salary}</div>
+        ) : null}
 
         <p className="line-clamp-2 text-xs leading-relaxed text-muted">{announcement.description}</p>
 
@@ -169,10 +195,7 @@ function AnnouncementCard({ announcement, onSaveToggle }) {
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
-        <span className="truncate text-[11px] text-muted">
-          {announcement.author_display_name ?? "Аноним"}
-          {announcement.contact_handle ? ` • ${announcement.contact_handle}` : ""}
-        </span>
+        <span className="truncate text-[11px] text-muted">{subtitle}</span>
         <button
           type="button"
           onClick={handleSave}
@@ -264,6 +287,31 @@ function FilterSection({ filters, setFilter, onReset, onSubmit }) {
               );
             })}
           </div>
+        </div>
+      </div>
+
+      <div className="grid gap-2">
+        <span className="text-[11px] uppercase tracking-wider text-muted">📡 Источник</span>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { value: "", label: "Все" },
+            { value: "community", label: "👤 Сообщество" },
+            { value: "hh", label: "💼 hh.ru" },
+          ].map((opt) => (
+            <button
+              key={opt.value || "any"}
+              type="button"
+              onClick={() => setFilter("source", opt.value)}
+              className={[
+                "rounded-full border px-3 py-1 text-xs font-semibold transition",
+                filters.source === opt.value
+                  ? "border-accent bg-accent/15 text-accent"
+                  : "border-border bg-canvas text-muted hover:border-accent/40 hover:text-foreground",
+              ].join(" ")}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -362,6 +410,7 @@ export function AnnouncementsPage() {
       if (nextFilters.q.trim()) params.set("q", nextFilters.q.trim());
       if (nextFilters.category) params.set("category", nextFilters.category);
       if (nextFilters.skill_level) params.set("skill_level", nextFilters.skill_level);
+      if (nextFilters.source) params.set("source", nextFilters.source);
       if (nextFilters.min_rating) params.set("min_rating", nextFilters.min_rating);
       if (nextFilters.tag.trim()) params.set("tag", nextFilters.tag.trim());
       if (nextFilters.fresh_hours) params.set("fresh_hours", nextFilters.fresh_hours);

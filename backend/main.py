@@ -15,6 +15,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.announcements.router import router as announcements_router
+from app.announcements.sources.hh_poller import run_forever as run_hh_poller
 from app.auth.router import router as auth_router
 from app.core.config import get_settings
 from app.core.errors import ApiError, build_error_body
@@ -142,12 +143,13 @@ async def lifespan(_: FastAPI):
         db.close()
     sweep_task = asyncio.create_task(_match_timeout_sweeper())
     announcement_sweep_task = asyncio.create_task(_announcement_expiry_sweeper())
+    hh_poller_task = asyncio.create_task(run_hh_poller())
     try:
         yield
     finally:
         # Cancel every task FIRST so none of them gets an event-loop cycle to
         # execute body code while we await another task's cancellation.
-        tasks = [t for t in (sweep_task, announcement_sweep_task) if t is not None]
+        tasks = [t for t in (sweep_task, announcement_sweep_task, hh_poller_task) if t is not None]
         for task in tasks:
             task.cancel()
         for task in tasks:
