@@ -12,9 +12,10 @@
  */
 import { codeRaceMeta } from "./code-race/meta.js";
 import { duelMeta } from "./duel-1v1/meta.js";
+import { interviewMeta } from "./interview/meta.js";
 import { practiceMeta } from "./practice/meta.js";
 
-export const MODES = [duelMeta, codeRaceMeta, practiceMeta];
+export const MODES = [duelMeta, codeRaceMeta, interviewMeta, practiceMeta];
 export const DEFAULT_MODE_ID = duelMeta.id;
 
 export function getModeById(id) {

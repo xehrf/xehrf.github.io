@@ -80,6 +80,17 @@ PVP_QUESTS: dict[str, list[dict[str, object]]] = {
 DEFAULT_MODE = "duel-1v1"
 ALLOWED_MODES = frozenset({"duel-1v1", "code-race"})
 
+# Solo "interview" mode lives outside the queue entirely (like "practice"
+# on the frontend) — the only backend touchpoint is /interview/complete,
+# which awards a small daily-capped PTS reward for passing the round.
+INTERVIEW_GRADES = ("junior", "middle", "senior")
+INTERVIEW_GRADE_REWARDS = {"junior": 0, "middle": 15, "senior": 30}
+INTERVIEW_OFFER_THRESHOLD = 0.85
+INTERVIEW_NEXT_ROUND_THRESHOLD = 0.65
+INTERVIEW_REWARD_KEY = "mm:interview_reward:{user_id}:{grade}:{day}"
+INTERVIEW_REWARD_TTL = 36 * 3600  # ~1.5 days — guarantees the key outlives
+# the calendar day even with timezone drift between server and player.
+
 
 def normalize_mode(value: str | None) -> str:
     if value is None:
@@ -279,6 +290,90 @@ def claim_pvp_quest(db: Session, r: redis.Redis, user: User, period: str, quest_
         "reward_pts": reward_pts,
         "updated_pts": user.pts,
     }
+
+
+def normalize_interview_grade(value: str | None) -> str:
+    if value is None:
+        return "junior"
+    cleaned = str(value).strip().lower()
+    if cleaned in INTERVIEW_GRADES:
+        return cleaned
+    return "junior"
+
+
+def _interview_reward_key(user_id: int, grade: str, day: str) -> str:
+    return INTERVIEW_REWARD_KEY.format(user_id=user_id, grade=grade, day=day)
+
+
+def _interview_verdict(accuracy: float) -> str:
+    if accuracy >= INTERVIEW_OFFER_THRESHOLD:
+        return "offer"
+    if accuracy >= INTERVIEW_NEXT_ROUND_THRESHOLD:
+        return "next_round"
+    return "rejected"
+
+
+def complete_interview(
+    db: Session,
+    r: redis.Redis,
+    user: User,
+    *,
+    grade: str,
+    correct: int,
+    total: int,
+) -> dict[str, object]:
+    """Finalize a solo interview run.
+
+    Daily-capped PTS reward: at most one Offer-grade reward per
+    (user, grade, day) — keeps the solo mode from cannibalizing PvP
+    while still giving completionists something to chase across grades.
+    """
+    grade = normalize_interview_grade(grade)
+    total = max(0, int(total))
+    correct = max(0, min(total, int(correct)))
+    accuracy = (correct / total) if total > 0 else 0.0
+    verdict = _interview_verdict(accuracy)
+
+    base_reward = INTERVIEW_GRADE_REWARDS.get(grade, 0)
+    reward_pts = 0
+    already_claimed = False
+
+    if verdict == "offer" and base_reward > 0:
+        now = _now_utc()
+        day = now.strftime("%Y-%m-%d")
+        key = _interview_reward_key(user.id, grade, day)
+        # SETNX so two parallel completions can't double-credit the same day.
+        claimed = r.set(key, "1", ex=INTERVIEW_REWARD_TTL, nx=True)
+        if claimed:
+            reward_pts = base_reward
+            user.pts = apply_pts_delta(user.pts, reward_pts)
+            user.level = level_from_pts(user.pts)
+            add_rating_history(
+                db,
+                user_id=user.id,
+                pts_delta=reward_pts,
+                reason=f"interview_offer_{grade}",
+                topic_key="interview",
+                language_key=None,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        else:
+            already_claimed = True
+
+    return {
+        "verdict": verdict,
+        "grade": grade,
+        "correct": correct,
+        "total": total,
+        "accuracy": round(accuracy, 3),
+        "reward_pts": reward_pts,
+        "already_claimed_today": already_claimed,
+        "updated_pts": int(user.pts),
+    }
+
+
 def leave_queue_if_present(r: redis.Redis, user_id: int) -> None:
     """Remove user from any matchmaking queue they may be in."""
     # We don't know which queue the user is in, so clean all of them.
