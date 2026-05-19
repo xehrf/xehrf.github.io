@@ -22,11 +22,11 @@ export function BottomNav() {
           </span>
           <span>Задачи</span>
         </NavLink>
-        <NavLink to="/freelance" className={itemClass}>
+        <NavLink to="/announcements" className={itemClass}>
           <span className="text-lg leading-none" aria-hidden>
-            💼
+            📢
           </span>
-          <span>Публикации</span>
+          <span>Объявления</span>
         </NavLink>
 
         <NavLink to="/profile" className={itemClass}>
