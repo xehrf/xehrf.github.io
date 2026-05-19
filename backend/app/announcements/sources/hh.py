@@ -20,13 +20,16 @@ DEFAULT_TIMEOUT = httpx.Timeout(15.0, connect=10.0)
 
 
 class HHClient:
-    def __init__(self, user_agent: str) -> None:
+    def __init__(self, user_agent: str, access_token: str | None = None) -> None:
         if not user_agent:
             # hh.ru returns 403 without a UA, so refuse to start a useless client.
             raise ValueError("HH user-agent is required")
+        headers = {"User-Agent": user_agent, "Accept": "application/json"}
+        if access_token:
+            headers["Authorization"] = f"Bearer {access_token}"
         self._client = httpx.AsyncClient(
             base_url=HH_BASE_URL,
-            headers={"User-Agent": user_agent, "Accept": "application/json"},
+            headers=headers,
             timeout=DEFAULT_TIMEOUT,
         )
 

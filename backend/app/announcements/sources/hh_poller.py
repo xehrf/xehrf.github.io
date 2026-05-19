@@ -219,16 +219,24 @@ async def run_forever() -> None:
         logger.warning("HH_USER_AGENT is empty; hh.ru poller will not start")
         return
 
-    client = HHClient(settings.hh_user_agent)
+    client = HHClient(settings.hh_user_agent, access_token=settings.hh_access_token or None)
     try:
         while True:
             db = SessionLocal()
-            r = get_redis()
+            r = None
             lock_acquired = False
             try:
-                lock_acquired = bool(
-                    r.set(HH_SWEEP_LOCK_KEY, "1", ex=settings.hh_poll_interval_seconds * 2, nx=True)
-                )
+                try:
+                    r = get_redis()
+                    lock_acquired = bool(
+                        r.set(HH_SWEEP_LOCK_KEY, "1", ex=settings.hh_poll_interval_seconds * 2, nx=True)
+                    )
+                except Exception:
+                    # Redis is only a cross-worker guard here. The upsert path is
+                    # idempotent enough for a single Render worker, so don't let a
+                    # missing Redis service prevent vacancy imports entirely.
+                    logger.warning("Redis lock unavailable for hh.ru poller; polling without lock", exc_info=True)
+                    lock_acquired = True
                 if lock_acquired:
                     ins, upd = await poll_once(client, db, settings=settings)
                     if ins or upd:
@@ -242,10 +250,12 @@ async def run_forever() -> None:
             finally:
                 if lock_acquired:
                     try:
-                        r.delete(HH_SWEEP_LOCK_KEY)
+                        if r is not None:
+                            r.delete(HH_SWEEP_LOCK_KEY)
                     except Exception:
                         pass
-                r.close()
+                if r is not None:
+                    r.close()
                 db.close()
             await asyncio.sleep(settings.hh_poll_interval_seconds)
     finally:

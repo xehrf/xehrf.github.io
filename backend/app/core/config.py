@@ -45,7 +45,8 @@ class Settings(BaseSettings):
     # HH.ru job feed integration. Leave hh_enabled=False (or unset HH_USER_AGENT)
     # in dev to skip the background poller entirely.
     hh_enabled: bool = True
-    hh_user_agent: str = ""  # e.g. "CodeArena (admin@example.com)" — required by hh.ru
+    hh_user_agent: str = "CodeArena/1.0 (https://xehrf.github.io)"  # required by hh.ru
+    hh_access_token: str = ""
     hh_poll_interval_seconds: int = 900
     hh_announcement_ttl_hours: int = 168  # 7 days; refreshed on each poll
     hh_per_page: int = 50  # 1..100
@@ -87,6 +88,7 @@ class Settings(BaseSettings):
         "github_oauth_client_secret",
         "github_oauth_redirect_uri",
         "hh_user_agent",
+        "hh_access_token",
         "hh_search_text",
         "hh_default_experience",
         mode="before",
