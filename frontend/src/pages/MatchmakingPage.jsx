@@ -4,6 +4,7 @@ import { useAuth } from "../auth/AuthProvider.jsx";
 import { ModePicker } from "../features/matchmaking/components/ModePicker.jsx";
 import { DEFAULT_MODE_ID, getModeById, MODES } from "../features/matchmaking/modes/index.js";
 import { LeaderboardContent } from "./LeaderboardPage.jsx";
+import { useArenaStats } from "../hooks/useArenaStats.js";
 
 /**
  * MatchmakingPage is intentionally a thin shell now.
@@ -129,14 +130,9 @@ export function MatchmakingPage() {
 /* ─── Arena status hero ─────────────────────────────────────────────── */
 
 function ArenaStatus({ user }) {
-  // Mock live counter — replace with backend data once available
-  const [now, setNow] = useState(2847);
-  useEffect(() => {
-    const t = setInterval(() => {
-      setNow((n) => Math.max(2400, n + (Math.random() < 0.5 ? -1 : 1) * Math.floor(Math.random() * 4)));
-    }, 1400);
-    return () => clearInterval(t);
-  }, []);
+  // Use real arena stats from the backend
+  const { stats, loading } = useArenaStats({ refreshMs: 5000 });
+  const nowCount = loading ? null : stats?.online ?? 0;
 
   const pts = user?.pts ?? 0;
 
@@ -161,7 +157,7 @@ function ArenaStatus({ user }) {
             <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
           </span>
           <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-accent">
-            АРЕНА ОТКРЫТА · СЕЗОН 03
+            АРЕНА ОТКРЫТА · СЕЗОН 01
           </span>
         </div>
 
@@ -180,7 +176,12 @@ function ArenaStatus({ user }) {
 
           {/* stats */}
           <div className="grid grid-cols-2 gap-2.5">
-            <StatCell label="ИГРАЮТ СЕЙЧАС" value={now.toLocaleString("ru-RU")} footer="за последнюю минуту" pulse />
+            <StatCell
+              label="ИГРАЮТ СЕЙЧАС"
+              value={loading ? "—" : (nowCount ?? 0).toLocaleString("ru-RU")}
+              footer="за последнюю минуту"
+              pulse
+            />
             <StatCell label="СРЕДНЕЕ ОЖИДАНИЕ" value="0:08" footer="по твоему PTS" />
             <StatCell label="ТВОЙ PTS" value={pts.toLocaleString("ru-RU")} footer="↑ держи серию" big />
             <StatCell label="КАЛИБРОВКА" value="5/5" footer="завершена" big />
