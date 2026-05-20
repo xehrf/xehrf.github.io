@@ -14,7 +14,7 @@ export function MobileHeader({ user }) {
         to={user ? "/dashboard" : "/"}
         className="flex items-center gap-2 font-semibold tracking-tight text-[#E6EDF3] active:scale-[0.98] transition-transform duration-150"
       >
-        <img src="/compyra-logo.svg" alt="Compyra" className="h-8 w-8" />
+        <img src="/compyra-logo(1).png" alt="Compyra" style={{ height: "40px", width: "auto", objectFit: "contain" }} />
         <span className="text-sm font-bold text-white tracking-wide">Compyra</span>
       </Link>
 

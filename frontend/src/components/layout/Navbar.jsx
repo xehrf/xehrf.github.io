@@ -33,7 +33,7 @@ export function Navbar({ user }) {
           to="/"
           className="group flex items-center gap-2 font-semibold tracking-tight text-foreground transition-colors hover:text-accent"
         >
-          <img src="/compyra-logo.svg" alt="Compyra" className="h-8 w-8 transition-opacity duration-200 group-hover:opacity-80" />
+          <img src="/compyra-logo(1).png" alt="Compyra" style={{ height: "40px", width: "auto", objectFit: "contain" }} className="transition-opacity duration-200 group-hover:opacity-80" />
           <span className="hidden sm:flex flex-col leading-none gap-[2px]">
             <span className="text-sm font-bold text-white tracking-wide leading-none">Compyra</span>
             <span className="text-[8px] font-medium text-[#FFD700] uppercase tracking-[0.18em] leading-none">Code. Learn. Build. Repeat.</span>
