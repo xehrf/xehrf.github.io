@@ -14,10 +14,8 @@ export function MobileHeader({ user }) {
         to={user ? "/dashboard" : "/"}
         className="flex items-center gap-2 font-semibold tracking-tight text-[#E6EDF3] active:scale-[0.98] transition-transform duration-150"
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#30363D] bg-[#161B22] text-xs font-bold text-[#FFD700]">
-          CA
-        </span>
-        <span className="text-sm">CodeArena</span>
+        <img src="/compyra-logo.svg" alt="Compyra" className="h-8 w-8" />
+        <span className="text-sm font-bold text-white tracking-wide">Compyra</span>
       </Link>
 
       <div className="flex items-center gap-2">

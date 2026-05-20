@@ -418,7 +418,7 @@ def seed_if_empty(db: Session) -> None:
                 "function_name": "reverse_string",
                 "tests": [
                     {"input": ["abc"], "expected": "cba"},
-                    {"input": ["CodeArena"], "expected": "anerAedoC"},
+                    {"input": ["Compyra"], "expected": "arypmoC"},
                     {"input": [""], "expected": ""},
                 ],
             },

@@ -14,7 +14,7 @@ INSECURE_JWT_SECRETS = frozenset(
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "CodeArena MVP"
+    app_name: str = "Compyra MVP"
     debug: bool = False
 
     database_url: str = "postgresql://codearena:codearena@localhost:5432/codearena"
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     # HH.ru job feed integration. Leave hh_enabled=False (or unset HH_USER_AGENT)
     # in dev to skip the background poller entirely.
     hh_enabled: bool = True
-    hh_user_agent: str = "CodeArena/1.0 (https://xehrf.github.io)"  # required by hh.ru
+    hh_user_agent: str = "Compyra/1.0 (https://xehrf.github.io)"  # required by hh.ru
     hh_access_token: str = ""
     hh_poll_interval_seconds: int = 900
     hh_announcement_ttl_hours: int = 168  # 7 days; refreshed on each poll

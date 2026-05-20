@@ -94,7 +94,7 @@ export function OnboardingModal({ onComplete }) {
         style={{ background: "#111", border: "1px solid rgba(255,214,0,0.15)" }}
       >
         <div className="mb-6">
-          <p className="text-xs uppercase tracking-[0.2em] text-[#FFD600]/80">Добро пожаловать в CodeArena</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-[#FFD600]/80">Добро пожаловать в Compyra</p>
           <h2 className="mt-2 text-2xl font-semibold text-white">Завершите онбординг</h2>
           <p className="mt-2 text-sm text-white/70">Шаг {step} из 2</p>
         </div>

@@ -33,10 +33,11 @@ export function Navbar({ user }) {
           to="/"
           className="group flex items-center gap-2 font-semibold tracking-tight text-foreground transition-colors hover:text-accent"
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-elevated text-xs font-bold text-accent shadow-card transition-all duration-200 group-hover:border-accent/40 group-hover:shadow-glow">
-            CA
+          <img src="/compyra-logo.svg" alt="Compyra" className="h-8 w-8 transition-opacity duration-200 group-hover:opacity-80" />
+          <span className="hidden sm:flex flex-col leading-none gap-[2px]">
+            <span className="text-sm font-bold text-white tracking-wide leading-none">Compyra</span>
+            <span className="text-[8px] font-medium text-[#FFD700] uppercase tracking-[0.18em] leading-none">Code. Learn. Build. Repeat.</span>
           </span>
-          <span className="hidden sm:inline">CodeArena</span>
         </Link>
 
         <nav className="hidden items-center gap-6 md:flex">

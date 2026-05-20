@@ -135,7 +135,7 @@ async function generateResumePDF(profile, completedTasks, skillChips) {
       <!-- Header -->
       <div style="background: #191923; padding: 32px 40px 28px; position: relative; border-bottom: 3px solid #FFD600;">
         <div style="position: absolute; top: 20px; right: 40px; text-align: right;">
-          <div style="color: #FFD600; font-size: 14px; font-weight: 700; letter-spacing: 1px;">CodeArena</div>
+          <div style="color: #FFD600; font-size: 14px; font-weight: 700; letter-spacing: 1px;">Compyra</div>
           <div style="color: #888; font-size: 11px; margin-top: 2px;">Player Resume</div>
           <div style="color: #666; font-size: 10px; margin-top: 4px;">Сформировано: ${now}</div>
         </div>
@@ -266,7 +266,7 @@ async function generateResumePDF(profile, completedTasks, skillChips) {
         background: #191923; border-top: 2px solid #FFD600;
         padding: 12px 40px; display: flex; justify-content: space-between; align-items: center;
       ">
-        <div style="font-size: 10px; color: #666;">CodeArena — платформа для разработчиков</div>
+        <div style="font-size: 10px; color: #666;">Compyra — платформа для разработчиков</div>
         <div style="font-size: 10px; color: #FFD600;">xehrf-github-io.vercel.app</div>
       </div>
     </div>

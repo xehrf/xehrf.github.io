@@ -42,10 +42,11 @@ export function LoginPage() {
             to="/"
             className="flex items-center gap-2 text-sm font-semibold text-foreground transition-colors hover:text-accent"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-elevated text-xs font-bold text-accent">
-              CA
+            <img src="/compyra-logo.svg" alt="Compyra" className="h-8 w-8" />
+            <span className="flex flex-col leading-none gap-[2px]">
+              <span className="text-sm font-bold text-white tracking-wide leading-none">Compyra</span>
+              <span className="text-[8px] font-medium text-[#FFD700] uppercase tracking-[0.18em] leading-none">Code. Learn. Build. Repeat.</span>
             </span>
-            CodeArena
           </Link>
         </div>
       </header>

@@ -227,7 +227,7 @@ def _choose_display_name(name: str | None, nickname: str | None, email: str | No
         cleaned = str(candidate or "").strip()
         if cleaned:
             return cleaned[:100]
-    return "CodeArena User"
+    return "Compyra User"
 
 
 def _choose_nickname(nickname: str | None, display_name: str | None, email: str | None) -> str:
@@ -314,7 +314,7 @@ def _pick_verified_github_email(payload: object) -> str | None:
 async def _fetch_github_identity(client: httpx.AsyncClient, config: OAuthProviderConfig, code: str) -> OAuthIdentity:
     token_headers = {
         "Accept": "application/json",
-        "User-Agent": "CodeArena OAuth",
+        "User-Agent": "Compyra OAuth",
     }
     token_response = await client.post(
         config.token_url,
@@ -335,7 +335,7 @@ async def _fetch_github_identity(client: httpx.AsyncClient, config: OAuthProvide
     api_headers = {
         "Authorization": f"Bearer {access_token}",
         "Accept": "application/vnd.github+json",
-        "User-Agent": "CodeArena OAuth",
+        "User-Agent": "Compyra OAuth",
     }
     profile_response = await client.get(GITHUB_USER_URL, headers=api_headers)
     profile_response.raise_for_status()
