@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { Button } from "../../../../components/ui/Button.jsx";
 import { Card } from "../../../../components/ui/Card.jsx";
 import { CompyraEmoji, CompyraText } from "../../../../components/ui/CompyraEmoji.jsx";
+import { ModeBadge } from "../../components/ModeGlyph.jsx";
 import { apiFetch, ApiError } from "../../../../api/client.js";
 import { BugHunterStage } from "./BugHunterStage.jsx";
 import { CodeReviewStage } from "./CodeReviewStage.jsx";
@@ -107,8 +108,10 @@ function IntroScreen({ onStart, gradeId, setGradeId, lastVerdict }) {
   return (
     <Card className="p-8">
       <div className="text-center">
-        <div className="text-5xl">💼</div>
-        <h2 className="mt-3 text-3xl font-bold text-foreground">Собеседование</h2>
+        <div className="flex justify-center">
+          <ModeBadge id="interview" size={72} />
+        </div>
+        <h2 className="mt-4 text-3xl font-bold text-foreground">Собеседование</h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted">
           Случайно выпадает <b className="text-foreground">Bug Hunter</b>, <b className="text-foreground">диалог с HR</b>{" "}
           или <b className="text-foreground">Code Review</b> с senior-разбором. Получи Offer — забираешь PTS

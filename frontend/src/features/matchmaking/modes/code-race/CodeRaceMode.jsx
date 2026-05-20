@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "../../../../components/ui/Button.jsx";
 import { Card } from "../../../../components/ui/Card.jsx";
 import { CompyraEmoji, CompyraText } from "../../../../components/ui/CompyraEmoji.jsx";
+import { ModeBadge, ModeGlyph } from "../../components/ModeGlyph.jsx";
 import { useMatchQueue } from "../../useMatchQueue.js";
 import { CodeRaceArena } from "./CodeRaceArena.jsx";
 
@@ -23,11 +24,15 @@ function StartingGate({ statusNote, searching, error, onFind, onLeave, queueInfo
   return (
     <Card className="relative overflow-hidden p-8 text-center">
       <div className="pointer-events-none absolute inset-0 -z-0">
-        <div className="absolute right-4 top-4 text-7xl opacity-[0.04]">🏁</div>
+        <div className="absolute right-4 top-4">
+          <ModeBadge id="code-race" size={112} faint />
+        </div>
       </div>
       <div className="relative">
-        <div className="text-5xl">🏁</div>
-        <h2 className="mt-3 text-2xl font-bold text-foreground sm:text-3xl">
+        <div className="flex justify-center">
+          <ModeBadge id="code-race" size={72} />
+        </div>
+        <h2 className="mt-4 text-2xl font-bold text-foreground sm:text-3xl">
           {searching ? "Ищем соперника..." : "Готов гнать?"}
         </h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted">
@@ -64,7 +69,11 @@ function StartingGate({ statusNote, searching, error, onFind, onLeave, queueInfo
               onClick={onFind}
               className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-btn bg-accent text-base font-bold text-black shadow-glow transition-all hover:bg-accent-hover hover:shadow-[0_0_32px_rgba(255,215,0,0.4)] active:scale-[0.99]"
             >
-              🏁 Найти соперника
+              <svg viewBox="0 0 32 32" width="20" height="20" fill="none" aria-hidden="true">
+                <path d="M8 4 L8 28" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                <path d="M8 6 L24 6 L20 12 L24 18 L8 18 Z" stroke="currentColor" strokeWidth="2.5" fill="rgba(0,0,0,0.15)" strokeLinejoin="round" />
+              </svg>
+              Найти соперника
             </button>
           )}
         </div>
@@ -139,7 +148,12 @@ function RaceResult({ result, myUserId, onRace, onDismiss, rematchLoading, onRem
             )}
           </Button>
         ) : null}
-        <Button variant="secondary" onClick={onRace} className="flex-1">🏁 Новая гонка</Button>
+        <Button variant="secondary" onClick={onRace} className="flex-1">
+          <span className="inline-flex items-center gap-1.5">
+            <ModeGlyph id="code-race" size={16} />
+            Новая гонка
+          </span>
+        </Button>
         <Button variant="ghost" onClick={onDismiss} className="flex-1">К режимам</Button>
       </div>
     </Card>
