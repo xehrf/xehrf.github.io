@@ -233,163 +233,6 @@ function buildFilterQuery(filters) {
   return params.toString();
 }
 
-function LeaderboardMiniProfileCard({ row, profile, loading, pinned, isSelf, onTogglePin, onCompare, anchorRect }) {
-  const cardRef = useRef(null);
-  const [pos, setPos] = useState({ top: 0, left: 0, ready: false });
-  const [bannerBroken, setBannerBroken] = useState(false);
-  const [avatarBroken, setAvatarBroken] = useState(false);
-
-  useEffect(() => {
-    setBannerBroken(false);
-    setAvatarBroken(false);
-  }, [row?.user_id]);
-
-  useEffect(() => {
-    if (!anchorRect || !cardRef.current) return;
-    const cardW = cardRef.current.offsetWidth || 300;
-    const cardH = cardRef.current.offsetHeight || 340;
-
-    let left = anchorRect.right + 14;
-    let top = anchorRect.top + anchorRect.height / 2 - cardH / 2;
-
-    // Flip left if overflows right edge
-    if (left + cardW > window.innerWidth - 16) {
-      left = anchorRect.left - cardW - 14;
-    }
-    // Clamp vertically
-    top = Math.max(8, Math.min(top, window.innerHeight - cardH - 8));
-
-    setPos({ top, left, ready: true });
-  }, [anchorRect]);
-
-  if (!row) return null;
-
-  const nickname = profile?.nickname || row.nickname || row.display_name || "unknown";
-  const displayName = profile?.nickname || profile?.display_name || row.display_name || "Unknown";
-  const avatarUrl = resolveAssetUrl(profile?.avatar_url || row.avatar_url || "");
-  const bannerUrl = resolveAssetUrl(profile?.banner_url || "");
-  const bio = profile?.bio?.trim() || "Пока без описания. Нажмите «Сравнить», чтобы посмотреть разницу по PTS.";
-  const role = typeof profile?.role === "string" ? profile.role.trim() : "";
-  const showBanner = bannerUrl && !bannerBroken;
-  const showAvatar = avatarUrl && !avatarBroken;
-
-  const hasProfileSkills = Array.isArray(profile?.skills) && profile.skills.length > 0;
-  const skillChips = hasProfileSkills
-    ? profile.skills.map((item) => ({
-        key: `skill:${item.id ?? item.skill_name}`,
-        label: item.skill_name,
-        proficiency: item.proficiency,
-      }))
-    : (Array.isArray(profile?.technologies) && profile.technologies.length > 0
-        ? profile.technologies
-        : Array.isArray(row.technologies)
-          ? row.technologies
-          : []
-      ).map((tech) => ({
-        key: `tech:${tech}`,
-        label: tech,
-        proficiency: null,
-      }));
-
-  return (
-    <div
-      ref={cardRef}
-      style={{
-        position: "fixed",
-        top: pos.top,
-        left: pos.left,
-        width: 300,
-        zIndex: 9999,
-        opacity: pos.ready ? 1 : 0,
-        pointerEvents: pos.ready ? "auto" : "none",
-        transition: "opacity 0.15s ease",
-      }}
-      className="overflow-hidden rounded-btn border border-border bg-canvas shadow-2xl"
-    >
-      <div className="relative h-20">
-        {showBanner ? (
-          <MediaAsset src={bannerUrl} alt={`Баннер ${displayName}`} className="h-full w-full object-cover" onError={() => setBannerBroken(true)} />
-        ) : (
-          <div className="h-full w-full bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900" />
-        )}
-        <div className="absolute bottom-0 left-4 translate-y-1/2">
-          <div className="h-16 w-16 overflow-hidden rounded-full border-[3px] border-canvas bg-elevated">
-            {showAvatar ? (
-              <MediaAsset src={avatarUrl} alt={`Аватар ${displayName}`} className="h-full w-full object-cover" onError={() => setAvatarBroken(true)} />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-xl font-bold text-foreground">
-                {displayName[0]?.toUpperCase() || "?"}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="p-4 pt-12">
-        <div className="flex items-end gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-base font-semibold text-foreground">{displayName}</p>
-            <p className="truncate text-xs text-muted">@{nickname}</p>
-          </div>
-        </div>
-
-        <div className="mt-3 flex items-center gap-2 text-xs text-muted">
-          <span>PTS {formatNumber(row.pts_total)}</span>
-          <span>|</span>
-          <span>Серия {formatNumber(row.pvp_win_streak)}</span>
-          <span>|</span>
-          <span className="capitalize">{row.level}</span>
-        </div>
-
-        {role ? (
-          <p className="mt-2 inline-flex rounded-full border border-border bg-elevated px-2 py-1 text-[11px] uppercase tracking-wide text-accent">
-            Роль: {role}
-          </p>
-        ) : null}
-
-        <p className="mt-3 rounded-btn border border-border/70 bg-elevated/60 px-3 py-2 text-xs leading-5 text-foreground/90">
-          {bio}
-        </p>
-
-        <div className="mt-3">
-          <p className="mb-2 text-[11px] uppercase tracking-wide text-muted">Навыки</p>
-          <div className="flex flex-wrap gap-2">
-            {skillChips.length === 0 ? (
-              <span className="rounded-full border border-dashed border-border px-2 py-1 text-xs text-muted">
-                Навыки не указаны
-              </span>
-            ) : (
-              skillChips.slice(0, 8).map((chip) => (
-                <span
-                  key={chip.key}
-                  className="inline-flex items-center rounded-full border border-border bg-elevated px-2.5 py-1 text-xs text-foreground"
-                >
-                  {chip.label}
-                  {chip.proficiency ? <span className="ml-1 text-muted">{chip.proficiency}/5</span> : null}
-                </span>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <Button
-            onClick={onCompare}
-            variant="secondary"
-            disabled={isSelf}
-            className="h-10 w-full rounded-[10px] px-3"
-            title={isSelf ? "Сравнение с самим собой не требуется" : "Сравнить этого игрока"}
-          >
-            Сравнить
-          </Button>
-        </div>
-
-        {loading ? <p className="mt-2 text-xs text-muted">Загружаем дополнительные данные профиля…</p> : null}
-      </div>
-    </div>
-  );
-}
-
 function PodiumStand({ player, place, height, className = "" }) {
   if (!player) {
     return <div className={["rounded-btn border border-dashed border-border", height, className].join(" ")} />;
@@ -466,59 +309,11 @@ export function LeaderboardContent({ embedded = false }) {
   const [compareData, setCompareData] = useState(null);
   const [compareError, setCompareError] = useState("");
 
-  const [hoveredUserId, setHoveredUserId] = useState(null);
-  const [pinnedUserId, setPinnedUserId] = useState(null);
-  const [profileByUserId, setProfileByUserId] = useState({});
-  const [profileLoadingByUserId, setProfileLoadingByUserId] = useState({});
-  const [anchorRect, setAnchorRect] = useState(null);
-  const [supportsHover, setSupportsHover] = useState(true);
-  const tableRef = useRef(null);
-
   const compareSectionRef = useRef(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return undefined;
-    }
-
-    const mediaQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
-    const updateSupportsHover = () => setSupportsHover(mediaQuery.matches);
-
-    updateSupportsHover();
-    mediaQuery.addEventListener?.("change", updateSupportsHover);
-
-    return () => {
-      mediaQuery.removeEventListener?.("change", updateSupportsHover);
-    };
-  }, []);
-
-  // Close pinned popup on click outside the table
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (tableRef.current && !tableRef.current.contains(e.target)) {
-        setPinnedUserId(null);
-        setHoveredUserId(null);
-        setAnchorRect(null);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const compareCandidates = useMemo(() => {
     return (leaderboard.items || []).filter((item) => Number(item.user_id) !== Number(user?.id));
   }, [leaderboard.items, user?.id]);
-
-  const rowByUserId = useMemo(() => {
-    return new Map((leaderboard.items || []).map((row) => [Number(row.user_id), row]));
-  }, [leaderboard.items]);
-
-  const activePreviewUserId = pinnedUserId ?? hoveredUserId;
-  const activePreviewRow =
-    activePreviewUserId == null ? null : (rowByUserId.get(Number(activePreviewUserId)) ?? null);
-  const activePreviewKey = activePreviewUserId == null ? "" : String(activePreviewUserId);
-  const activePreviewProfile = activePreviewKey ? profileByUserId[activePreviewKey] ?? null : null;
-  const activePreviewLoading = activePreviewKey ? Boolean(profileLoadingByUserId[activePreviewKey]) : false;
 
   async function loadCompare(otherId, nextFilters = filters) {
     if (!otherId) {
@@ -541,28 +336,6 @@ export function LeaderboardContent({ embedded = false }) {
     } catch (e) {
       setCompareError(e?.message || "Не удалось сравнить пользователей");
       setCompareData(null);
-    }
-  }
-
-  async function ensureProfileLoaded(userId) {
-    if (userId == null || userId === "") return;
-    const key = String(userId);
-    if (profileLoadingByUserId[key]) return;
-    if (Object.prototype.hasOwnProperty.call(profileByUserId, key)) return;
-
-    setProfileLoadingByUserId((prev) => ({ ...prev, [key]: true }));
-
-    try {
-      const profile = await apiFetch(`/users/${key}/profile`);
-      setProfileByUserId((prev) => ({ ...prev, [key]: profile || null }));
-    } catch {
-      setProfileByUserId((prev) => ({ ...prev, [key]: null }));
-    } finally {
-      setProfileLoadingByUserId((prev) => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
     }
   }
 
@@ -611,18 +384,6 @@ export function LeaderboardContent({ embedded = false }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const knownIds = new Set((leaderboard.items || []).map((item) => Number(item.user_id)));
-
-    if (hoveredUserId != null && !knownIds.has(Number(hoveredUserId))) {
-      setHoveredUserId(null);
-    }
-
-    if (pinnedUserId != null && !knownIds.has(Number(pinnedUserId))) {
-      setPinnedUserId(null);
-    }
-  }, [leaderboard.items, hoveredUserId, pinnedUserId]);
-
   function selectUserForCompare(userId, { scroll = false } = {}) {
     const candidateId = Number(userId);
     if (!candidateId || candidateId === Number(user?.id)) return;
@@ -635,32 +396,6 @@ export function LeaderboardContent({ embedded = false }) {
       window.requestAnimationFrame(() => {
         compareSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
-    }
-  }
-
-  function handleLeaderboardRowHover(row, rect) {
-    if (!supportsHover || pinnedUserId != null) return;
-    setHoveredUserId(row.user_id);
-    if (rect) setAnchorRect(rect);
-    ensureProfileLoaded(row.user_id);
-  }
-
-  function handleLeaderboardRowClick(row, rect) {
-    const rowId = Number(row.user_id);
-    const alreadyPinned = Number(pinnedUserId) === rowId;
-
-    if (alreadyPinned) {
-      // Unpin on second click
-      setPinnedUserId(null);
-      setHoveredUserId(null);
-      setAnchorRect(null);
-    } else {
-      // Pin this row
-      setPinnedUserId(rowId);
-      setHoveredUserId(rowId);
-      if (rect) setAnchorRect(rect);
-      ensureProfileLoaded(rowId);
-      selectUserForCompare(rowId, { scroll: false });
     }
   }
 
@@ -729,15 +464,13 @@ export function LeaderboardContent({ embedded = false }) {
             <h2 className="text-lg font-semibold text-foreground">Таблица лидеров</h2>
             <p className="mt-1 text-xs text-muted">Игроков в выборке: {formatNumber(leaderboard.total || 0)}</p>
             <p className="mt-1 text-xs text-muted">
-              {supportsHover
-                ? "Наведение показывает мини-профиль, клик закрепляет карточку и добавляет игрока в сравнение."
-                : "Нажмите на строку, чтобы добавить игрока в сравнение и быстро перейти к сравнению ниже."}
+              Наведи курсор на игрока — появится мини-профиль с кнопкой «Сравнить».
             </p>
 
             {(leaderboard.items || []).length === 0 ? (
               <p className="mt-3 text-sm text-muted">По этим фильтрам нет игроков.</p>
             ) : (
-              <div ref={tableRef} className="mt-3 overflow-x-auto rounded-btn border border-border/70">
+              <div className="mt-3 overflow-x-auto rounded-btn border border-border/70">
                   <table className="min-w-[720px] w-full text-left text-sm">
                     <thead>
                       <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
@@ -748,69 +481,44 @@ export function LeaderboardContent({ embedded = false }) {
                         <th className="py-2 pr-4">Серия</th>
                       </tr>
                     </thead>
-                    <tbody onMouseLeave={() => {
-                      if (supportsHover && pinnedUserId == null) {
-                        setHoveredUserId(null);
-                        setAnchorRect(null);
-                      }
-                    }}>
+                    <tbody>
                       {leaderboard.items.map((row) => {
                         const rowId = Number(row.user_id);
-                        const isActive = Number(activePreviewUserId) === rowId;
-                        const isPinned = Number(pinnedUserId) === rowId;
+                        const isSelf = rowId === Number(user?.id);
                         const avatarUrl = resolveAssetUrl(row.avatar_url || "");
 
                         return (
                           <tr
                             key={row.user_id}
-                            className={[
-                              "cursor-pointer border-b border-border/60 text-foreground transition-colors",
-                              isActive ? "bg-accent/10" : "hover:bg-canvas/60",
-                            ].join(" ")}
-                            onMouseEnter={(e) => {
-                              const avatarEl = e.currentTarget.querySelector(".avatar-anchor");
-                              const rect = avatarEl ? avatarEl.getBoundingClientRect() : e.currentTarget.getBoundingClientRect();
-                              handleLeaderboardRowHover(row, rect);
-                            }}
-                            onClick={(e) => {
-                              const avatarEl = e.currentTarget.querySelector(".avatar-anchor");
-                              const rect = avatarEl ? avatarEl.getBoundingClientRect() : e.currentTarget.getBoundingClientRect();
-                              handleLeaderboardRowClick(row, rect);
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                handleLeaderboardRowClick(row);
-                              }
-                            }}
-                            tabIndex={0}
+                            className="border-b border-border/60 text-foreground transition-colors hover:bg-canvas/60"
                             aria-label={`Игрок ${row.display_name}`}
                           >
-                            <td className="py-2 pl-3 pr-4 font-semibold">
-                              <div className="flex items-center gap-2">
-                                <span>#{row.rank}</span>
-                                {isPinned ? <span className="h-2 w-2 rounded-full bg-accent" title="Закреплён" /> : null}
-                              </div>
-                            </td>
+                            <td className="py-2 pl-3 pr-4 font-semibold">#{row.rank}</td>
 
                             <td className="py-2 pr-4">
-                              <div className="flex items-center gap-3">
-                                <div className="avatar-anchor h-9 w-9 overflow-hidden rounded-full border border-border bg-elevated">
-                                  {avatarUrl ? (
-                                    <MediaAsset src={avatarUrl} alt={`Аватар ${row.display_name}`} className="h-full w-full object-cover" />
-                                  ) : (
-                                    <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-foreground">
-                                      {(row.display_name || "?")[0]?.toUpperCase() || "?"}
+                              <PlayerHoverCard
+                                userId={rowId}
+                                onCompare={(id) => selectUserForCompare(id, { scroll: true })}
+                                compareDisabled={isSelf}
+                              >
+                                <div className="flex cursor-pointer items-center gap-3">
+                                  <div className="h-9 w-9 overflow-hidden rounded-full border border-border bg-elevated">
+                                    {avatarUrl ? (
+                                      <MediaAsset src={avatarUrl} alt={`Аватар ${row.display_name}`} className="h-full w-full object-cover" />
+                                    ) : (
+                                      <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-foreground">
+                                        {(row.display_name || "?")[0]?.toUpperCase() || "?"}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="truncate font-medium">{row.display_name}</div>
+                                    <div className="truncate text-xs text-muted">
+                                      @{row.nickname} | {row.level}
                                     </div>
-                                  )}
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="truncate font-medium">{row.display_name}</div>
-                                  <div className="truncate text-xs text-muted">
-                                    @{row.nickname} | {row.level}
                                   </div>
                                 </div>
-                              </div>
+                              </PlayerHoverCard>
                             </td>
 
                             <td className="py-2 pr-4">{formatNumber(row.pts_total)}</td>
@@ -824,28 +532,6 @@ export function LeaderboardContent({ embedded = false }) {
                 </div>
             )}
           </Card>
-
-          {supportsHover ? (
-            <LeaderboardMiniProfileCard
-              row={activePreviewRow}
-              profile={activePreviewProfile}
-              loading={activePreviewLoading}
-              pinned={Boolean(activePreviewRow && Number(pinnedUserId) === Number(activePreviewRow.user_id))}
-              isSelf={Boolean(activePreviewRow && Number(activePreviewRow.user_id) === Number(user?.id))}
-              anchorRect={anchorRect}
-              onTogglePin={() => {
-                if (!activePreviewRow) return;
-                const activeId = Number(activePreviewRow.user_id);
-                const isAlreadyPinned = Number(pinnedUserId) === activeId;
-                setPinnedUserId(isAlreadyPinned ? null : activeId);
-                ensureProfileLoaded(activeId);
-              }}
-              onCompare={() => {
-                if (!activePreviewRow) return;
-                selectUserForCompare(activePreviewRow.user_id, { scroll: true });
-              }}
-            />
-          ) : null}
 
           <Card className="p-4 sm:p-5">
             <h2 className="text-lg font-semibold text-foreground">График изменения PTS</h2>
@@ -868,7 +554,6 @@ export function LeaderboardContent({ embedded = false }) {
                     const nextId = e.target.value;
                     setCompareUserId(nextId);
                     loadCompare(nextId);
-                    ensureProfileLoaded(nextId);
                   }}
                   className="w-full rounded-btn border border-border bg-canvas px-3 py-2 text-sm text-foreground sm:w-auto"
                 >

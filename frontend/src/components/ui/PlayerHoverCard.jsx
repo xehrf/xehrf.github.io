@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { apiFetch, resolveAssetUrl } from "../../api/client.js";
@@ -7,26 +7,28 @@ import { MediaAsset } from "./MediaAsset.jsx";
 
 /**
  * Discord-style mini-profile that pops up next to whatever the user just
- * clicked.
+ * hovered or clicked.
  *
- * Wrap any clickable bit of player UI (a row, an avatar, a nickname) with
- * <PlayerHoverCard userId={...}>...</PlayerHoverCard>. On click:
- *   1. We capture the trigger's bounding rect.
- *   2. We lazy-fetch GET /users/<id>/profile (cached for the session).
- *   3. A portal-mounted card renders next to the trigger with avatar,
- *      banner, role badge, top stats, bio, skills, and an "Перейти в
- *      профиль" link.
- *   4. Click anywhere outside, press Escape, or click the trigger again
- *      to dismiss.
+ * Wrap any bit of player UI (a row, an avatar, a nickname) with
+ * <PlayerHoverCard userId={...}>...</PlayerHoverCard>.
+ *
+ *   - Hover (mouseenter) opens the card with a short delay.
+ *   - Mouseleave closes it after a small grace window so the user can
+ *     glide onto the popover itself without it vanishing.
+ *   - Click pins the card open — it stays until outside-click / Escape.
+ *   - `onCompare` (optional) renders a "Сравнить" button inside the card.
  *
  * Behaviour notes for callers:
  *   - The wrapper is `display: contents`, so it doesn't add a wrapping
- *     box to your layout — the actual `onClick` lives on the child.
+ *     box to your layout.
  *   - Pass `disabled` (e.g. when this is the player themself) to skip
  *     the hover behaviour entirely. The children still render.
  *   - Multiple PlayerHoverCard instances on the same page share an
  *     in-memory profile cache.
  */
+
+const HOVER_OPEN_DELAY = 220;   // ms before the card pops up on hover
+const HOVER_CLOSE_DELAY = 160;  // ms grace window when leaving the trigger
 
 // In-memory cache. Profiles don't change often, and we don't want to spam
 // the backend with `/users/<id>/profile` calls every time the user clicks
@@ -52,7 +54,7 @@ async function loadProfile(userId) {
   return promise;
 }
 
-function MiniProfileCard({ profile, loading, error, onClose }) {
+function MiniProfileCard({ profile, loading, error, onClose, onCompare, compareDisabled }) {
   const navigate = useNavigate();
   // Image errors are surfaced via `onError` so a broken Cloudinary asset
   // doesn't show its alt text on top of the banner gradient. Hooks live
@@ -272,8 +274,23 @@ function MiniProfileCard({ profile, loading, error, onClose }) {
               </Button>
             )
           ) : null}
+          {onCompare ? (
+            <Button
+              variant="secondary"
+              className="h-9 w-full text-xs"
+              onClick={() => {
+                if (!profile?.id || compareDisabled) return;
+                onCompare(profile.id);
+                onClose?.();
+              }}
+              disabled={compareDisabled}
+              title={compareDisabled ? "Это вы — сравнение не требуется" : "Сравнить этого игрока"}
+            >
+              ⇄ Сравнить
+            </Button>
+          ) : null}
           <Button
-            variant="secondary"
+            variant={onCompare ? "ghost" : "secondary"}
             className="h-9 w-full text-xs"
             onClick={() => {
               if (!profile?.id) return;
@@ -289,7 +306,7 @@ function MiniProfileCard({ profile, loading, error, onClose }) {
   );
 }
 
-function PortalPopover({ anchorRect, onDismiss, children }) {
+function PortalPopover({ anchorRect, onDismiss, onMouseEnter, onMouseLeave, pinned, children }) {
   const popoverRef = useRef(null);
   const [pos, setPos] = useState({ top: 0, left: 0, ready: false });
 
@@ -326,8 +343,11 @@ function PortalPopover({ anchorRect, onDismiss, children }) {
     };
   }, [anchorRect]);
 
-  // Dismiss on outside click / Escape.
+  // Outside click / Escape only apply when the card is pinned (click-opened).
+  // Hover-only cards close via mouseleave, not outside click, so they don't
+  // dismiss the moment the cursor wanders elsewhere on screen.
   useEffect(() => {
+    if (!pinned) return undefined;
     function onPointerDown(e) {
       if (!popoverRef.current) return;
       if (!popoverRef.current.contains(e.target)) onDismiss();
@@ -341,13 +361,15 @@ function PortalPopover({ anchorRect, onDismiss, children }) {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [onDismiss]);
+  }, [onDismiss, pinned]);
 
   return createPortal(
     <div
       ref={popoverRef}
       role="dialog"
       aria-modal="false"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={{
         position: "fixed",
         top: pos.top,
@@ -364,26 +386,83 @@ function PortalPopover({ anchorRect, onDismiss, children }) {
   );
 }
 
-export function PlayerHoverCard({ userId, disabled, children }) {
+export function PlayerHoverCard({ userId, disabled, children, onCompare, compareDisabled }) {
   const [open, setOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
   const [anchorRect, setAnchorRect] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const triggerRef = useRef(null);
+
+  // Open/close timers. We delay both so quick passes don't flicker the
+  // popover, and so the user can travel from the trigger onto the
+  // popover without it disappearing under their cursor.
+  const openTimer = useRef(null);
+  const closeTimer = useRef(null);
 
   const safeId = userId != null ? String(userId) : null;
 
-  function handleTriggerClick(e) {
-    if (disabled || !safeId) return;
-    // Find the actual click target so we anchor next to the avatar / nickname,
-    // not the whole table row.
-    const anchor = e.currentTarget;
-    triggerRef.current = anchor;
-    const rect = anchor.getBoundingClientRect();
-    setAnchorRect(rect);
-    setOpen(true);
+  function clearTimers() {
+    if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null; }
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
   }
+
+  function scheduleOpen(rect) {
+    clearTimers();
+    openTimer.current = setTimeout(() => {
+      setAnchorRect(rect);
+      setOpen(true);
+    }, HOVER_OPEN_DELAY);
+  }
+
+  function scheduleClose() {
+    if (pinned) return;
+    clearTimers();
+    closeTimer.current = setTimeout(() => {
+      setOpen(false);
+    }, HOVER_CLOSE_DELAY);
+  }
+
+  function handleEnter(e) {
+    if (disabled || !safeId) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (open) {
+      // Already open — just refresh the anchor & cancel any pending close.
+      clearTimers();
+      setAnchorRect(rect);
+    } else {
+      scheduleOpen(rect);
+    }
+  }
+
+  function handleLeave() {
+    if (disabled || !safeId) return;
+    if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null; }
+    scheduleClose();
+  }
+
+  function handleClick(e) {
+    if (disabled || !safeId) return;
+    clearTimers();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setAnchorRect(rect);
+    // Click toggles the pinned state so the card stays open / closes again.
+    if (pinned) {
+      setPinned(false);
+      setOpen(false);
+    } else {
+      setPinned(true);
+      setOpen(true);
+    }
+  }
+
+  function dismiss() {
+    clearTimers();
+    setOpen(false);
+    setPinned(false);
+  }
+
+  useEffect(() => () => clearTimers(), []);
 
   useEffect(() => {
     if (!open || !safeId) return;
@@ -402,9 +481,9 @@ export function PlayerHoverCard({ userId, disabled, children }) {
         if (cancelled) return;
         setProfile(data);
       })
-      .catch((e) => {
+      .catch((err) => {
         if (cancelled) return;
-        setError(e?.message || "Не удалось загрузить профиль");
+        setError(err?.message || "Не удалось загрузить профиль");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -414,44 +493,36 @@ export function PlayerHoverCard({ userId, disabled, children }) {
     };
   }, [open, safeId]);
 
-  const child = useMemo(() => {
-    if (!children) return null;
-    const onlyChild = Array.isArray(children) ? children[0] : children;
-    if (typeof onlyChild === "string" || !onlyChild?.type) {
-      return (
-        <span
-          onClick={handleTriggerClick}
-          role={disabled ? undefined : "button"}
-          className={disabled ? "" : "cursor-pointer"}
-        >
-          {children}
-        </span>
-      );
-    }
-    return onlyChild;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [children, disabled]);
-
   if (disabled || !safeId) return <>{children}</>;
 
   return (
     <>
-      {/* Wrap the child so we can intercept clicks without changing its
-          markup. We use display:contents to stay layout-neutral. */}
+      {/* Wrap the child so we can intercept hover/click without changing
+          its markup. display:contents keeps us layout-neutral. */}
       <span
-        onClick={handleTriggerClick}
+        onMouseEnter={handleEnter}
+        onMouseLeave={handleLeave}
+        onClick={handleClick}
         style={{ display: "contents", cursor: "pointer" }}
       >
-        {child}
+        {children}
       </span>
 
       {open && anchorRect ? (
-        <PortalPopover anchorRect={anchorRect} onDismiss={() => setOpen(false)}>
+        <PortalPopover
+          anchorRect={anchorRect}
+          onDismiss={dismiss}
+          pinned={pinned}
+          onMouseEnter={() => { clearTimers(); }}
+          onMouseLeave={() => { scheduleClose(); }}
+        >
           <MiniProfileCard
             profile={profile}
             loading={loading}
             error={error}
-            onClose={() => setOpen(false)}
+            onClose={dismiss}
+            onCompare={onCompare}
+            compareDisabled={compareDisabled}
           />
         </PortalPopover>
       ) : null}
