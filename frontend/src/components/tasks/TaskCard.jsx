@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "../ui/Button.jsx";
 import { Card } from "../ui/Card.jsx";
+import { BlinkCursor, useTypewriter } from "../ui/Terminal.jsx";
 import { ptsForDifficulty } from "../../utils/taskPts.js";
 import { quoteForTask } from "../../data/motivationalQuotes.js";
 
@@ -218,39 +219,5 @@ function CornerCurl() {
   );
 }
 
-function BlinkCursor() {
-  return (
-    <span
-      className="ml-1 inline-block h-4 w-[9px] align-[-3px] bg-accent"
-      style={{ animation: "tcBlink 1s steps(2) infinite" }}
-    />
-  );
-}
 
 /* Typewriter hook: returns substring of `text` based on time since `active` flipped to true. */
-function useTypewriter(text, active, speed = 38) {
-  const [shown, setShown] = useState("");
-  useEffect(() => {
-    if (!active) {
-      setShown("");
-      return undefined;
-    }
-    let i = 0;
-    setShown("");
-    const id = window.setInterval(() => {
-      i += 1;
-      setShown(text.slice(0, i));
-      if (i >= text.length) window.clearInterval(id);
-    }, speed);
-    return () => window.clearInterval(id);
-  }, [text, active, speed]);
-  return shown;
-}
-
-/* Inject keyframes once. Safe to be evaluated multiple times. */
-if (typeof document !== "undefined" && !document.getElementById("taskcard-flip-anim")) {
-  const style = document.createElement("style");
-  style.id = "taskcard-flip-anim";
-  style.textContent = `@keyframes tcBlink { 50% { opacity: 0.15; } }`;
-  document.head.appendChild(style);
-}
