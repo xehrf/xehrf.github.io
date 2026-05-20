@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { CompyraEmoji, CompyraText } from "../components/ui/CompyraEmoji.jsx";
+import { PlayerHoverCard } from "../components/ui/PlayerHoverCard.jsx";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
 import {
@@ -412,7 +413,12 @@ export function AnnouncementDetailsPage() {
               </>
             ) : (
               <>
-                Опубликовано {formatDateTime(announcement.created_at)} • {announcement.author_display_name ?? "Аноним"}
+                Опубликовано {formatDateTime(announcement.created_at)} •{" "}
+                <PlayerHoverCard userId={announcement.author_id} disabled={!announcement.author_id}>
+                  <span className={announcement.author_id ? "cursor-pointer text-foreground/80 underline-offset-2 hover:text-accent hover:underline" : ""}>
+                    {announcement.author_display_name ?? "Аноним"}
+                  </span>
+                </PlayerHoverCard>
               </>
             )}
           </div>

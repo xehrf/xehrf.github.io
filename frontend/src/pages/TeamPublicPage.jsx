@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
+import { PlayerHoverCard } from "../components/ui/PlayerHoverCard.jsx";
 import { apiFetch } from "../api/client";
 import { useParams } from "react-router-dom";
 
@@ -105,10 +106,12 @@ export function TeamPublicPage() {
           {(team.members || []).map((member) => (
             <div key={member.user_id} className="rounded-xl border border-border bg-canvas px-4 py-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-foreground">{member.display_name || member.nickname}</p>
-                  <p className="truncate text-xs text-muted">@{member.nickname}</p>
-                </div>
+                <PlayerHoverCard userId={member.user_id}>
+                  <div className="min-w-0 cursor-pointer">
+                    <p className="truncate text-sm font-semibold text-foreground">{member.display_name || member.nickname}</p>
+                    <p className="truncate text-xs text-muted">@{member.nickname}</p>
+                  </div>
+                </PlayerHoverCard>
                 <div className="text-right">
                   <p className="text-xs uppercase tracking-wide text-muted">{member.role}</p>
                   <p className="text-sm font-medium text-foreground">PTS {member.pts}</p>
