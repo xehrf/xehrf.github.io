@@ -1,4 +1,5 @@
 import { MODES } from "../modes/index.js";
+import { ModeGlyph } from "./ModeGlyph.jsx";
 
 /**
  * ModePicker — arena-style mode grid (Compyra redesign).
@@ -95,45 +96,6 @@ function Spec({ k, v, accent = false }) {
       <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.22em] text-muted">{k}</span>
       <span className={["font-mono text-[13px] font-semibold tracking-tight", accent ? "text-accent" : "text-foreground"].join(" ")}>{v}</span>
     </div>
-  );
-}
-
-/* ─── Brand glyphs (SVG, не эмодзи) ──────────────────────────────────── */
-function ModeGlyph({ id }) {
-  const stroke = "#FFD700";
-  const fillSoft = "rgba(255,215,0,0.15)";
-  if (id === "duel-1v1") {
-    return (
-      <svg viewBox="0 0 32 32" width="28" height="28" fill="none">
-        <path d="M6 8 L18 16 L6 24" stroke={stroke} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M14 8 L26 16 L14 24" stroke={stroke} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.45" />
-      </svg>
-    );
-  }
-  if (id === "code-race") {
-    return (
-      <svg viewBox="0 0 32 32" width="28" height="28" fill="none">
-        <path d="M8 4 L8 28" stroke={stroke} strokeWidth="2.5" strokeLinecap="round" />
-        <path d="M8 6 L24 6 L20 12 L24 18 L8 18 Z" stroke={stroke} strokeWidth="2.5" fill={fillSoft} strokeLinejoin="round" />
-      </svg>
-    );
-  }
-  if (id === "interview") {
-    return (
-      <svg viewBox="0 0 32 32" width="28" height="28" fill="none">
-        <rect x="4" y="10" width="24" height="16" rx="2" stroke={stroke} strokeWidth="2.5" />
-        <path d="M12 10 L12 6 L20 6 L20 10" stroke={stroke} strokeWidth="2.5" strokeLinecap="round" />
-        <line x1="4" y1="16" x2="28" y2="16" stroke={stroke} strokeWidth="2" />
-      </svg>
-    );
-  }
-  // practice (default)
-  return (
-    <svg viewBox="0 0 32 32" width="28" height="28" fill="none">
-      <circle cx="16" cy="16" r="12" stroke={stroke} strokeWidth="2.5" />
-      <circle cx="16" cy="16" r="7"  stroke={stroke} strokeWidth="2" opacity="0.7" />
-      <circle cx="16" cy="16" r="2.5" fill={stroke} />
-    </svg>
   );
 }
 
