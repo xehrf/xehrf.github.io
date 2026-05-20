@@ -1,8 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <!-- Hexagonal C shape (open on the right) in gold -->
-  <path d="M 65 15 L 35 15 L 18 50 L 35 85 L 65 85"
-        stroke="#FFD700" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter"/>
-  <!-- Left-pointing chevron in white -->
-  <path d="M 60 35 L 42 50 L 60 65"
-        stroke="#F0F0F0" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" fill="none">
+  <!-- Top arm -->
+  <polygon points="30,12 85,12 95,20 85,28 30,28" fill="url(#goldTop)"/>
+  <!-- Bottom arm -->
+  <polygon points="30,72 85,72 95,80 85,88 30,88" fill="url(#goldBottom)"/>
+  <!-- Left curved side (hexagonal) -->
+  <polygon points="30,12 30,28 12,50 30,72 30,88 8,50" fill="url(#goldLeft)"/>
+  <!-- Inner chevron -->
+  <path d="M 74 38 L 56 50 L 74 62" stroke="url(#chevronGrad)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="goldTop" x1="30" y1="12" x2="95" y2="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFD700"/>
+      <stop offset="100%" stop-color="#E6A800"/>
+    </linearGradient>
+    <linearGradient id="goldBottom" x1="30" y1="72" x2="95" y2="88" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#E6A800"/>
+      <stop offset="100%" stop-color="#CC8800"/>
+    </linearGradient>
+    <linearGradient id="goldLeft" x1="8" y1="12" x2="30" y2="88" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFD700"/>
+      <stop offset="100%" stop-color="#CC8800"/>
+    </linearGradient>
+    <linearGradient id="chevronGrad" x1="56" y1="38" x2="74" y2="62" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#C8A060"/>
+    </linearGradient>
+  </defs>
 </svg>
