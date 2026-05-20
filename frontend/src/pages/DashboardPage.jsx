@@ -7,7 +7,7 @@ import { CompyraEmoji } from "../components/ui/CompyraEmoji.jsx";
 import { apiFetch } from "../api/client";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { ptsForDifficulty } from "../utils/taskPts.js";
-import { TASK_TOPICS, countTasksByTopic, inferTaskTopic } from "../utils/taskTopics.js";
+import { TASK_TOPICS, countTasksByTopic, getTopicById, inferTaskTopic } from "../utils/taskTopics.js";
 
 const difficultyOptions = [
   { value: "all", label: "Все", icon: "✦" },
@@ -139,6 +139,7 @@ function TopicFilter({ topic, setTopic, counts }) {
                 key={t.id}
                 type="button"
                 onClick={() => setTopic(t.id)}
+                title={t.description}
                 className={[
                   "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all",
                   isActive
@@ -180,6 +181,7 @@ function TopicFilter({ topic, setTopic, counts }) {
                   <button
                     type="button"
                     onClick={() => setTopic(t.id)}
+                    title={t.description}
                     className={[
                       "group flex w-full items-center justify-between rounded-btn px-3 py-2 text-left text-xs font-bold uppercase tracking-wider transition-all",
                       isActive
@@ -432,6 +434,20 @@ export function DashboardPage() {
               );
             })}
           </div>
+
+          {topic !== "all" ? (
+            <div className="mb-4 flex items-start gap-3 rounded-card border border-accent/25 bg-accent/[0.05] p-4">
+              <CompyraEmoji name="brain" size={22} />
+              <div className="min-w-0">
+                <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-accent">
+                  {getTopicById(topic).label}
+                </p>
+                <p className="mt-1.5 text-sm leading-relaxed text-foreground/85">
+                  {getTopicById(topic).description}
+                </p>
+              </div>
+            </div>
+          ) : null}
 
           {loading ? (
             <Card className="p-8 text-center text-sm text-muted">Загрузка задач...</Card>
