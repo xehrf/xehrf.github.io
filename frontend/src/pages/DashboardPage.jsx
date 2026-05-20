@@ -4,6 +4,7 @@ import { TaskCard } from "../components/tasks/TaskCard.jsx";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { CompyraEmoji } from "../components/ui/CompyraEmoji.jsx";
+import { BlinkCursor, useTypewriter } from "../components/ui/Terminal.jsx";
 import { apiFetch } from "../api/client";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { ptsForDifficulty } from "../utils/taskPts.js";
@@ -121,6 +122,68 @@ function DailyChallengeCard({ task, alreadySolved, onSolve }) {
         </div>
       </div>
     </Card>
+  );
+}
+
+function TopicTerminalBanner({ topicId }) {
+  const t = getTopicById(topicId);
+  const typed = useTypewriter(t.description, true, 18);
+  const idx = TASK_TOPICS.findIndex((x) => x.id === topicId);
+  const hex = `0x${String(idx >= 0 ? idx : 0)
+    .padStart(6, "0")
+    .toUpperCase()}`;
+
+  return (
+    <div
+      className="relative mb-4 overflow-hidden rounded-card border border-accent bg-black p-5"
+      style={{
+        boxShadow:
+          "0 0 0 1px rgba(255,215,0,0.25), 0 0 36px rgba(255,215,0,0.15) inset",
+      }}
+    >
+      {/* scanlines */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(0deg, transparent 0 2px, rgba(255,215,0,0.05) 2px 3px)",
+        }}
+      />
+      {/* center glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+        style={{
+          width: "120%",
+          height: "120%",
+          background:
+            "radial-gradient(closest-side, rgba(255,215,0,0.10), transparent 65%)",
+        }}
+      />
+
+      {/* Terminal header */}
+      <div className="relative flex items-center justify-between border-b border-accent/30 pb-2.5">
+        <span className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-accent">
+          compyra ~ topic / {t.label.toLowerCase()}
+        </span>
+        <span className="font-mono text-[10px] tracking-[0.1em] text-accent/60">
+          {hex}
+        </span>
+      </div>
+
+      {/* Prompt + typed description */}
+      <div className="relative mt-3.5">
+        <div className="font-mono text-xs text-accent/50">$ cat topic.txt</div>
+        <div
+          className="mt-2 break-words font-mono text-[15px] font-semibold leading-snug text-accent"
+          style={{ textShadow: "0 0 12px rgba(255,215,0,0.5)" }}
+        >
+          &gt; {typed}
+          <BlinkCursor />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -435,19 +498,7 @@ export function DashboardPage() {
             })}
           </div>
 
-          {topic !== "all" ? (
-            <div className="mb-4 flex items-start gap-3 rounded-card border border-accent/25 bg-accent/[0.05] p-4">
-              <CompyraEmoji name="brain" size={22} />
-              <div className="min-w-0">
-                <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-accent">
-                  {getTopicById(topic).label}
-                </p>
-                <p className="mt-1.5 text-sm leading-relaxed text-foreground/85">
-                  {getTopicById(topic).description}
-                </p>
-              </div>
-            </div>
-          ) : null}
+          {topic !== "all" ? <TopicTerminalBanner topicId={topic} /> : null}
 
           {loading ? (
             <Card className="p-8 text-center text-sm text-muted">Загрузка задач...</Card>
