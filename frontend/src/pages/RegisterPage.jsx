@@ -44,7 +44,7 @@ export function RegisterPage() {
             to="/"
             className="flex items-center gap-2 text-sm font-semibold text-foreground transition-colors hover:text-accent"
           >
-            <img src="/compyra-logo.svg" alt="Compyra" style={{ height: "40px", width: "auto", objectFit: "contain" }} />
+            <img src="/compyra-logo.png" alt="Compyra" style={{ height: "40px", width: "auto", objectFit: "contain" }} />
             <span className="flex flex-col leading-none gap-[2px]">
               <span className="text-sm font-bold text-white tracking-wide leading-none">Compyra</span>
               <span className="text-[8px] font-medium text-[#FFD700] uppercase tracking-[0.18em] leading-none">Code. Learn. Build. Repeat.</span>
