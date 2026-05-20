@@ -7,6 +7,7 @@ import { CompyraEmoji } from "../components/ui/CompyraEmoji.jsx";
 import { apiFetch } from "../api/client";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { ptsForDifficulty } from "../utils/taskPts.js";
+import { TASK_TOPICS, countTasksByTopic, inferTaskTopic } from "../utils/taskTopics.js";
 
 const difficultyOptions = [
   { value: "all", label: "Все", icon: "✦" },
@@ -123,8 +124,102 @@ function DailyChallengeCard({ task, alreadySolved, onSolve }) {
   );
 }
 
+function TopicFilter({ topic, setTopic, counts }) {
+  return (
+    <>
+      {/* Mobile: horizontal scroll chips */}
+      <div className="-mx-4 mb-4 overflow-x-auto px-4 md:hidden">
+        <div className="flex gap-2">
+          {TASK_TOPICS.map((t) => {
+            const count = counts[t.id] ?? 0;
+            if (t.id !== "all" && count === 0) return null;
+            const isActive = topic === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTopic(t.id)}
+                className={[
+                  "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all",
+                  isActive
+                    ? "border-accent bg-accent text-black shadow-glow"
+                    : "border-border bg-elevated/50 text-muted hover:border-accent/40 hover:text-foreground",
+                ].join(" ")}
+              >
+                {t.label}
+                <span
+                  className={[
+                    "font-mono text-[10px] font-bold",
+                    isActive ? "text-black/70" : "text-muted",
+                  ].join(" ")}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Desktop: vertical sidebar */}
+      <aside className="sticky top-6 hidden self-start md:block">
+        <div className="rounded-card border border-border bg-elevated/30 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-muted">
+              Тема
+            </p>
+            <span className="font-mono text-[10px] text-muted">{counts.all}</span>
+          </div>
+          <ul className="flex flex-col gap-1">
+            {TASK_TOPICS.map((t) => {
+              const count = counts[t.id] ?? 0;
+              if (t.id !== "all" && count === 0) return null;
+              const isActive = topic === t.id;
+              return (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    onClick={() => setTopic(t.id)}
+                    className={[
+                      "group flex w-full items-center justify-between rounded-btn px-3 py-2 text-left text-xs font-bold uppercase tracking-wider transition-all",
+                      isActive
+                        ? "bg-accent text-black shadow-glow"
+                        : "text-muted hover:bg-accent/[0.06] hover:text-foreground",
+                    ].join(" ")}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={[
+                          "h-1 w-1 rounded-full transition-all",
+                          isActive
+                            ? "bg-black"
+                            : "bg-border group-hover:bg-accent/70",
+                        ].join(" ")}
+                      />
+                      {t.label}
+                    </span>
+                    <span
+                      className={[
+                        "font-mono text-[10px] font-semibold tabular-nums",
+                        isActive ? "text-black/70" : "text-muted/80 group-hover:text-muted",
+                      ].join(" ")}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </aside>
+    </>
+  );
+}
+
 export function DashboardPage() {
   const [filter, setFilter] = useState("all");
+  const [topic, setTopic] = useState("all");
   const [sortBy, setSortBy] = useState("default");
   const [searchQuery, setSearchQuery] = useState("");
   const [tasks, setTasks] = useState([]);
@@ -194,8 +289,14 @@ export function DashboardPage() {
     return { total, solved, earned, hardestSolved };
   }, [soloTasks, solvedIds]);
 
+  const topicCounts = useMemo(() => countTasksByTopic(soloTasks), [soloTasks]);
+
   const filtered = useMemo(() => {
     let list = soloTasks;
+
+    if (topic !== "all") {
+      list = list.filter((t) => inferTaskTopic(t) === topic);
+    }
 
     if (filter !== "all") {
       const n = Number(filter);
@@ -217,7 +318,7 @@ export function DashboardPage() {
     };
     const cmp = comparators[sortBy];
     return cmp ? [...list].sort(cmp) : list;
-  }, [soloTasks, filter, searchQuery, sortBy]);
+  }, [soloTasks, topic, filter, searchQuery, sortBy]);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
@@ -278,90 +379,97 @@ export function DashboardPage() {
         </div>
       ) : null}
 
-      {/* Search + sort */}
-      <div className="mb-4 grid gap-3 sm:grid-cols-[1fr,auto]">
-        <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
-            🔍
-          </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Поиск по названию..."
-            className="w-full rounded-btn border border-border bg-elevated/50 py-2.5 pl-10 pr-3 text-sm text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
-          />
-        </div>
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="rounded-btn border border-border bg-elevated/50 px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
-        >
-          {sortOptions.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Topic sidebar + main column */}
+      <div className="grid gap-6 md:grid-cols-[220px,1fr]">
+        <TopicFilter topic={topic} setTopic={setTopic} counts={topicCounts} />
 
-      {/* Difficulty pills */}
-      <div className="mb-8 flex flex-wrap items-center gap-2">
-        {difficultyOptions.map((opt) => {
-          const isActive = filter === opt.value;
-          return (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setFilter(opt.value)}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
-                isActive
-                  ? "border-accent bg-accent text-black shadow-glow"
-                  : "border-border bg-elevated/50 text-muted hover:border-accent/40 hover:text-foreground"
-              }`}
+        <div className="min-w-0">
+          {/* Search + sort */}
+          <div className="mb-4 grid gap-3 sm:grid-cols-[1fr,auto]">
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
+                🔍
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Поиск по названию..."
+                className="w-full rounded-btn border border-border bg-elevated/50 py-2.5 pl-10 pr-3 text-sm text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
+              />
+            </div>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="rounded-btn border border-border bg-elevated/50 px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
             >
-              <span className="font-mono">{opt.icon}</span>
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
+              {sortOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      {loading ? (
-        <Card className="p-8 text-center text-sm text-muted">Загрузка задач...</Card>
-      ) : error ? (
-        <Card className="border-red-500/30 p-8 text-center text-sm text-red-300">
-          {error}
-        </Card>
-      ) : filtered.length === 0 ? (
-        <Card className="border-dashed bg-elevated/30 p-12 text-center text-sm text-muted">
-          {searchQuery
-            ? `По запросу «${searchQuery}» ничего не найдено.`
-            : "Нет задач с этой сложностью. Сбрось фильтр."}
-        </Card>
-      ) : (
-        <>
-          <p className="mb-4 text-xs text-muted">
-            Показано: <span className="font-mono text-accent">{filtered.length}</span>{" "}
-            {filtered.length === 1 ? "задача" : "задач"}
-          </p>
-          <ul className="grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((task) => (
-              <li key={task.id} className="flex h-full">
-                <TaskCard
-                  task={task}
-                  solved={solvedIds.has(task.id)}
-                  actionLabel={isMobile ? "Открыть" : "Решить"}
-                  showPts={isMobile}
-                  onSolve={() =>
-                    navigate(isMobile ? `/tasks/${task.id}` : `/tasks/${task.id}/solve`)
-                  }
-                />
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+          {/* Difficulty pills */}
+          <div className="mb-6 flex flex-wrap items-center gap-2">
+            {difficultyOptions.map((opt) => {
+              const isActive = filter === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setFilter(opt.value)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
+                    isActive
+                      ? "border-accent bg-accent text-black shadow-glow"
+                      : "border-border bg-elevated/50 text-muted hover:border-accent/40 hover:text-foreground"
+                  }`}
+                >
+                  <span className="font-mono">{opt.icon}</span>
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {loading ? (
+            <Card className="p-8 text-center text-sm text-muted">Загрузка задач...</Card>
+          ) : error ? (
+            <Card className="border-red-500/30 p-8 text-center text-sm text-red-300">
+              {error}
+            </Card>
+          ) : filtered.length === 0 ? (
+            <Card className="border-dashed bg-elevated/30 p-12 text-center text-sm text-muted">
+              {searchQuery
+                ? `По запросу «${searchQuery}» ничего не найдено.`
+                : "В этой подборке пока ничего нет. Сбрось фильтры."}
+            </Card>
+          ) : (
+            <>
+              <p className="mb-4 text-xs text-muted">
+                Показано: <span className="font-mono text-accent">{filtered.length}</span>{" "}
+                {filtered.length === 1 ? "задача" : "задач"}
+              </p>
+              <ul className="grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {filtered.map((task) => (
+                  <li key={task.id} className="flex h-full">
+                    <TaskCard
+                      task={task}
+                      solved={solvedIds.has(task.id)}
+                      actionLabel={isMobile ? "Открыть" : "Решить"}
+                      showPts={isMobile}
+                      onSolve={() =>
+                        navigate(isMobile ? `/tasks/${task.id}` : `/tasks/${task.id}/solve`)
+                      }
+                    />
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      </div>
 
       {/* Helpful link to leaderboard */}
       {!loading && !error && stats.solved > 0 ? (
