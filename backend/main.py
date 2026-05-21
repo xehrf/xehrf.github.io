@@ -152,17 +152,24 @@ async def _announcement_expiry_sweeper() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # Diagnostic prints (bypassing the logging module) — these always reach
+    # Render's stdout when PYTHONUNBUFFERED=1 is set, even if some library
+    # has reset the root logger handlers.
+    print("LIFESPAN: start", flush=True)
     upgrade_to_head()
+    print("LIFESPAN: migrations applied", flush=True)
     db = SessionLocal()
     sweep_task: asyncio.Task | None = None
     announcement_sweep_task: asyncio.Task | None = None
     try:
         seed_if_empty(db)
+        print("LIFESPAN: seeds applied", flush=True)
     finally:
         db.close()
     sweep_task = asyncio.create_task(_match_timeout_sweeper())
     announcement_sweep_task = asyncio.create_task(_announcement_expiry_sweeper())
     hh_poller_task = asyncio.create_task(run_hh_poller())
+    print("LIFESPAN: background tasks scheduled (match sweeper, ann sweeper, hh poller)", flush=True)
     try:
         yield
     finally:

@@ -211,9 +211,18 @@ async def poll_once(client: HHClient, db: Session, *, settings) -> tuple[int, in
 
 
 async def run_forever() -> None:
+    # Plain print (bypassing logging) so this always reaches Render's stdout
+    # regardless of whatever the logging module is doing.
+    print("HH POLLER: run_forever entered", flush=True)
     settings = get_settings()
-    # Log at WARNING so this is always visible in Render's default log view —
-    # we want to know whether the poller actually started.
+    print(
+        f"HH POLLER: settings enabled={settings.hh_enabled} "
+        f"ua_set={bool(settings.hh_user_agent)} area={settings.hh_default_area} "
+        f"exp={settings.hh_default_experience!r} role={settings.hh_professional_role} "
+        f"interval={settings.hh_poll_interval_seconds}s",
+        flush=True,
+    )
+    # Also keep a logger.warning so we can confirm both paths are visible.
     logger.warning(
         "hh.ru poller booting: enabled=%s ua_set=%s area=%s exp=%s interval=%ds",
         settings.hh_enabled,
@@ -235,6 +244,7 @@ async def run_forever() -> None:
         logger.exception("Failed to construct HHClient; poller aborted")
         return
 
+    print("HH POLLER: entering main loop", flush=True)
     logger.warning("hh.ru poller entering main loop")
     try:
         while True:
@@ -254,10 +264,13 @@ async def run_forever() -> None:
                     logger.warning("Redis lock unavailable for hh.ru poller; polling without lock", exc_info=True)
                     lock_acquired = True
                 if not lock_acquired:
+                    print("HH POLLER: cycle skipped (another instance holds the lock)", flush=True)
                     logger.warning("hh.ru poll skipped: another instance holds the lock")
                 else:
+                    print("HH POLLER: cycle starting", flush=True)
                     logger.warning("hh.ru poll starting cycle")
                     ins, upd = await poll_once(client, db, settings=settings)
+                    print(f"HH POLLER: cycle done — inserted={ins} updated={upd}", flush=True)
                     logger.warning("hh.ru poll done: inserted=%d updated=%d", ins, upd)
             except Exception:
                 logger.exception("hh.ru poll cycle failed")
