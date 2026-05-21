@@ -4,7 +4,7 @@ import { TaskCard } from "../components/tasks/TaskCard.jsx";
 import { Button, LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { CompyraEmoji } from "../components/ui/CompyraEmoji.jsx";
-import { BlinkCursor, useTypewriter } from "../components/ui/Terminal.jsx";
+import { useTypewriter } from "../components/ui/Terminal.jsx";
 import { apiFetch } from "../api/client";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { ptsForDifficulty } from "../utils/taskPts.js";
@@ -128,11 +128,6 @@ function DailyChallengeCard({ task, alreadySolved, onSolve }) {
 function TopicTerminalBanner({ topicId }) {
   const t = getTopicById(topicId);
   const typed = useTypewriter(t.description, true, 18);
-  const idx = TASK_TOPICS.findIndex((x) => x.id === topicId);
-  const hex = `0x${String(idx >= 0 ? idx : 0)
-    .padStart(6, "0")
-    .toUpperCase()}`;
-
   return (
     <div
       className="relative mb-4 overflow-hidden rounded-card border border-accent bg-black p-5"
@@ -162,25 +157,10 @@ function TopicTerminalBanner({ topicId }) {
         }}
       />
 
-      {/* Terminal header */}
-      <div className="relative flex items-center justify-between border-b border-accent/30 pb-2.5">
-        <span className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-accent">
-          compyra ~ topic / {t.label.toLowerCase()}
-        </span>
-        <span className="font-mono text-[10px] tracking-[0.1em] text-accent/60">
-          {hex}
-        </span>
-      </div>
-
-      {/* Prompt + typed description */}
-      <div className="relative mt-3.5">
-        <div className="font-mono text-xs text-accent/50">$ cat topic.txt</div>
-        <div
-          className="mt-2 break-words font-mono text-[15px] font-semibold leading-snug text-accent"
-          style={{ textShadow: "0 0 12px rgba(255,215,0,0.5)" }}
-        >
-          &gt; {typed}
-          <BlinkCursor />
+      {/* Description */}
+      <div className="relative">
+        <div className="break-words text-[15px] font-semibold leading-snug text-accent">
+          {typed}
         </div>
       </div>
     </div>
