@@ -113,10 +113,7 @@ function DailyChallengeCard({ task, alreadySolved, onSolve }) {
             {alreadySolved ? (
               "Пересмотреть"
             ) : (
-              <>
-                <CompyraEmoji name="swords" size={16} />
-                Принять вызов
-              </>
+              "Принять вызов"
             )}
           </Button>
         </div>
