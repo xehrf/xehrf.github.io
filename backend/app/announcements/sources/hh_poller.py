@@ -212,14 +212,30 @@ async def poll_once(client: HHClient, db: Session, *, settings) -> tuple[int, in
 
 async def run_forever() -> None:
     settings = get_settings()
+    # Log at WARNING so this is always visible in Render's default log view —
+    # we want to know whether the poller actually started.
+    logger.warning(
+        "hh.ru poller booting: enabled=%s ua_set=%s area=%s exp=%s interval=%ds",
+        settings.hh_enabled,
+        bool(settings.hh_user_agent),
+        settings.hh_default_area,
+        settings.hh_default_experience,
+        settings.hh_poll_interval_seconds,
+    )
     if not settings.hh_enabled:
-        logger.info("hh.ru poller disabled by config; skipping")
+        logger.warning("hh.ru poller disabled by config (HH_ENABLED=false); skipping")
         return
     if not settings.hh_user_agent:
         logger.warning("HH_USER_AGENT is empty; hh.ru poller will not start")
         return
 
-    client = HHClient(settings.hh_user_agent, access_token=settings.hh_access_token or None)
+    try:
+        client = HHClient(settings.hh_user_agent, access_token=settings.hh_access_token or None)
+    except Exception:
+        logger.exception("Failed to construct HHClient; poller aborted")
+        return
+
+    logger.warning("hh.ru poller entering main loop")
     try:
         while True:
             db = SessionLocal()
@@ -237,10 +253,12 @@ async def run_forever() -> None:
                     # missing Redis service prevent vacancy imports entirely.
                     logger.warning("Redis lock unavailable for hh.ru poller; polling without lock", exc_info=True)
                     lock_acquired = True
-                if lock_acquired:
+                if not lock_acquired:
+                    logger.warning("hh.ru poll skipped: another instance holds the lock")
+                else:
+                    logger.warning("hh.ru poll starting cycle")
                     ins, upd = await poll_once(client, db, settings=settings)
-                    if ins or upd:
-                        logger.info("hh.ru poll: inserted=%d updated=%d", ins, upd)
+                    logger.warning("hh.ru poll done: inserted=%d updated=%d", ins, upd)
             except Exception:
                 logger.exception("hh.ru poll cycle failed")
                 try:
