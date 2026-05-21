@@ -39,6 +39,11 @@ from app.matchmaking.match_ws import match_ws_router
 from app.core.limiter import limiter
 from app.core.redis_client import get_redis
 
+# Make our package-level loggers visible in Render (Python defaults to WARNING
+# for unconfigured loggers, so logger.info() from our modules is silently
+# dropped). Uvicorn configures its own loggers separately.
+logging.getLogger("app").setLevel(logging.INFO)
+
 logger = logging.getLogger(__name__)
 MATCH_TIMEOUT_SWEEP_LOCK_KEY = "mm:timeout_sweep_lock"
 MATCH_TIMEOUT_SWEEP_INTERVAL_SECONDS = 10
