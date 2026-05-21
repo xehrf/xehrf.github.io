@@ -248,6 +248,7 @@ export function AnnouncementDetailsPage() {
   const [savedToast, setSavedToast] = useState("");
   const [deleting, setDeleting] = useState(false);
 
+  const [refreshingHH, setRefreshingHH] = useState(false);
   const isOwner = announcement?.author_id === user?.id && announcement?.author_id != null;
   const isHH = announcement?.source_type === "hh";
 
@@ -279,6 +280,33 @@ export function AnnouncementDetailsPage() {
     if (!id) return;
     apiFetch(`/announcements/${id}/view`, { method: "POST", auth: false }).catch(() => {});
   }, [id]);
+
+  // For hh-sourced rows, the data we already have is just the search snippet.
+  // Ask the backend to pull the full /vacancies/{id} payload from hh and
+  // upgrade our local copy with the complete description + any contacts the
+  // employer exposed.
+  useEffect(() => {
+    if (!announcement) return;
+    if (announcement.source_type !== "hh") return;
+    if (refreshingHH) return;
+    let cancelled = false;
+    setRefreshingHH(true);
+    apiFetch(`/announcements/${announcement.id}/refresh-hh`, { method: "POST", auth: false })
+      .then((updated) => {
+        if (cancelled || !updated) return;
+        setAnnouncement(updated);
+      })
+      .catch(() => {
+        // Non-fatal — keep the snippet we already have.
+      })
+      .finally(() => {
+        if (!cancelled) setRefreshingHH(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [announcement?.id, announcement?.source_type]);
 
   async function handleRate() {
     if (!rating) return;
@@ -545,9 +573,51 @@ export function AnnouncementDetailsPage() {
                 </div>
               ) : null}
             </div>
+
+            {/* Contacts block — only renders rows that have data. For most
+                hh-vacancies all of these are empty (employer didn't opt in). */}
+            {(announcement.contact_handle || announcement.contact_phone || announcement.contact_email) ? (
+              <>
+                <div className="my-1 border-t border-border/40" />
+                <p className="text-[11px] uppercase tracking-wider text-muted">Контакты</p>
+                <div className="grid gap-1.5 text-sm">
+                  {announcement.contact_handle ? (
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-muted">👤</span>
+                      <span className="flex-1 text-right font-medium text-foreground">
+                        {announcement.contact_handle}
+                      </span>
+                    </div>
+                  ) : null}
+                  {announcement.contact_phone ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted">📞 Телефон / WhatsApp</span>
+                      <a
+                        href={`tel:${announcement.contact_phone.replace(/\s+/g, "")}`}
+                        className="font-semibold text-accent hover:underline"
+                      >
+                        {announcement.contact_phone}
+                      </a>
+                    </div>
+                  ) : null}
+                  {announcement.contact_email ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted">📧 Email</span>
+                      <a
+                        href={`mailto:${announcement.contact_email}`}
+                        className="truncate font-semibold text-accent hover:underline"
+                      >
+                        {announcement.contact_email}
+                      </a>
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
+
             <p className="mt-2 text-[11px] text-muted">
               Источник: {getSourceMeta(announcement.source_type, announcement.external_url).label}.
-              Данные обновляются автоматически.
+              {refreshingHH ? " Обновляем описание…" : " Данные обновляются автоматически."}
             </p>
           </Card>
         ) : (

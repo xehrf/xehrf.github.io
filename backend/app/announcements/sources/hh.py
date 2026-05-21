@@ -36,6 +36,28 @@ class HHClient:
     async def aclose(self) -> None:
         await self._client.aclose()
 
+    async def get_vacancy_detail(self, vacancy_id: str) -> dict[str, Any] | None:
+        """Fetch a single vacancy's full payload — including description and
+        (if the employer exposed them) contacts. Returns None on 404 / error
+        so callers can fall back to whatever they already have cached."""
+        try:
+            resp = await self._client.get(f"/vacancies/{vacancy_id}")
+            if resp.status_code == 404:
+                return None
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            logger.warning(
+                "hh.ru vacancy detail %s failed: %s %s",
+                vacancy_id,
+                e.response.status_code,
+                e.response.text[:200],
+            )
+            return None
+        except httpx.HTTPError:
+            logger.exception("hh.ru vacancy detail %s network error", vacancy_id)
+            return None
+
     async def search_vacancies(
         self,
         *,
@@ -65,13 +87,6 @@ class HHClient:
         for attempt in range(3):
             try:
                 resp = await self._client.get("/vacancies", params=params)
-                # Debug print so we can see exact hh.ru response in Render logs
-                # even when logger.warning is being eaten.
-                print(
-                    f"HH CLIENT: GET /vacancies params={params} "
-                    f"→ HTTP {resp.status_code} body={resp.text[:300]!r}",
-                    flush=True,
-                )
                 if resp.status_code == 429:
                     await asyncio.sleep(2 ** attempt)
                     continue
@@ -81,20 +96,11 @@ class HHClient:
                 if 500 <= e.response.status_code < 600 and attempt < 2:
                     await asyncio.sleep(2 ** attempt)
                     continue
-                print(
-                    f"HH CLIENT: HTTPStatusError {e.response.status_code} "
-                    f"body={e.response.text[:300]!r}",
-                    flush=True,
-                )
                 logger.warning("hh.ru search failed: %s %s", e.response.status_code, e.response.text[:200])
                 raise
-            except httpx.TimeoutException as e:
-                print(f"HH CLIENT: timeout on attempt {attempt}: {e!r}", flush=True)
+            except httpx.TimeoutException:
                 if attempt < 2:
                     await asyncio.sleep(1)
                     continue
-                raise
-            except Exception as e:
-                print(f"HH CLIENT: unexpected error: {type(e).__name__}: {e!r}", flush=True)
                 raise
         return {"items": [], "found": 0}
