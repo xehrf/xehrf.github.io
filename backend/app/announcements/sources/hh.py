@@ -65,6 +65,13 @@ class HHClient:
         for attempt in range(3):
             try:
                 resp = await self._client.get("/vacancies", params=params)
+                # Debug print so we can see exact hh.ru response in Render logs
+                # even when logger.warning is being eaten.
+                print(
+                    f"HH CLIENT: GET /vacancies params={params} "
+                    f"→ HTTP {resp.status_code} body={resp.text[:300]!r}",
+                    flush=True,
+                )
                 if resp.status_code == 429:
                     await asyncio.sleep(2 ** attempt)
                     continue
@@ -74,11 +81,20 @@ class HHClient:
                 if 500 <= e.response.status_code < 600 and attempt < 2:
                     await asyncio.sleep(2 ** attempt)
                     continue
+                print(
+                    f"HH CLIENT: HTTPStatusError {e.response.status_code} "
+                    f"body={e.response.text[:300]!r}",
+                    flush=True,
+                )
                 logger.warning("hh.ru search failed: %s %s", e.response.status_code, e.response.text[:200])
                 raise
-            except httpx.TimeoutException:
+            except httpx.TimeoutException as e:
+                print(f"HH CLIENT: timeout on attempt {attempt}: {e!r}", flush=True)
                 if attempt < 2:
                     await asyncio.sleep(1)
                     continue
+                raise
+            except Exception as e:
+                print(f"HH CLIENT: unexpected error: {type(e).__name__}: {e!r}", flush=True)
                 raise
         return {"items": [], "found": 0}

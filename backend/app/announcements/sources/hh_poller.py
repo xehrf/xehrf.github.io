@@ -182,6 +182,7 @@ async def poll_once(client: HHClient, db: Session, *, settings) -> tuple[int, in
     (inserted_total, updated_total)."""
     inserted = updated = 0
     for search in _build_searches(settings):
+        print(f"HH POLL_ONCE: search={search}", flush=True)
         for page in range(settings.hh_max_pages):
             try:
                 data = await client.search_vacancies(
@@ -189,10 +190,16 @@ async def poll_once(client: HHClient, db: Session, *, settings) -> tuple[int, in
                     page=page,
                     **search,
                 )
-            except Exception:
+            except Exception as e:
+                print(f"HH POLL_ONCE: search call raised — {type(e).__name__}: {e!r}", flush=True)
                 logger.exception("hh.ru search failed for %s page=%d", search, page)
                 break
             items = data.get("items") or []
+            print(
+                f"HH POLL_ONCE: page={page} found={data.get('found')} "
+                f"pages={data.get('pages')} items={len(items)}",
+                flush=True,
+            )
             if not items:
                 break
             for vacancy in items:
