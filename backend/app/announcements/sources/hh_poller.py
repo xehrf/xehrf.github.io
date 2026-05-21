@@ -55,15 +55,42 @@ def _build_searches(settings) -> list[dict[str, Any]]:
 MAX_DESCRIPTION_LEN = 4000
 
 
+import re as _re
+
+_HTML_TAG_RE = _re.compile(r"<[^>]+>")
+_HTML_BLOCK_TAGS = _re.compile(
+    r"</(p|div|li|ul|ol|h[1-6]|tr|table)\s*>",
+    flags=_re.IGNORECASE,
+)
+_HTML_LIST_ITEM = _re.compile(r"<li[^>]*>", flags=_re.IGNORECASE)
+_MULTIPLE_NEWLINES = _re.compile(r"\n{3,}")
+
+
 def _strip_html(text: str | None) -> str:
-    """Hh returns description snippets with <highlighttext> tags etc. Strip to
-    keep the model's `description` plain. Not bulletproof — good enough for a
-    snippet card."""
+    """Strip hh.ru HTML to readable plain text. Preserves paragraph and
+    list-item breaks; replaces block-level closes with a newline so we don't
+    end up with a single wall of text."""
     if not text:
         return ""
     cleaned = text
-    for tag in ("<highlighttext>", "</highlighttext>", "<p>", "</p>", "<br>", "<br/>", "<br />"):
-        cleaned = cleaned.replace(tag, "")
+    cleaned = _HTML_LIST_ITEM.sub("\n• ", cleaned)
+    cleaned = _HTML_BLOCK_TAGS.sub("\n", cleaned)
+    cleaned = cleaned.replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
+    cleaned = _HTML_TAG_RE.sub("", cleaned)
+    cleaned = _MULTIPLE_NEWLINES.sub("\n\n", cleaned)
+    # Common HTML entities the poller might encounter:
+    cleaned = (
+        cleaned.replace("&nbsp;", " ")
+        .replace("&laquo;", "«")
+        .replace("&raquo;", "»")
+        .replace("&mdash;", "—")
+        .replace("&ndash;", "–")
+        .replace("&hellip;", "…")
+        .replace("&quot;", '"')
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+    )
     return cleaned.strip()
 
 
@@ -102,6 +129,43 @@ def _extract_tags(vacancy: dict[str, Any]) -> list[str]:
     # Dedup but keep order.
     seen: set[str] = set()
     return [t for t in tags if not (t in seen or seen.add(t))][:20]
+
+
+def _extract_contacts(vacancy: dict[str, Any]) -> dict[str, str | None]:
+    """Pull contact fields out of a full hh.ru vacancy payload. Most public
+    vacancies don't expose this — the employer has to opt in — so all four
+    fields will commonly be None."""
+    contacts = vacancy.get("contacts") or {}
+    name = (contacts.get("name") or "").strip() or None
+    email = (contacts.get("email") or "").strip() or None
+    phones = contacts.get("phones") or []
+    phone: str | None = None
+    if phones and isinstance(phones, list):
+        first = phones[0] or {}
+        # Hh phones come as {country, city, number, comment, formatted}
+        # We prefer the human-readable formatted version when available.
+        phone = (
+            first.get("formatted")
+            or "+{country}{city}{number}".format(
+                country=first.get("country") or "",
+                city=first.get("city") or "",
+                number=first.get("number") or "",
+            ).strip("+ ") or None
+        )
+    return {
+        "contact_handle": name,
+        "contact_phone": phone,
+        "contact_email": email,
+    }
+
+
+def _map_full_description(vacancy: dict[str, Any]) -> str:
+    """Use the full `description` field from /vacancies/{id}; fall back to the
+    snippet shape if only that's available."""
+    full = _strip_html(vacancy.get("description"))
+    if full:
+        return full[:MAX_DESCRIPTION_LEN]
+    return _build_description(vacancy)
 
 
 def _map_vacancy(vacancy: dict[str, Any], *, ttl_hours: int) -> dict[str, Any] | None:
@@ -182,7 +246,6 @@ async def poll_once(client: HHClient, db: Session, *, settings) -> tuple[int, in
     (inserted_total, updated_total)."""
     inserted = updated = 0
     for search in _build_searches(settings):
-        print(f"HH POLL_ONCE: search={search}", flush=True)
         for page in range(settings.hh_max_pages):
             try:
                 data = await client.search_vacancies(
@@ -190,16 +253,10 @@ async def poll_once(client: HHClient, db: Session, *, settings) -> tuple[int, in
                     page=page,
                     **search,
                 )
-            except Exception as e:
-                print(f"HH POLL_ONCE: search call raised — {type(e).__name__}: {e!r}", flush=True)
+            except Exception:
                 logger.exception("hh.ru search failed for %s page=%d", search, page)
                 break
             items = data.get("items") or []
-            print(
-                f"HH POLL_ONCE: page={page} found={data.get('found')} "
-                f"pages={data.get('pages')} items={len(items)}",
-                flush=True,
-            )
             if not items:
                 break
             for vacancy in items:
@@ -218,24 +275,15 @@ async def poll_once(client: HHClient, db: Session, *, settings) -> tuple[int, in
 
 
 async def run_forever() -> None:
-    # Plain print (bypassing logging) so this always reaches Render's stdout
-    # regardless of whatever the logging module is doing.
-    print("HH POLLER: run_forever entered", flush=True)
     settings = get_settings()
-    print(
-        f"HH POLLER: settings enabled={settings.hh_enabled} "
-        f"ua_set={bool(settings.hh_user_agent)} area={settings.hh_default_area} "
-        f"exp={settings.hh_default_experience!r} role={settings.hh_professional_role} "
-        f"interval={settings.hh_poll_interval_seconds}s",
-        flush=True,
-    )
-    # Also keep a logger.warning so we can confirm both paths are visible.
-    logger.warning(
-        "hh.ru poller booting: enabled=%s ua_set=%s area=%s exp=%s interval=%ds",
+    logger.info(
+        "hh.ru poller booting: enabled=%s ua_set=%s token_set=%s area=%s exp=%s role=%s interval=%ds",
         settings.hh_enabled,
         bool(settings.hh_user_agent),
+        bool(settings.hh_access_token),
         settings.hh_default_area,
         settings.hh_default_experience,
+        settings.hh_professional_role,
         settings.hh_poll_interval_seconds,
     )
     if not settings.hh_enabled:
@@ -251,8 +299,7 @@ async def run_forever() -> None:
         logger.exception("Failed to construct HHClient; poller aborted")
         return
 
-    print("HH POLLER: entering main loop", flush=True)
-    logger.warning("hh.ru poller entering main loop")
+    logger.info("hh.ru poller entering main loop")
     try:
         while True:
             db = SessionLocal()
@@ -271,14 +318,10 @@ async def run_forever() -> None:
                     logger.warning("Redis lock unavailable for hh.ru poller; polling without lock", exc_info=True)
                     lock_acquired = True
                 if not lock_acquired:
-                    print("HH POLLER: cycle skipped (another instance holds the lock)", flush=True)
-                    logger.warning("hh.ru poll skipped: another instance holds the lock")
+                    logger.info("hh.ru poll skipped: another instance holds the lock")
                 else:
-                    print("HH POLLER: cycle starting", flush=True)
-                    logger.warning("hh.ru poll starting cycle")
                     ins, upd = await poll_once(client, db, settings=settings)
-                    print(f"HH POLLER: cycle done — inserted={ins} updated={upd}", flush=True)
-                    logger.warning("hh.ru poll done: inserted=%d updated=%d", ins, upd)
+                    logger.info("hh.ru poll done: inserted=%d updated=%d", ins, upd)
             except Exception:
                 logger.exception("hh.ru poll cycle failed")
                 try:

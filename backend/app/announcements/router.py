@@ -73,6 +73,10 @@ def _serialize(
     ttl = max(0, int((expires - now).total_seconds()))
     avg = float(rating_avg) if rating_avg is not None else 0.0
     cnt = int(rating_count) if rating_count is not None else 0
+    # hh-sourced rows have no "owner" — contacts come from the employer and
+    # are intentionally public on hh.kz, so don't mask them on our side.
+    if row.source_type == AnnouncementSource.hh:
+        show_full_contacts = True
 
     return AnnouncementOut(
         id=row.id,
@@ -343,6 +347,66 @@ def get_announcement(
         rating_avg=avg,
         rating_count=cnt,
         show_full_contacts=user is not None and row.author_id == user.id,
+    )
+
+
+@router.post("/{ann_id}/refresh-hh", response_model=AnnouncementOut)
+async def refresh_hh_announcement(
+    ann_id: int,
+    user: User | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+) -> AnnouncementOut:
+    """For hh-sourced announcements: fetch the full vacancy from hh.ru and
+    update our stored description + contacts. Idempotent — safe to call
+    repeatedly. Used by the details page to upgrade the (short) snippet into
+    the full text without waiting for the next poll cycle.
+
+    For non-hh announcements this is a no-op that simply returns the row.
+    """
+    from app.announcements.sources.hh import HHClient  # local import to avoid import cycle
+    from app.announcements.sources.hh_poller import (
+        _extract_contacts,
+        _map_full_description,
+    )
+    from app.core.config import get_settings as _get_settings
+
+    row = _get_or_404(ann_id, db)
+
+    if row.source_type == AnnouncementSource.hh and row.external_id:
+        settings = _get_settings()
+        if settings.hh_user_agent:
+            client = HHClient(
+                settings.hh_user_agent,
+                access_token=settings.hh_access_token or None,
+            )
+            try:
+                detail = await client.get_vacancy_detail(row.external_id)
+            finally:
+                await client.aclose()
+            if detail is not None:
+                row.description = _map_full_description(detail)
+                contacts = _extract_contacts(detail)
+                # Only overwrite if hh actually gave us something — don't blank
+                # out manual fixes by accident.
+                if contacts.get("contact_handle"):
+                    row.contact_handle = contacts["contact_handle"]
+                if contacts.get("contact_phone"):
+                    row.contact_phone = contacts["contact_phone"]
+                if contacts.get("contact_email"):
+                    row.contact_email = contacts["contact_email"]
+                db.commit()
+                db.refresh(row)
+
+    aggs = _rating_aggregates(db, [row.id])
+    save_ids = _saves_for_user(db, [row.id], user.id if user else None)
+    avg, cnt = aggs.get(row.id, (0.0, 0))
+    return _serialize(
+        row,
+        is_saved=row.id in save_ids,
+        rating_avg=avg,
+        rating_count=cnt,
+        show_full_contacts=row.source_type == AnnouncementSource.hh
+        or (user is not None and row.author_id == user.id),
     )
 
 
