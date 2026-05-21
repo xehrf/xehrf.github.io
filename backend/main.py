@@ -39,12 +39,26 @@ from app.matchmaking.match_ws import match_ws_router
 from app.core.limiter import limiter
 from app.core.redis_client import get_redis
 
-# Make our package-level loggers visible in Render (Python defaults to WARNING
-# for unconfigured loggers, so logger.info() from our modules is silently
-# dropped). Uvicorn configures its own loggers separately.
+# Configure root logging so messages from `logging.getLogger(__name__)` in our
+# package modules actually reach Render's log capture. Without this, Python's
+# root logger has no handlers and our INFO/WARNING messages get silently
+# dropped (LastResort only fires above WARNING and only to stderr).
+#
+# We attach an explicit StreamHandler to stdout so the output is unbuffered and
+# matches uvicorn's format.
+if not logging.getLogger().handlers:
+    import sys
+    _handler = logging.StreamHandler(sys.stdout)
+    _handler.setFormatter(logging.Formatter(
+        "%(levelname)s:%(name)s:%(message)s",
+    ))
+    logging.getLogger().addHandler(_handler)
+    logging.getLogger().setLevel(logging.INFO)
+# Ensure our package loggers also propagate at INFO level.
 logging.getLogger("app").setLevel(logging.INFO)
 
 logger = logging.getLogger(__name__)
+logger.warning("CodeArena backend boot: logging configured")
 MATCH_TIMEOUT_SWEEP_LOCK_KEY = "mm:timeout_sweep_lock"
 MATCH_TIMEOUT_SWEEP_INTERVAL_SECONDS = 10
 ANNOUNCEMENT_SWEEP_LOCK_KEY = "announcements:sweep_lock"
