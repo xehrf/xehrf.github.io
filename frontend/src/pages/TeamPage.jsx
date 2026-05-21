@@ -1,11 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Card } from "../components/ui/Card.jsx";
-import { CompyraEmoji, CompyraText } from "../components/ui/CompyraEmoji.jsx";
 import { MediaAsset } from "../components/ui/MediaAsset.jsx";
 import { PlayerHoverCard } from "../components/ui/PlayerHoverCard.jsx";
 import { apiFetch, getWebSocketBaseUrl, resolveAssetUrl } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
+
+/**
+ * TeamPage — Compyra redesign (чёрно-жёлтый).
+ *
+ * Вся существующая логика сохранена 1:1 (WS, ready votes, invites,
+ * captain actions, avatar/banner upload, leave/kick). Изменена только
+ * визуальная оболочка:
+ *   • Hero с лого-плиткой, live-индикатором, pill-статами справа
+ *   • Жёлтая полоса активной задачи команды
+ *   • Левая колонка: готовность + участники + Leave
+ *   • Правая колонка: табы (Чат / Статистика / История / Инвайты / Настройки)
+ *   • Стилистика — terminal/mono labels, gold halos, scanlines
+ */
 
 function getWebSocketUrl(teamId) {
   const wsOrigin = getWebSocketBaseUrl();
@@ -13,78 +24,38 @@ function getWebSocketUrl(teamId) {
   return `${wsOrigin}/teams/ws/${teamId}?token=${encodeURIComponent(token)}`;
 }
 
-function MemberCard({ member, isCaptain, captainId, currentUserId, readyVotes, onKick }) {
-  const avatarUrl = resolveAssetUrl(member.avatar_url || "");
-  const [avatarBroken, setAvatarBroken] = useState(false);
-  const isReady = readyVotes[member.user_id];
-  const isCap = member.user_id === captainId;
-  const isSelf = member.user_id === currentUserId;
+const MonoLabel = ({ children, accent = false, size = 10 }) => (
+  <span
+    className={[
+      "font-mono font-semibold uppercase",
+      accent ? "text-accent" : "text-muted",
+    ].join(" ")}
+    style={{ fontSize: size, letterSpacing: "0.22em" }}
+  >
+    {children}
+  </span>
+);
 
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-border bg-canvas p-3 transition hover:border-border/80">
-      <PlayerHoverCard userId={member.user_id} disabled={isSelf}>
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          {/* Avatar */}
-          <div className="relative flex-shrink-0">
-            <div className="h-10 w-10 overflow-hidden rounded-xl bg-elevated">
-              {avatarUrl && !avatarBroken ? (
-                <MediaAsset src={avatarUrl} alt={member.nickname} className="h-full w-full object-cover" onError={() => setAvatarBroken(true)} />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-sm font-bold text-foreground">
-                  {member.nickname?.[0]?.toUpperCase() ?? "?"}
-                </div>
-              )}
-            </div>
-            {/* Online dot */}
-            <span className={[
-              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-canvas",
-              member.online ? "bg-green-400" : "bg-slate-600",
-            ].join(" ")} />
-          </div>
+const LivePulse = ({ size = 8 }) => (
+  <span className="relative inline-flex" style={{ width: size, height: size }}>
+    <span className="absolute inset-0 animate-ping rounded-full bg-accent opacity-70" />
+    <span className="absolute inset-0 rounded-full bg-accent" />
+  </span>
+);
 
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <p className="truncate text-sm font-semibold text-foreground">{member.nickname}</p>
-              {isCap && <CompyraEmoji name="crown" size={12} />}
-            </div>
-            <p className="truncate text-[11px] text-muted">{member.role || "Участник"}</p>
-          </div>
-        </div>
-      </PlayerHoverCard>
-
-      <div className="flex flex-shrink-0 items-center gap-2">
-        <span className={[
-          "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-          isReady ? "bg-green-500/15 text-green-400" : "bg-slate-700/50 text-muted",
-        ].join(" ")}>
-          {isReady ? "Готов" : "Нет"}
-        </span>
-        {isCaptain && member.user_id !== currentUserId && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onKick(member.user_id); }}
-            className="rounded-lg border border-border px-2 py-1 text-[10px] text-muted transition hover:border-red-500/40 hover:text-red-400"
-          >
-            Kick
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function StatBox({ label, value, sub }) {
-  return (
-    <div className="rounded-2xl border border-border bg-canvas p-4 text-center">
-      <p className="text-[11px] uppercase tracking-wider text-muted">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-foreground">{value}</p>
-      {sub ? <p className="mt-0.5 text-xs text-muted">{sub}</p> : null}
-    </div>
-  );
-}
+const Scanlines = () => (
+  <div
+    className="pointer-events-none absolute inset-0 opacity-[0.04]"
+    style={{
+      backgroundImage:
+        "repeating-linear-gradient(0deg, transparent 0 2px, rgba(255,215,0,0.4) 2px 3px)",
+    }}
+  />
+);
 
 export function TeamPage() {
   const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [team, setTeam] = useState(null);
   const [teamStats, setTeamStats] = useState(null);
   const [teamHistory, setTeamHistory] = useState([]);
@@ -95,8 +66,8 @@ export function TeamPage() {
   const [error, setError] = useState("");
   const [messages, setMessages] = useState([]);
   const [chatText, setChatText] = useState("");
-  const [wsStatus, setWsStatus] = useState("connecting"); // connecting | connected | disconnected
-  const [activeTab, setActiveTab] = useState("chat"); // chat | stats | history | invites | settings
+  const [wsStatus, setWsStatus] = useState("connecting");
+  const [activeTab, setActiveTab] = useState("chat");
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsError, setSettingsError] = useState("");
   const [settingsSuccess, setSettingsSuccess] = useState("");
@@ -104,12 +75,14 @@ export function TeamPage() {
   const [bannerPreview, setBannerPreview] = useState(null);
   const [avatarFile, setAvatarFile] = useState(null);
   const [bannerFile, setBannerFile] = useState(null);
+  const [teamBannerBroken, setTeamBannerBroken] = useState(false);
+  const [teamAvatarBroken, setTeamAvatarBroken] = useState(false);
   const avatarInputRef = useRef(null);
   const bannerInputRef = useRef(null);
   const websocketRef = useRef(null);
   const chatEndRef = useRef(null);
-  const navigate = useNavigate();
 
+  /* ─── load ─────────────────────────────────────────────────── */
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -139,6 +112,7 @@ export function TeamPage() {
     return () => { mounted = false; };
   }, [navigate]);
 
+  /* ─── ws ───────────────────────────────────────────────────── */
   useEffect(() => {
     if (!team) return;
     const ws = new WebSocket(getWebSocketUrl(team.team_id));
@@ -149,15 +123,12 @@ export function TeamPage() {
       const { event: eventName, data } = payload;
       if (eventName === "chat_message") setMessages((p) => [...p, data]);
       if (eventName === "team_formed") setMessages((p) => [...p, { system: true, message: data.message || "Команда собрана." }]);
-      if (eventName === "user_joined_team") setMessages((p) => [...p, { system: true, message: `${data.nickname || data.display_name} присоединился к команде.` }]);
-      if (eventName === "user_left") setMessages((p) => [...p, { system: true, message: `${data.nickname || data.display_name} покинул команду.` }]);
+      if (eventName === "user_joined_team") setMessages((p) => [...p, { system: true, message: `${data.nickname || data.display_name} присоединился.` }]);
+      if (eventName === "user_left") setMessages((p) => [...p, { system: true, message: `${data.nickname || data.display_name} вышел.` }]);
       if (eventName === "team_ready_update") setReadyVotes(data.votes ?? {});
       if (eventName === "invitation_accepted") setMessages((p) => [...p, { system: true, message: `Пользователь #${data.user_id} принял приглашение.` }]);
       if (eventName === "task_completed") {
-        setTeam((prev) => {
-          if (!prev?.task || prev.task.task_id !== data.task_id) return prev;
-          return { ...prev, task: null };
-        });
+        setTeam((prev) => (!prev?.task || prev.task.task_id !== data.task_id ? prev : { ...prev, task: null }));
         setMessages((p) => [...p, { system: true, message: `Задача #${data.task_id} решена командой.` }]);
       }
     });
@@ -166,24 +137,21 @@ export function TeamPage() {
     return () => { ws.close(); websocketRef.current = null; };
   }, [team]);
 
-  // Auto-scroll chat
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  const handleSendMessage = (event) => {
-    event.preventDefault();
-    if (!chatText.trim() || websocketRef.current?.readyState !== WebSocket.OPEN) return;
-    websocketRef.current.send(JSON.stringify({ event: "chat_message", message: chatText.trim() }));
-    setChatText("");
-  };
-
+  /* ─── actions ──────────────────────────────────────────────── */
   const currentUserId = user?.id ?? 0;
   const isCaptain = currentUserId !== 0 && team?.captain_user_id === currentUserId;
   const myReady = Boolean(readyVotes[currentUserId]);
   const readyCount = Object.values(readyVotes).filter(Boolean).length;
   const totalMembers = team?.members?.length ?? 0;
 
+  function handleSendMessage(e) {
+    e.preventDefault();
+    if (!chatText.trim() || websocketRef.current?.readyState !== WebSocket.OPEN) return;
+    websocketRef.current.send(JSON.stringify({ event: "chat_message", message: chatText.trim() }));
+    setChatText("");
+  }
   async function handleReadyToggle() {
     if (!team) return;
     try {
@@ -191,7 +159,6 @@ export function TeamPage() {
       setReadyVotes(res.votes ?? {});
     } catch (e) { setError(e?.message || "Ошибка"); }
   }
-
   async function handleInviteUser(e) {
     e.preventDefault();
     if (!team || !inviteeId.trim()) return;
@@ -200,7 +167,6 @@ export function TeamPage() {
       setInviteeId("");
     } catch (e) { setError(e?.message || "Не удалось отправить приглашение"); }
   }
-
   async function handleInviteAction(invitationId, action) {
     try {
       await apiFetch(`/teams/invites/${invitationId}/${action}`, { method: "POST" });
@@ -211,7 +177,6 @@ export function TeamPage() {
       }
     } catch (e) { setError(e?.message || "Ошибка"); }
   }
-
   async function handleLeaveTeam() {
     if (!team) return;
     try {
@@ -219,7 +184,6 @@ export function TeamPage() {
       navigate("/matchmaking");
     } catch (e) { setError(e?.message || "Не удалось выйти"); }
   }
-
   async function handleKickMember(memberUserId) {
     if (!team) return;
     try {
@@ -227,531 +191,657 @@ export function TeamPage() {
       setTeam((p) => ({ ...p, members: p.members.filter((m) => m.user_id !== memberUserId) }));
     } catch (e) { setError(e?.message || "Не удалось исключить"); }
   }
-
   function handleAvatarChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setAvatarFile(file);
-    setAvatarPreview(URL.createObjectURL(file));
+    setAvatarFile(file); setAvatarPreview(URL.createObjectURL(file));
   }
-
   function handleBannerChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setBannerFile(file);
-    setBannerPreview(URL.createObjectURL(file));
+    setBannerFile(file); setBannerPreview(URL.createObjectURL(file));
   }
-
   async function handleSettingsSave() {
     if (!team) return;
-    setSettingsLoading(true);
-    setSettingsError("");
-    setSettingsSuccess("");
+    setSettingsLoading(true); setSettingsError(""); setSettingsSuccess("");
     try {
       if (avatarFile) {
-        const fd = new FormData();
-        fd.append("file", avatarFile);
+        const fd = new FormData(); fd.append("file", avatarFile);
         await apiFetch(`/teams/${team.team_id}/avatar`, { method: "POST", body: fd });
       }
       if (bannerFile) {
-        const fd = new FormData();
-        fd.append("file", bannerFile);
+        const fd = new FormData(); fd.append("file", bannerFile);
         await apiFetch(`/teams/${team.team_id}/banner`, { method: "POST", body: fd });
       }
       const updated = await apiFetch("/teams/current");
-      setTeam(updated);
-      setAvatarFile(null);
-      setBannerFile(null);
-      setSettingsSuccess("Изменения сохранены!");
+      setTeam(updated); setAvatarFile(null); setBannerFile(null);
+      setSettingsSuccess("Изменения сохранены");
       setTimeout(() => setSettingsSuccess(""), 3000);
     } catch (e) {
-      setSettingsError(e?.message || "Не удалось сохранить изменения");
-    } finally {
-      setSettingsLoading(false);
-    }
+      setSettingsError(e?.message || "Не удалось сохранить");
+    } finally { setSettingsLoading(false); }
   }
 
-  if (loading || authLoading) return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-      <div className="h-48 animate-pulse rounded-3xl border border-border bg-canvas" />
-    </div>
-  );
-
-  if (error) return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-      <Card className="p-6 text-sm text-accent">{error}</Card>
-    </div>
-  );
-
+  /* ─── render ───────────────────────────────────────────────── */
+  if (loading || authLoading) {
+    return (
+      <Shell>
+        <div className="mt-8 h-48 animate-pulse rounded-2xl border border-border bg-elevated" />
+      </Shell>
+    );
+  }
+  if (error && !team) {
+    return (
+      <Shell>
+        <div className="mt-8 rounded-card border border-accent/40 bg-canvas px-5 py-4 font-mono text-sm text-accent">{error}</div>
+      </Shell>
+    );
+  }
   if (!team) return null;
 
-  const bannerUrl = resolveAssetUrl(team.banner_url || "");
+  const onlineCount = (team.members || []).filter((m) => m.online).length;
   const avatarUrl = resolveAssetUrl(team.avatar_url || "");
-  const [teamBannerBroken, setTeamBannerBroken] = useState(false);
-  const [teamAvatarBroken, setTeamAvatarBroken] = useState(false);
 
-  const TABS = [
-    { id: "chat", label: "💬 Чат" },
-    { id: "stats", label: "📊 Статистика" },
-    { id: "history", label: "🏆 История" },
-    ...(myInvites.length > 0 ? [{ id: "invites", label: `📨 Инвайты (${myInvites.length})` }] : [{ id: "invites", label: "📨 Инвайты" }]),
-    ...(isCaptain ? [{ id: "settings", label: "⚙️ Настройки" }] : []),
+  const tabs = [
+    { id: "chat", label: "Чат" },
+    { id: "stats", label: "Статистика" },
+    { id: "history", label: "История" },
+    { id: "invites", label: `Инвайты${myInvites.length ? ` (${myInvites.length})` : ""}` },
+    ...(isCaptain ? [{ id: "settings", label: "Настройки" }] : []),
   ];
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <Shell>
+      {/* ── Hero ── */}
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-elevated shadow-card">
+        <div className="pointer-events-none absolute -right-32 -top-32 h-[460px] w-[460px] rounded-full bg-accent/[0.18] blur-3xl" />
+        <Scanlines />
 
-      {/* Team Banner Header */}
-      <Card className="mb-6 overflow-hidden p-0">
-        <div className="relative h-36 sm:h-44">
-          {bannerUrl && !teamBannerBroken ? (
-            <MediaAsset src={bannerUrl} alt="" className="h-full w-full object-cover" onError={() => setTeamBannerBroken(true)} />
-          ) : (
-            <div className="h-full w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950" />
-          )}
-          {/* Gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+        <div className="relative flex flex-col gap-6 p-6 sm:p-8 lg:flex-row lg:items-start">
+          {/* avatar tile */}
+          <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-2xl border-2 border-accent bg-canvas shadow-glow"
+            style={{ boxShadow: "0 0 0 1px rgba(255,215,0,0.35), 0 0 40px rgba(255,215,0,0.25)" }}>
+            {avatarUrl && !teamAvatarBroken ? (
+              <MediaAsset src={avatarUrl} alt={team.name} className="h-full w-full object-cover" onError={() => setTeamAvatarBroken(true)} />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center font-sans text-4xl font-extrabold tracking-tight text-accent">
+                {team.name?.[0]?.toUpperCase() ?? "T"}
+              </div>
+            )}
+          </div>
 
-          {/* Task button */}
-          {team.task ? (
-            <Link
-              to={`/tasks/${team.task.task_id}/solve?team=1`}
-              className="absolute left-4 right-4 top-4 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2 text-xs font-bold text-black transition hover:bg-accent/90 sm:left-auto sm:right-4"
-            >
-              ▶ Открыть задачу
-            </Link>
-          ) : null}
+          {/* title + status */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2.5">
+              <LivePulse />
+              <MonoLabel accent>КОМАНДНАЯ КОМНАТА · {wsStatus === "connected" ? "LIVE" : wsStatus === "connecting" ? "ПОДКЛЮЧЕНИЕ" : "OFFLINE"}</MonoLabel>
+              <span className="text-border">·</span>
+              <MonoLabel>{onlineCount} В СЕТИ</MonoLabel>
+            </div>
+            <h1 className="mt-2 text-4xl font-bold leading-tight tracking-tight text-foreground sm:text-5xl">
+              {team.name}
+            </h1>
+            <div className="mt-1.5 font-mono text-[13px] tracking-[0.04em] text-muted">
+              ~/{(team.name || "").toLowerCase().replace(/\s+/g, "-")}
+            </div>
+            {team.description ? (
+              <p className="mt-3.5 max-w-xl text-sm leading-relaxed text-muted">{team.description}</p>
+            ) : null}
+          </div>
 
-          {/* Bottom info */}
-          <div className="absolute bottom-0 left-0 right-0 flex flex-col items-start gap-3 p-4 sm:flex-row sm:items-end sm:gap-4">
-            <div className="h-16 w-16 overflow-hidden rounded-2xl border-2 border-white/20 bg-elevated shadow-xl">
-              {avatarUrl && !teamAvatarBroken ? (
-                <MediaAsset src={avatarUrl} alt={team.name} className="h-full w-full object-cover" onError={() => setTeamAvatarBroken(true)} />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-white">
-                  {team.name?.[0]?.toUpperCase() ?? "T"}
-                </div>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-bold text-white sm:text-2xl">{team.name}</h1>
-              <p className="text-xs text-white/60">{team.description || "Командная комната"}</p>
-            </div>
-            {/* WS status */}
-            <div className="flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-[11px] backdrop-blur-sm">
-              <span className={[
-                "h-2 w-2 rounded-full",
-                wsStatus === "connected" ? "bg-green-400 animate-pulse" : "bg-red-400",
-              ].join(" ")} />
-              <span className="text-white/70">
-                {wsStatus === "connected" ? "Live" : wsStatus === "connecting" ? "Подключение..." : "Отключено"}
-              </span>
-            </div>
+          {/* pill stats */}
+          <div className="flex gap-2.5">
+            <PillStat label="РЕЙТИНГ" value={teamStats?.rating ?? team.rating ?? "—"} accent />
+            <PillStat label="МАТЧИ"   value={teamStats?.total_matches ?? "—"} />
+            <PillStat label="WIN" value={teamStats ? `${Math.round((teamStats.win_rate ?? 0) * 100)}%` : "—"} accent />
           </div>
         </div>
-      </Card>
+      </div>
 
-      <div className="grid gap-5 xl:grid-cols-[300px_1fr]">
-
-        {/* Left sidebar */}
-        <div className="space-y-4">
-
-          {/* Ready status */}
-          <Card className="p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Готовность</h2>
-              <span className="text-xs font-bold text-foreground">{readyCount}/{totalMembers}</span>
+      {/* ── Task callout ── */}
+      {team.task ? (
+        <div className="mt-4 relative overflow-hidden rounded-card border border-accent bg-accent/[0.06] p-5 shadow-glow"
+          style={{ boxShadow: "0 0 0 1px rgba(255,215,0,0.2), 0 0 36px rgba(255,215,0,0.12)" }}>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="flex h-12 w-12 items-center justify-center rounded-[10px] border border-accent/50 bg-canvas/60">
+                <svg viewBox="0 0 32 32" width="22" height="22" fill="none">
+                  <path d="M 8 4 L 8 28" stroke="#FFD700" strokeWidth="2.5" strokeLinecap="round" />
+                  <path d="M 8 6 L 24 6 L 20 12 L 24 18 L 8 18 Z" stroke="#FFD700" strokeWidth="2.5" fill="rgba(255,215,0,0.15)" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <div>
+                <MonoLabel accent>АКТИВНАЯ ЗАДАЧА КОМАНДЫ</MonoLabel>
+                <div className="mt-1 text-lg font-bold tracking-tight text-foreground">
+                  Задача #{team.task.task_id}{team.task.status ? ` · ${team.task.status}` : ""}
+                </div>
+              </div>
             </div>
-            <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-elevated">
-              <div
-                className="h-full rounded-full bg-green-400 transition-all duration-500"
-                style={{ width: totalMembers ? `${(readyCount / totalMembers) * 100}%` : "0%" }}
+            <Link to={`/tasks/${team.task.task_id}/solve?team=1`} className="inline-flex items-center gap-2 rounded-btn bg-accent px-5 py-3 font-sans text-sm font-bold text-black shadow-glow transition-transform hover:scale-[1.01]">
+              Решать <span className="font-mono opacity-70">→</span>
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
+      {/* ── Main grid ── */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-[320px_1fr]">
+        {/* Left column */}
+        <div className="flex flex-col gap-3.5">
+          {/* Ready */}
+          <div className="rounded-card border border-border bg-elevated p-5">
+            <div className="flex items-center justify-between">
+              <MonoLabel accent>ГОТОВНОСТЬ</MonoLabel>
+              <span className="font-mono text-sm font-bold tabular-nums text-foreground">
+                {readyCount}<span className="text-muted">/{totalMembers}</span>
+              </span>
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full" style={{ background: "rgba(255,215,0,0.08)" }}>
+              <div className="h-full rounded-full bg-accent transition-[width] duration-300"
+                style={{
+                  width: totalMembers ? `${(readyCount / totalMembers) * 100}%` : "0%",
+                  boxShadow: "0 0 12px rgba(255,215,0,0.5)",
+                }}
               />
             </div>
             <button
               type="button"
               onClick={handleReadyToggle}
               className={[
-                "w-full rounded-xl py-2.5 text-sm font-semibold transition",
+                "mt-3.5 w-full rounded-btn py-2.5 font-sans text-sm font-bold tracking-tight transition-colors",
                 myReady
-                  ? "bg-green-500/15 text-green-400 hover:bg-green-500/20"
-                  : "bg-accent text-black hover:bg-accent/90",
+                  ? "border border-accent text-accent hover:bg-accent/10"
+                  : "bg-accent text-black shadow-glow hover:scale-[1.005]",
               ].join(" ")}
             >
               {myReady ? "✓ Я готов — отменить" : "Я готов"}
             </button>
-          </Card>
+          </div>
 
           {/* Members */}
-          <Card className="p-4">
-            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-              Участники · {totalMembers}
-            </h2>
-            <div className="space-y-2">
-              {team.members.map((member) => (
-                <MemberCard
-                  key={member.user_id}
-                  member={member}
-                  isCaptain={isCaptain}
-                  captainId={team.captain_user_id}
-                  currentUserId={currentUserId}
-                  readyVotes={readyVotes}
-                  onKick={handleKickMember}
+          <div className="rounded-card border border-border bg-elevated p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <MonoLabel accent>УЧАСТНИКИ · {totalMembers}</MonoLabel>
+            </div>
+            <div className="flex flex-col gap-2">
+              {team.members.map((m) => (
+                <MemberRow
+                  key={m.user_id}
+                  m={m}
+                  isCap={m.user_id === team.captain_user_id}
+                  isSelf={m.user_id === currentUserId}
+                  canKick={isCaptain && m.user_id !== currentUserId}
+                  ready={Boolean(readyVotes[m.user_id])}
+                  onKick={() => handleKickMember(m.user_id)}
                 />
               ))}
             </div>
-          </Card>
+          </div>
 
           {/* Invite (captain only) */}
           {isCaptain ? (
-            <Card className="p-4">
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Пригласить игрока</h2>
-              <form onSubmit={handleInviteUser} className="flex flex-col gap-2 sm:flex-row">
+            <div className="rounded-card border border-border bg-elevated p-5">
+              <MonoLabel accent>ПРИГЛАСИТЬ ИГРОКА</MonoLabel>
+              <form onSubmit={handleInviteUser} className="mt-3 flex gap-2">
                 <input
                   value={inviteeId}
                   onChange={(e) => setInviteeId(e.target.value)}
-                  className="w-full rounded-xl border border-border bg-canvas px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent"
                   placeholder="user_id"
+                  className="w-full rounded-btn border border-border bg-canvas px-3 py-2.5 font-mono text-sm text-foreground outline-none transition focus:border-accent"
                 />
-                <button
-                  type="submit"
-                  className="rounded-xl bg-accent px-3 py-2 text-xs font-bold text-black transition hover:bg-accent/90"
-                >
+                <button type="submit" className="rounded-btn bg-accent px-4 py-2 font-sans text-sm font-bold text-black hover:scale-[1.01]">
                   →
                 </button>
               </form>
-            </Card>
+            </div>
           ) : null}
 
-          {/* Leave */}
           <button
             type="button"
             onClick={handleLeaveTeam}
-            className="w-full rounded-2xl border border-border bg-canvas px-4 py-3 text-sm text-muted transition hover:border-red-500/40 hover:text-red-400"
+            className="rounded-card border border-border bg-elevated px-4 py-3 font-sans text-sm text-muted transition-colors hover:border-accent/40 hover:text-foreground"
           >
             Выйти из команды
           </button>
         </div>
 
-        {/* Right main area */}
-        <div className="flex flex-col gap-4">
-
-          {/* Task info bar */}
-          <Card className="p-4">
-            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-wider text-muted">Текущая задача</p>
-                <p className="mt-0.5 text-sm font-semibold text-foreground">
-                  {team.task ? `Задача #${team.task.task_id}` : "Нет активной задачи"}
-                </p>
-                {team.task ? (
-                  <p className="text-xs text-muted capitalize">{team.task.status ?? "idle"}</p>
-                ) : null}
-              </div>
-              {team.task ? (
-                <Link
-                  to={`/tasks/${team.task.task_id}/solve?team=1`}
-                  className="w-full rounded-xl bg-accent px-4 py-2 text-center text-xs font-bold text-black transition hover:bg-accent/90 sm:w-auto"
-                >
-                  Решать →
-                </Link>
-              ) : null}
-            </div>
-          </Card>
-
+        {/* Right column */}
+        <div className="flex flex-col gap-3.5">
           {/* Tabs */}
-          <Card className="flex-1 overflow-hidden p-0">
-            {/* Tab bar */}
-            <div className="overflow-x-auto border-b border-border">
-              <div className="flex min-w-max">
-                {TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={[
-                      "min-w-[120px] whitespace-nowrap px-3 py-3 text-xs font-semibold transition sm:min-w-[132px]",
-                      activeTab === tab.id
-                        ? "border-b-2 border-accent text-accent"
-                        : "text-muted hover:text-foreground",
-                    ].join(" ")}
-                  >
-                    <CompyraText size={14}>{tab.label}</CompyraText>
-                  </button>
-                ))}
-              </div>
-            </div>
+          <div className="flex gap-1 rounded-btn border border-border bg-elevated p-1">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setActiveTab(t.id)}
+                className={[
+                  "flex-1 rounded-[6px] px-3 py-2.5 font-sans text-[13px] font-bold tracking-tight transition-colors",
+                  activeTab === t.id ? "bg-accent text-black" : "text-muted hover:text-foreground",
+                ].join(" ")}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
 
-            <div className="p-4">
-              {/* CHAT TAB */}
-              {activeTab === "chat" && (
-                <div className="flex flex-col gap-3">
-                  <div className="h-80 space-y-3 overflow-y-auto rounded-2xl border border-border bg-slate-950/30 p-4">
-                    {messages.length === 0 ? (
-                      <p className="text-center text-xs text-muted pt-6">Начните общение с командой 👋</p>
-                    ) : (
-                      messages.map((msg, i) => (
-                        <div key={i}>
-                          {msg.system ? (
-                            <p className="text-center text-[11px] text-muted py-0.5">{msg.message}</p>
-                          ) : (
-                            <div className={msg.user_id === currentUserId ? "flex flex-col items-end" : ""}>
-                              <p className="text-[11px] text-muted mb-1">{msg.nickname || msg.display_name}</p>
-                              <div className={[
-                                "inline-block max-w-[80%] rounded-2xl px-3 py-2 text-sm",
-                                msg.user_id === currentUserId
-                                  ? "bg-accent text-black rounded-br-sm"
-                                  : "bg-elevated text-foreground rounded-bl-sm",
-                              ].join(" ")}>
-                                {msg.message}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    )}
-                    <div ref={chatEndRef} />
-                  </div>
-                  <form onSubmit={handleSendMessage} className="flex flex-col gap-2 sm:flex-row">
-                    <input
-                      value={chatText}
-                      onChange={(e) => setChatText(e.target.value)}
-                      className="w-full rounded-xl border border-border bg-canvas px-4 py-2.5 text-sm text-foreground outline-none transition focus:border-accent"
-                      placeholder="Напиши сообщение..."
-                    />
-                    <button
-                      type="submit"
-                      disabled={!chatText.trim()}
-                      className="w-full rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-black transition hover:bg-accent/90 disabled:opacity-40 sm:w-auto"
-                    >
-                      ↑
-                    </button>
-                  </form>
-                </div>
-              )}
+          {/* Chat */}
+          {activeTab === "chat" && (
+            <ChatPanel
+              messages={messages}
+              chatEndRef={chatEndRef}
+              currentUserId={currentUserId}
+              chatText={chatText}
+              setChatText={setChatText}
+              wsStatus={wsStatus}
+              onSubmit={handleSendMessage}
+            />
+          )}
 
-              {/* STATS TAB */}
-              {activeTab === "stats" && (
-                <div>
-                  {teamStats ? (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        <StatBox label="Рейтинг" value={teamStats.rating} />
-                        <StatBox label="Матчи" value={teamStats.total_matches} />
-                        <StatBox label="Win Rate" value={`${(teamStats.win_rate * 100).toFixed(0)}%`} />
-                        <StatBox label="Общий PTS" value={teamStats.total_ptc} />
-                      </div>
-                      {/* W/L/D bar */}
-                      <div className="rounded-2xl border border-border bg-canvas p-4">
-                        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Победы / Поражения / Ничьи</p>
-                        <div className="flex gap-1 overflow-hidden rounded-full" style={{ height: 10 }}>
-                          {teamStats.total_matches > 0 ? (
-                            <>
-                              <div className="bg-green-400 transition-all" style={{ width: `${(teamStats.wins / teamStats.total_matches) * 100}%` }} />
-                              <div className="bg-red-400 transition-all" style={{ width: `${(teamStats.losses / teamStats.total_matches) * 100}%` }} />
-                              <div className="bg-slate-500 transition-all" style={{ width: `${(teamStats.draws / teamStats.total_matches) * 100}%` }} />
-                            </>
-                          ) : <div className="w-full bg-elevated" />}
-                        </div>
-                        <div className="mt-2 flex gap-4 text-xs">
-                          <span className="text-green-400">✓ {teamStats.wins} побед</span>
-                          <span className="text-red-400">✗ {teamStats.losses} поражений</span>
-                          <span className="text-muted">― {teamStats.draws} ничьих</span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="py-10 text-center text-sm text-muted">Пока нет статистики</div>
-                  )}
-                </div>
-              )}
+          {/* Stats */}
+          {activeTab === "stats" && <StatsPanel teamStats={teamStats} />}
 
-              {/* HISTORY TAB */}
-              {activeTab === "history" && (
-                <div>
-                  {teamHistory.length === 0 ? (
-                    <div className="py-10 text-center text-sm text-muted">История матчей пуста</div>
-                  ) : (
-                    <div className="space-y-2">
-                      {teamHistory.map((item) => (
-                        <div key={item.id} className="flex flex-col gap-2 rounded-xl border border-border bg-canvas px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className={[
-                              "rounded-lg px-2 py-1 text-xs font-bold",
-                              item.result === "win" ? "bg-green-500/15 text-green-400" :
-                              item.result === "loss" ? "bg-red-500/15 text-red-400" :
-                              "bg-slate-700/50 text-muted",
-                            ].join(" ")}>
-                              {item.result === "win" ? "WIN" : item.result === "loss" ? "LOSS" : "DRAW"}
-                            </span>
-                            <span className="text-sm text-foreground">Матч #{item.id}</span>
-                          </div>
-                          <div className="text-right">
-                            <p className={`text-sm font-bold ${item.rating_delta >= 0 ? "text-green-400" : "text-red-400"}`}>
-                              {item.rating_delta >= 0 ? "+" : ""}{item.rating_delta} pts
-                            </p>
-                            <p className="text-[11px] text-muted">{new Date(item.created_at).toLocaleDateString("ru-RU")}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+          {/* History */}
+          {activeTab === "history" && <HistoryPanel rows={teamHistory} />}
 
-              {/* INVITES TAB */}
-              {activeTab === "invites" && (
-                <div>
-                  {myInvites.length === 0 ? (
-                    <div className="py-10 text-center text-sm text-muted">Нет входящих приглашений</div>
-                  ) : (
-                    <div className="space-y-3">
-                      {myInvites.map((inv) => (
-                        <div key={inv.invitation_id} className="rounded-2xl border border-border bg-canvas p-4">
-                          <div className="mb-3">
-                            <p className="text-sm font-semibold text-foreground">Команда #{inv.team_id}</p>
-                            <p className="text-xs text-muted">Приглашение от пользователя #{inv.inviter_user_id}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleInviteAction(inv.invitation_id, "accept")}
-                              className="flex-1 rounded-xl bg-accent py-2 text-xs font-bold text-black transition hover:bg-accent/90"
-                            >
-                              Принять
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleInviteAction(inv.invitation_id, "decline")}
-                              className="flex-1 rounded-xl border border-border py-2 text-xs text-muted transition hover:border-red-500/40 hover:text-red-400"
-                            >
-                              Отклонить
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              {/* SETTINGS TAB — captain only */}
-              {activeTab === "settings" && isCaptain && (
-                <div className="space-y-6">
-                  {/* Avatar upload */}
-                  <div>
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Аватарка команды</p>
-                    <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-                      {/* Preview */}
-                      <div
-                        className="h-20 w-20 flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-elevated transition hover:border-accent/60"
-                        onClick={() => avatarInputRef.current?.click()}
-                      >
-                        {avatarPreview || (resolveAssetUrl(team.avatar_url || "") && !teamAvatarBroken) ? (
-                          <MediaAsset
-                            src={avatarPreview || resolveAssetUrl(team.avatar_url)}
-                            alt="avatar"
-                            className="h-full w-full object-cover"
-                            onError={() => setTeamAvatarBroken(true)}
-                          />
-                        ) : (
-                          <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-muted">
-                            <span className="text-2xl">🖼</span>
-                            <span className="text-[10px]">Выбрать</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm text-foreground font-medium">
-                          {avatarFile ? avatarFile.name : "Файл не выбран"}
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted">PNG, JPG до 5 МБ. Рекомендуется 256×256</p>
-                        <button
-                          type="button"
-                          onClick={() => avatarInputRef.current?.click()}
-                          className="mt-2 rounded-xl border border-border bg-elevated px-3 py-1.5 text-xs font-semibold text-foreground transition hover:border-accent/50 hover:text-accent"
-                        >
-                          Выбрать файл
-                        </button>
-                        <input
-                          ref={avatarInputRef}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleAvatarChange}
-                        />
-                      </div>
-                    </div>
-                  </div>
+          {/* Invites */}
+          {activeTab === "invites" && (
+            <InvitesPanel invites={myInvites} onAction={handleInviteAction} />
+          )}
 
-                  {/* Banner upload */}
-                  <div>
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Баннер команды</p>
-                    <div
-                      className="relative h-32 w-full cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-elevated transition hover:border-accent/60"
-                      onClick={() => bannerInputRef.current?.click()}
-                    >
-                      {bannerPreview || (resolveAssetUrl(team.banner_url || "") && !teamBannerBroken) ? (
-                        <>
-                          <MediaAsset
-                            src={bannerPreview || resolveAssetUrl(team.banner_url)}
-                            alt="banner"
-                            className="h-full w-full object-cover"
-                            onError={() => setTeamBannerBroken(true)}
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition hover:opacity-100">
-                            <span className="rounded-xl bg-black/60 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
-                              Изменить баннер
-                            </span>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted">
-                          <span className="text-3xl">🖼</span>
-                          <span className="text-xs">Нажмите чтобы выбрать баннер</span>
-                          <span className="text-[11px] text-muted/60">PNG, JPG до 10 МБ. Рекомендуется 1200×300</span>
-                        </div>
-                      )}
-                    </div>
-                    {bannerFile && (
-                      <p className="mt-1.5 text-xs text-muted">Выбран: {bannerFile.name}</p>
-                    )}
-                    <input
-                      ref={bannerInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleBannerChange}
-                    />
-                  </div>
-
-                  {/* Feedback */}
-                  {settingsError && (
-                    <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-                      {settingsError}
-                    </div>
-                  )}
-                  {settingsSuccess && (
-                    <div className="rounded-2xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-400">
-                      ✓ {settingsSuccess}
-                    </div>
-                  )}
-
-                  {/* Save button */}
-                  <button
-                    type="button"
-                    onClick={handleSettingsSave}
-                    disabled={settingsLoading || (!avatarFile && !bannerFile)}
-                    className="w-full rounded-2xl bg-accent py-3 text-sm font-bold text-black transition hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {settingsLoading ? "Сохраняем..." : "Сохранить изменения"}
-                  </button>
-                </div>
-              )}
-
-            </div>
-          </Card>
+          {/* Settings — captain only */}
+          {activeTab === "settings" && isCaptain && (
+            <SettingsPanel
+              team={team}
+              avatarPreview={avatarPreview}
+              bannerPreview={bannerPreview}
+              avatarFile={avatarFile}
+              bannerFile={bannerFile}
+              teamAvatarBroken={teamAvatarBroken}
+              teamBannerBroken={teamBannerBroken}
+              avatarInputRef={avatarInputRef}
+              bannerInputRef={bannerInputRef}
+              onAvatarChange={handleAvatarChange}
+              onBannerChange={handleBannerChange}
+              onSave={handleSettingsSave}
+              loading={settingsLoading}
+              error={settingsError}
+              success={settingsSuccess}
+            />
+          )}
         </div>
       </div>
+
+      {error && team ? (
+        <div className="mt-4 rounded-card border border-accent/40 bg-canvas px-4 py-3 font-mono text-sm text-accent">{error}</div>
+      ) : null}
+    </Shell>
+  );
+}
+
+/* ─── building blocks ──────────────────────────────────────────────── */
+
+function Shell({ children }) {
+  return (
+    <div className="relative min-h-screen bg-canvas text-foreground">
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute left-[15%] top-20 h-[480px] w-[480px] rounded-full bg-accent/[0.06] blur-3xl" />
+        <div className="absolute bottom-[10%] right-[10%] h-[360px] w-[360px] rounded-full bg-accent/[0.05] blur-3xl" />
+      </div>
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">{children}</div>
+    </div>
+  );
+}
+
+function PillStat({ label, value, accent = false }) {
+  return (
+    <div className="min-w-[96px] rounded-xl border border-border bg-canvas/60 px-3.5 py-3 text-center">
+      <MonoLabel size={9}>{label}</MonoLabel>
+      <div
+        className={[
+          "mt-1.5 font-mono text-2xl font-bold leading-none tabular-nums",
+          accent ? "text-accent" : "text-foreground",
+        ].join(" ")}
+      >{value}</div>
+    </div>
+  );
+}
+
+function MemberRow({ m, isCap, isSelf, canKick, ready, onKick }) {
+  const [hover, setHover] = useState(false);
+  const avatarUrl = resolveAssetUrl(m.avatar_url || "");
+  const [broken, setBroken] = useState(false);
+
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className={[
+        "flex items-center gap-3 rounded-[10px] border px-3 py-2.5 transition-colors",
+        hover ? "border-accent/40 bg-accent/[0.04]" : "border-border bg-canvas/50",
+      ].join(" ")}
+    >
+      <PlayerHoverCard userId={m.user_id} disabled={isSelf}>
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          {/* avatar + online dot */}
+          <div className="relative flex-shrink-0">
+            <div className={[
+              "h-9 w-9 overflow-hidden rounded-[8px] border bg-elevated",
+              isCap ? "border-accent" : "border-border",
+            ].join(" ")}>
+              {avatarUrl && !broken ? (
+                <MediaAsset src={avatarUrl} alt={m.nickname} className="h-full w-full object-cover" onError={() => setBroken(true)} />
+              ) : (
+                <div className={["flex h-full w-full items-center justify-center font-sans text-sm font-bold tracking-tight",
+                  isCap ? "text-accent" : "text-foreground",
+                ].join(" ")}>
+                  {m.nickname?.[0]?.toUpperCase() ?? "?"}
+                </div>
+              )}
+            </div>
+            <span
+              className={[
+                "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full",
+                m.online ? "bg-accent" : "bg-border",
+              ].join(" ")}
+              style={{ boxShadow: "0 0 0 2px var(--color-elevated, #161B22)" }}
+            />
+          </div>
+
+          {/* name */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate font-mono text-sm font-semibold text-foreground">{m.nickname}</span>
+              {isCap && <span className="font-mono text-[9px] font-bold tracking-[0.18em] text-accent">★ КЭП</span>}
+            </div>
+            <div className="truncate text-[11px] text-muted">{m.role || "Участник"}</div>
+          </div>
+        </div>
+      </PlayerHoverCard>
+
+      <div className="flex flex-shrink-0 flex-col items-end gap-1">
+        <span
+          className={[
+            "rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold tracking-[0.08em]",
+            ready ? "border-accent/40 bg-accent/10 text-accent" : "border-border text-muted",
+          ].join(" ")}
+        >
+          {ready ? "ГОТОВ" : "ЖДЁМ"}
+        </span>
+        {canKick && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onKick(); }}
+            className="rounded-[6px] border border-border px-2 py-0.5 font-mono text-[10px] text-muted hover:border-accent/40 hover:text-accent"
+          >
+            kick
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* Chat */
+function ChatPanel({ messages, chatEndRef, currentUserId, chatText, setChatText, wsStatus, onSubmit }) {
+  return (
+    <div className="flex min-h-[500px] flex-col overflow-hidden rounded-card border border-border bg-elevated">
+      <div className="flex items-center justify-between border-b border-border bg-canvas/50 px-5 py-3">
+        <div className="flex items-center gap-2.5">
+          <LivePulse />
+          <MonoLabel accent>#TEAM-CHAT</MonoLabel>
+        </div>
+        <MonoLabel size={9}>{wsStatus === "connected" ? "WS · CONNECTED" : wsStatus === "connecting" ? "WS · CONNECTING" : "WS · OFFLINE"}</MonoLabel>
+      </div>
+
+      <div className="flex flex-1 flex-col gap-3.5 overflow-y-auto bg-canvas px-5 py-4">
+        {messages.length === 0 ? (
+          <p className="pt-8 text-center font-mono text-xs text-muted">&gt; начни общение с командой</p>
+        ) : (
+          messages.map((msg, i) => {
+            if (msg.system) {
+              return (
+                <div key={i} className="flex items-center gap-3 py-1">
+                  <div className="h-px flex-1 bg-border opacity-40" />
+                  <span className="font-mono text-[11px] tracking-[0.06em] text-muted">{msg.message}</span>
+                  <div className="h-px flex-1 bg-border opacity-40" />
+                </div>
+              );
+            }
+            const mine = msg.user_id === currentUserId;
+            return (
+              <div key={i} className={[
+                "flex flex-col gap-1",
+                mine ? "items-end" : "items-start",
+              ].join(" ")}>
+                <span className="font-mono text-[11px] tracking-[0.04em] text-muted">{msg.nickname || msg.display_name}</span>
+                <div className={[
+                  "max-w-[78%] px-3.5 py-2.5 font-sans text-sm leading-snug",
+                  mine
+                    ? "rounded-[14px] rounded-br-[4px] border border-accent bg-accent font-semibold text-black"
+                    : "rounded-[14px] rounded-bl-[4px] border border-border bg-elevated text-foreground",
+                ].join(" ")}>
+                  {msg.message}
+                </div>
+              </div>
+            );
+          })
+        )}
+        <div ref={chatEndRef} />
+      </div>
+
+      <form onSubmit={onSubmit} className="flex gap-2.5 border-t border-border bg-canvas/50 p-3.5">
+        <input
+          value={chatText}
+          onChange={(e) => setChatText(e.target.value)}
+          placeholder="Напиши сообщение..."
+          className="w-full rounded-btn border border-border bg-canvas px-3.5 py-2.5 font-sans text-sm text-foreground outline-none transition focus:border-accent"
+        />
+        <button
+          type="submit"
+          disabled={!chatText.trim()}
+          className="inline-flex items-center gap-1.5 rounded-btn bg-accent px-5 py-2.5 font-sans text-sm font-bold text-black transition-transform hover:scale-[1.01] disabled:opacity-40"
+        >
+          ↑ Send
+        </button>
+      </form>
+    </div>
+  );
+}
+
+/* Stats */
+function StatsPanel({ teamStats }) {
+  if (!teamStats) {
+    return (
+      <div className="rounded-card border border-border bg-elevated p-10 text-center font-sans text-sm text-muted">
+        Пока нет статистики
+      </div>
+    );
+  }
+  const totalMatches = teamStats.total_matches ?? 0;
+  const winPct  = totalMatches ? (teamStats.wins  / totalMatches) * 100 : 0;
+  const lossPct = totalMatches ? (teamStats.losses / totalMatches) * 100 : 0;
+  const drawPct = totalMatches ? (teamStats.draws  / totalMatches) * 100 : 0;
+  return (
+    <div className="flex flex-col gap-3.5">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <StatBox k="РЕЙТИНГ" v={teamStats.rating} accent />
+        <StatBox k="МАТЧИ" v={totalMatches} />
+        <StatBox k="WIN RATE" v={`${Math.round((teamStats.win_rate ?? 0) * 100)}%`} accent />
+        <StatBox k="ВСЕГО PTS" v={(teamStats.total_ptc ?? 0).toLocaleString("ru-RU")} />
+      </div>
+      <div className="rounded-card border border-border bg-elevated p-5">
+        <MonoLabel accent>ПОБЕДЫ · ПОРАЖЕНИЯ · НИЧЬИ</MonoLabel>
+        <div className="mt-4 flex overflow-hidden rounded-full" style={{ height: 14, background: "rgba(255,255,255,0.04)" }}>
+          <div style={{ width: `${winPct}%`,  background: "#FFD700" }} />
+          <div style={{ width: `${lossPct}%`, background: "rgba(255,215,0,0.33)", marginLeft: 2 }} />
+          <div style={{ width: `${drawPct}%`, background: "rgba(139,148,158,0.55)", marginLeft: 2 }} />
+        </div>
+        <div className="mt-3.5 flex flex-wrap gap-5 font-mono text-xs">
+          <Legend dot="#FFD700" label="ПОБЕДЫ" value={teamStats.wins} accent />
+          <Legend dot="rgba(255,215,0,0.4)" label="ПОРАЖЕНИЯ" value={teamStats.losses} />
+          <Legend dot="rgba(139,148,158,0.55)" label="НИЧЬИ" value={teamStats.draws} />
+        </div>
+      </div>
+    </div>
+  );
+}
+function StatBox({ k, v, accent = false }) {
+  return (
+    <div className="rounded-card border border-border bg-elevated p-4">
+      <MonoLabel size={9}>{k}</MonoLabel>
+      <div className={["mt-2 font-mono text-3xl font-bold leading-none tabular-nums",
+        accent ? "text-accent" : "text-foreground"].join(" ")}>{v}</div>
+    </div>
+  );
+}
+function Legend({ dot, label, value, accent = false }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="h-2.5 w-2.5 rounded-full" style={{ background: dot }} />
+      <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">{label}</span>
+      <span className={["font-bold tabular-nums", accent ? "text-accent" : "text-foreground"].join(" ")}>{value}</span>
+    </span>
+  );
+}
+
+/* History */
+function HistoryPanel({ rows }) {
+  if (!rows || rows.length === 0) {
+    return <div className="rounded-card border border-border bg-elevated p-10 text-center text-sm text-muted">История матчей пуста</div>;
+  }
+  return (
+    <div className="overflow-hidden rounded-card border border-border bg-elevated">
+      <div className="flex items-center justify-between border-b border-border bg-canvas/40 px-5 py-3.5">
+        <MonoLabel accent>ПОСЛЕДНИЕ МАТЧИ</MonoLabel>
+        <MonoLabel size={9}>{rows.length} ЗАПИСЕЙ</MonoLabel>
+      </div>
+      {rows.map((r, i) => {
+        const won = r.result === "win";
+        const drew = r.result === "draw";
+        return (
+          <div key={r.id} className={["grid items-center gap-4 px-5 py-3.5",
+            i < rows.length - 1 ? "border-b border-border" : ""].join(" ")}
+            style={{ gridTemplateColumns: "80px 1fr 130px 130px" }}>
+            <span
+              className={[
+                "justify-self-start rounded-full border px-2.5 py-1 text-center font-mono text-[10px] font-extrabold tracking-[0.14em]",
+                won ? "border-accent bg-accent/15 text-accent" : "border-border text-muted",
+              ].join(" ")}
+            >{won ? "WIN" : drew ? "DRAW" : "LOSS"}</span>
+            <span className="font-mono text-sm text-foreground">Матч #{r.id}</span>
+            <span className="font-mono text-xs text-muted">{new Date(r.created_at).toLocaleDateString("ru-RU")}</span>
+            <span
+              className={[
+                "text-right font-mono text-base font-bold tabular-nums",
+                r.rating_delta > 0 ? "text-accent" : r.rating_delta < 0 ? "text-accent/70" : "text-muted",
+              ].join(" ")}
+            >
+              {r.rating_delta > 0 ? "+" : ""}{r.rating_delta} PTS
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* Invites */
+function InvitesPanel({ invites, onAction }) {
+  if (!invites || invites.length === 0) {
+    return <div className="rounded-card border border-border bg-elevated p-10 text-center text-sm text-muted">Нет входящих приглашений</div>;
+  }
+  return (
+    <div className="flex flex-col gap-2.5">
+      {invites.map((inv) => (
+        <div key={inv.invitation_id} className="flex items-center gap-4 rounded-card border border-border bg-elevated p-5">
+          <div className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-border bg-canvas font-sans text-xl font-bold text-foreground">
+            #{inv.team_id}
+          </div>
+          <div className="flex-1">
+            <div className="text-base font-bold text-foreground">Команда #{inv.team_id}</div>
+            <div className="mt-0.5 font-mono text-xs text-muted">от пользователя <span className="text-foreground">#{inv.inviter_user_id}</span></div>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => onAction(inv.invitation_id, "accept")}
+              className="rounded-btn bg-accent px-4 py-2.5 font-sans text-sm font-bold text-black hover:scale-[1.01]">
+              Принять
+            </button>
+            <button type="button" onClick={() => onAction(inv.invitation_id, "decline")}
+              className="rounded-btn border border-border px-4 py-2.5 font-sans text-sm text-muted hover:border-accent/40 hover:text-accent">
+              Отклонить
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* Settings — captain only */
+function SettingsPanel({
+  team, avatarPreview, bannerPreview, avatarFile, bannerFile,
+  teamAvatarBroken, teamBannerBroken,
+  avatarInputRef, bannerInputRef,
+  onAvatarChange, onBannerChange, onSave, loading, error, success,
+}) {
+  return (
+    <div className="flex flex-col gap-5 rounded-card border border-border bg-elevated p-6">
+      <MonoLabel accent>НАСТРОЙКИ КОМАНДЫ</MonoLabel>
+
+      {/* Avatar */}
+      <div>
+        <div className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-muted">АВАТАР</div>
+        <div className="flex items-center gap-4">
+          <div
+            className="h-20 w-20 cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-canvas transition-colors hover:border-accent/60"
+            onClick={() => avatarInputRef.current?.click()}
+          >
+            {avatarPreview || (resolveAssetUrl(team.avatar_url || "") && !teamAvatarBroken) ? (
+              <MediaAsset src={avatarPreview || resolveAssetUrl(team.avatar_url)} alt="avatar" className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center font-mono text-xs text-muted">+ файл</div>
+            )}
+          </div>
+          <div className="flex-1">
+            <div className="text-sm text-foreground">{avatarFile ? avatarFile.name : "Файл не выбран"}</div>
+            <div className="mt-1 text-xs text-muted">PNG/JPG до 5 МБ, рекомендуется 256×256</div>
+            <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={onAvatarChange} />
+          </div>
+        </div>
+      </div>
+
+      {/* Banner */}
+      <div>
+        <div className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-muted">БАННЕР</div>
+        <div
+          className="relative h-28 cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-canvas transition-colors hover:border-accent/60"
+          onClick={() => bannerInputRef.current?.click()}
+        >
+          {bannerPreview || (resolveAssetUrl(team.banner_url || "") && !teamBannerBroken) ? (
+            <MediaAsset src={bannerPreview || resolveAssetUrl(team.banner_url)} alt="banner" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center font-mono text-xs text-muted">+ выбрать баннер · 1200×300</div>
+          )}
+        </div>
+        {bannerFile && <div className="mt-1.5 text-xs text-muted">Выбран: {bannerFile.name}</div>}
+        <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" onChange={onBannerChange} />
+      </div>
+
+      {error && (
+        <div className="rounded-card border border-accent/40 bg-canvas px-4 py-3 font-mono text-sm text-accent">{error}</div>
+      )}
+      {success && (
+        <div className="rounded-card border border-accent bg-accent/10 px-4 py-3 font-mono text-sm text-accent">✓ {success}</div>
+      )}
+
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={loading || (!avatarFile && !bannerFile)}
+        className="rounded-btn bg-accent py-3 font-sans text-sm font-bold text-black shadow-glow transition-transform hover:scale-[1.005] disabled:opacity-40"
+      >
+        {loading ? "Сохраняем…" : "Сохранить изменения"}
+      </button>
     </div>
   );
 }
