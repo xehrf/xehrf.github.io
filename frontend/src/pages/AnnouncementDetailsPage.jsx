@@ -11,6 +11,7 @@ import {
   SKILL_LEVELS,
   SKILL_META,
   calcRemainingPercent,
+  computeHHEstimatedRating,
   extractContactLink,
   formatDateTime,
   formatSalary,
@@ -481,11 +482,33 @@ export function AnnouncementDetailsPage() {
           <Metric icon="👁️" value={announcement.view_count} label="просм." />
           <Metric icon="🔗" value={announcement.click_count} label="клик." />
           <Metric icon="💾" value={announcement.save_count} label="сохр." />
-          <Metric
-            icon="⭐"
-            value={announcement.rating_avg ? announcement.rating_avg.toFixed(1) : "—"}
-            label={`(${announcement.rating_count})`}
-          />
+          {(() => {
+            // Real user ratings always win. For hh-rows with no user ratings
+            // we fall back to a computed quality score so the slot isn't just
+            // a dash — clearly marked "≈ N.N (авто)" so it isn't mistaken for
+            // a human rating.
+            if (announcement.rating_count > 0) {
+              return (
+                <Metric
+                  icon="⭐"
+                  value={announcement.rating_avg.toFixed(1)}
+                  label={`(${announcement.rating_count})`}
+                />
+              );
+            }
+            const estimated = computeHHEstimatedRating(announcement);
+            if (estimated != null) {
+              return (
+                <Metric
+                  icon="⭐"
+                  value={`≈ ${estimated.toFixed(1)}`}
+                  label="(авто)"
+                  title="Приблизительный рейтинг — рассчитан автоматически по полноте вакансии (зарплата, описание, навыки, работодатель). Не пользовательская оценка."
+                />
+              );
+            }
+            return <Metric icon="⭐" value="—" label="(0)" />;
+          })()}
         </div>
       </Card>
 
@@ -714,9 +737,12 @@ export function AnnouncementDetailsPage() {
   );
 }
 
-function Metric({ icon, value, label }) {
+function Metric({ icon, value, label, title }) {
   return (
-    <div className="rounded-xl border border-border bg-canvas px-3 py-2 text-center">
+    <div
+      className="rounded-xl border border-border bg-canvas px-3 py-2 text-center"
+      title={title}
+    >
       <p className="text-xl font-bold text-foreground tabular-nums">
         <span className="mr-1" aria-hidden>
           <CompyraText size={20}>{icon}</CompyraText>

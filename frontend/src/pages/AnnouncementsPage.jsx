@@ -10,6 +10,7 @@ import {
   SKILL_LEVELS,
   SKILL_META,
   calcRemainingPercent,
+  computeHHEstimatedRating,
   formatSalary,
   formatTtl,
   getCategoryMeta,
@@ -169,15 +170,34 @@ function AnnouncementCard({ announcement, onSaveToggle }) {
           <div className="flex flex-shrink-0 flex-col items-end gap-1">
             <SkillLevelChip level={announcement.skill_level} />
             <SourceChip source={announcement.source_type} externalUrl={announcement.external_url} />
-            {announcement.rating_count > 0 ? (
-              <span className="flex items-center gap-1 text-[11px] text-muted">
-                <span className="text-accent">★</span>
-                <span className="font-semibold text-foreground tabular-nums">
-                  {announcement.rating_avg.toFixed(1)}
-                </span>
-                <span>({announcement.rating_count})</span>
-              </span>
-            ) : null}
+            {(() => {
+              if (announcement.rating_count > 0) {
+                return (
+                  <span className="flex items-center gap-1 text-[11px] text-muted">
+                    <span className="text-accent">★</span>
+                    <span className="font-semibold text-foreground tabular-nums">
+                      {announcement.rating_avg.toFixed(1)}
+                    </span>
+                    <span>({announcement.rating_count})</span>
+                  </span>
+                );
+              }
+              const estimated = computeHHEstimatedRating(announcement);
+              if (estimated != null) {
+                return (
+                  <span
+                    className="flex items-center gap-1 text-[11px] text-muted"
+                    title="Приблизительная оценка — авто по полноте вакансии"
+                  >
+                    <span className="text-accent">★</span>
+                    <span className="font-semibold text-foreground tabular-nums">
+                      ≈ {estimated.toFixed(1)}
+                    </span>
+                  </span>
+                );
+              }
+              return null;
+            })()}
           </div>
         </div>
 

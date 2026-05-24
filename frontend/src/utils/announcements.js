@@ -64,10 +64,11 @@ export function formatTtl(seconds) {
   const minutes = Math.floor((s % 3600) / 60);
   const secs = s % 60;
   const pad = (n) => String(n).padStart(2, "0");
-  // ≥1 day: show days + hours + minutes (visible minute change).
-  if (days > 0) return `${days}д ${hours}ч ${minutes}м`;
+  // ≥1 day: "Xд HH:MM:SS" — seconds visibly tick so it doesn't look frozen
+  // even when there are 6 days left.
+  if (days > 0) return `${days}д ${pad(hours)}:${pad(minutes)}:${pad(secs)}`;
   // ≥1 hour: classic HH:MM:SS countdown.
-  if (hours > 0) return `${hours}:${pad(minutes)}:${pad(secs)}`;
+  if (hours > 0) return `${pad(hours)}:${pad(minutes)}:${pad(secs)}`;
   // <1 hour: MM:SS countdown — most "alive"-feeling part.
   return `${pad(minutes)}:${pad(secs)}`;
 }
@@ -168,4 +169,49 @@ export function formatSalary({ salary_from, salary_to, salary_currency } = {}) {
   if (salary_from && salary_to) return `${fmtNumber(salary_from)}–${fmtNumber(salary_to)} ${sym}`.trim();
   if (salary_from) return `от ${fmtNumber(salary_from)} ${sym}`.trim();
   return `до ${fmtNumber(salary_to)} ${sym}`.trim();
+}
+
+/**
+ * Heuristic "quality" rating for an hh-sourced vacancy. We don't have real
+ * user ratings (hh-rows can't be rated by users — it's not their content),
+ * so we surface a calculated score based on what *is* in the payload:
+ * salary disclosure, description depth, tags, employer/area presence, and
+ * recency. Returns a number 0..5 with one decimal, or null when not
+ * applicable (non-hh source or missing data).
+ *
+ * The label "≈ 4.2 (авто)" in the UI should make clear this isn't a human
+ * rating — it's just a quick at-a-glance signal of how complete the listing
+ * is.
+ */
+export function computeHHEstimatedRating(announcement) {
+  if (!announcement || announcement.source_type !== "hh") return null;
+
+  let score = 2.0; // baseline — minimal-completeness vacancy
+
+  // Salary specified is the strongest signal of seriousness on hh.
+  if (announcement.salary_from || announcement.salary_to) score += 1.2;
+
+  // Description depth — снитет был на ~200 символов, полный текст
+  // обычно 800+. Two thresholds so rich descriptions get extra credit.
+  const descLen = (announcement.description || "").length;
+  if (descLen >= 500) score += 0.5;
+  if (descLen >= 1500) score += 0.4;
+
+  // Tags / key skills declared — well-defined requirements signal.
+  const tags = announcement.tags || [];
+  if (tags.length >= 3) score += 0.3;
+  if (tags.length >= 6) score += 0.2;
+
+  // Transparency about who and where.
+  if (announcement.employer_name) score += 0.2;
+  if (announcement.area_name) score += 0.1;
+
+  // Recency: newly published vacancies are usually more actively recruited.
+  if (announcement.created_at) {
+    const ageHours = (Date.now() - new Date(announcement.created_at).getTime()) / 3_600_000;
+    if (ageHours < 24 * 7) score += 0.1; // first week
+  }
+
+  // Clamp to [0, 5] with one decimal.
+  return Math.max(0, Math.min(5, Math.round(score * 10) / 10));
 }
