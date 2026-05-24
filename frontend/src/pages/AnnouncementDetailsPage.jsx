@@ -6,6 +6,7 @@ import { CompyraEmoji, CompyraText } from "../components/ui/CompyraEmoji.jsx";
 import { PlayerHoverCard } from "../components/ui/PlayerHoverCard.jsx";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../auth/AuthProvider.jsx";
+import { HHLogo } from "../components/ui/HHLogo.jsx";
 import {
   SKILL_LEVELS,
   SKILL_META,
@@ -413,6 +414,14 @@ export function AnnouncementDetailsPage() {
             <SkillBadge level={announcement.skill_level} size="lg" />
             {(() => {
               const sm = getSourceMeta(announcement.source_type, announcement.external_url);
+              if (announcement.source_type === "hh") {
+                return (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-canvas px-2.5 py-1 text-xs font-semibold text-muted">
+                    <HHLogo size={18} title={sm.label} />
+                    <span className="lowercase">{sm.label}</span>
+                  </span>
+                );
+              }
               return (
                 <span
                   className="rounded-full border px-3 py-1 text-xs font-bold uppercase"
@@ -487,7 +496,10 @@ export function AnnouncementDetailsPage() {
                 const sm = getSourceMeta(announcement.source_type, announcement.external_url);
                 return (
                   <>
-                    <h2 className="text-sm font-semibold text-foreground">💼 Вакансия на {sm.label}</h2>
+                    <h2 className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <HHLogo size={20} title={sm.label} />
+                      Вакансия на {sm.label}
+                    </h2>
                     <p className="text-xs text-muted">
                       Это вакансия с {sm.label}. Контакты соискателя доступны только зарегистрированному
                       пользователю HH. Откликнитесь на сайте.
@@ -501,7 +513,8 @@ export function AnnouncementDetailsPage() {
                         className="inline-flex items-center justify-center gap-2 rounded-btn px-4 py-3 text-sm font-bold text-white transition hover:opacity-90"
                         style={{ backgroundColor: "#D6001C" }}
                       >
-                        🔗 Откликнуться на {sm.label}
+                        <HHLogo size={20} title={sm.label} />
+                        Откликнуться на {sm.label}
                       </a>
                     ) : null}
                   </>
