@@ -168,6 +168,39 @@ def _map_full_description(vacancy: dict[str, Any]) -> str:
     return _build_description(vacancy)
 
 
+# HH-vacancies are typically live for 30 days from publication; after that
+# the employer has to re-promote them or they get archived.
+HH_VACANCY_LIFETIME_DAYS = 30
+
+
+def _parse_hh_datetime(value: str | None) -> datetime | None:
+    """hh returns ISO 8601 like ``2026-05-20T12:34:56+0300``. Python 3.11+'s
+    ``datetime.fromisoformat`` handles that directly; we still wrap it in
+    try/except so a single malformed value doesn't kill an import cycle."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _compute_expires_at(vacancy: dict[str, Any], *, fallback_ttl_hours: int) -> datetime:
+    """Each vacancy gets its own expiry based on hh.ru's ``published_at`` +
+    standard 30-day lifetime. This makes every card's countdown unique and
+    real instead of every batch sharing the same now+7d expiry."""
+    now = datetime.now(timezone.utc)
+    published_at = _parse_hh_datetime(vacancy.get("published_at"))
+    if published_at is None:
+        return now + timedelta(hours=fallback_ttl_hours)
+    candidate = published_at + timedelta(days=HH_VACANCY_LIFETIME_DAYS)
+    # If the vacancy is technically past its standard period but still in
+    # search results, give it at least a day of grace so users can see it.
+    if candidate <= now:
+        candidate = now + timedelta(days=1)
+    return candidate
+
+
 def _map_vacancy(vacancy: dict[str, Any], *, ttl_hours: int) -> dict[str, Any] | None:
     """Translate a hh /vacancies item into kwargs for an Announcement upsert.
 
@@ -189,7 +222,6 @@ def _map_vacancy(vacancy: dict[str, Any], *, ttl_hours: int) -> dict[str, Any] |
     employer = vacancy.get("employer") or {}
     area = vacancy.get("area") or {}
 
-    now = datetime.now(timezone.utc)
     return {
         "external_id": str(vid),
         "external_url": alt_url,
@@ -204,7 +236,7 @@ def _map_vacancy(vacancy: dict[str, Any], *, ttl_hours: int) -> dict[str, Any] |
         "employer_name": (employer.get("name") or "")[:255] or None,
         "area_name": (area.get("name") or "")[:255] or None,
         "tags": _extract_tags(vacancy),
-        "expires_at": now + timedelta(hours=ttl_hours),
+        "expires_at": _compute_expires_at(vacancy, fallback_ttl_hours=ttl_hours),
     }
 
 
