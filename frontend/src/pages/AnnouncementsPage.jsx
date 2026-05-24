@@ -55,7 +55,8 @@ function SkillLevelChip({ level, size = "sm" }) {
 function TtlProgress({ announcement }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30_000);
+    // Tick every second so the MM:SS / HH:MM:SS countdown actually moves.
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
   // Recompute ttl_seconds on the client so the bar ticks down without

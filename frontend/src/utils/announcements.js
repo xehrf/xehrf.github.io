@@ -62,10 +62,14 @@ export function formatTtl(seconds) {
   const days = Math.floor(s / 86400);
   const hours = Math.floor((s % 86400) / 3600);
   const minutes = Math.floor((s % 3600) / 60);
-  if (days > 0) return `${days}д ${hours}ч`;
-  if (hours > 0) return `${hours}ч ${minutes}м`;
-  if (minutes > 0) return `${minutes}м`;
-  return `${s}с`;
+  const secs = s % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  // ≥1 day: show days + hours + minutes (visible minute change).
+  if (days > 0) return `${days}д ${hours}ч ${minutes}м`;
+  // ≥1 hour: classic HH:MM:SS countdown.
+  if (hours > 0) return `${hours}:${pad(minutes)}:${pad(secs)}`;
+  // <1 hour: MM:SS countdown — most "alive"-feeling part.
+  return `${pad(minutes)}:${pad(secs)}`;
 }
 
 export function formatDateTime(value) {
