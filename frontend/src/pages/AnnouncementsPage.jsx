@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { LinkButton } from "../components/ui/Button.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { CompyraEmoji } from "../components/ui/CompyraEmoji.jsx";
+import { HHLogo } from "../components/ui/HHLogo.jsx";
 import { apiFetch } from "../api/client";
 import {
   CATEGORY_META,
@@ -106,6 +107,19 @@ function StatPill({ icon, value, label }) {
 
 function SourceChip({ source, externalUrl }) {
   const meta = getSourceMeta(source, externalUrl);
+  if (source === "hh") {
+    // For hh-sourced rows use the official round brand mark instead of the
+    // generic briefcase emoji — it's instantly recognisable and removes the
+    // need for a text "HH.RU" pill.
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <HHLogo size={18} title={meta.label} />
+        <span className="text-[10px] font-semibold lowercase text-muted">
+          {meta.label}
+        </span>
+      </span>
+    );
+  }
   return (
     <span
       className="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
@@ -298,21 +312,22 @@ function FilterSection({ filters, setFilter, onReset, onSubmit }) {
         <span className="text-[11px] uppercase tracking-wider text-muted">📡 Источник</span>
         <div className="flex flex-wrap gap-2">
           {[
-            { value: "", label: "Все" },
-            { value: "community", label: "👤 Сообщество" },
-            { value: "hh", label: "💼 hh.ru" },
+            { value: "", icon: null, label: "Все" },
+            { value: "community", icon: "👤", label: "Сообщество" },
+            { value: "hh", icon: "hh", label: "hh.ru / hh.kz" },
           ].map((opt) => (
             <button
               key={opt.value || "any"}
               type="button"
               onClick={() => setFilter("source", opt.value)}
               className={[
-                "rounded-full border px-3 py-1 text-xs font-semibold transition",
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition",
                 filters.source === opt.value
                   ? "border-accent bg-accent/15 text-accent"
                   : "border-border bg-canvas text-muted hover:border-accent/40 hover:text-foreground",
               ].join(" ")}
             >
+              {opt.icon === "hh" ? <HHLogo size={14} /> : opt.icon ? <span aria-hidden>{opt.icon}</span> : null}
               {opt.label}
             </button>
           ))}
