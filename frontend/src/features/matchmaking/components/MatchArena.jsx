@@ -454,7 +454,7 @@ function ComboBadge({ combo }) {
   );
 }
 
-export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender, surrendering }) {
+export function MatchArena({ activeMatch, myUserId, onSurrender, surrendering }) {
   const [messages, setMessages] = useState([]);
   const [participants, setParticipants] = useState([]);
   const [onlineIds, setOnlineIds] = useState([]);
@@ -795,13 +795,6 @@ export function MatchArena({ activeMatch, myUserId, onNavigateTask, onSurrender,
               className="inline-flex flex-1 items-center justify-center rounded-btn border border-border bg-elevated/50 px-3 py-2 text-xs font-semibold text-muted transition-colors hover:border-accent/40 hover:text-foreground sm:flex-initial"
             >
               <CompyraText size={14}>{showChat ? "🎮 Игра" : "💬 Чат"}</CompyraText>
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigateTask(activeMatch.task_id)}
-              className="inline-flex flex-1 items-center justify-center rounded-btn border border-accent/30 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent transition-colors hover:border-accent/60 sm:flex-initial"
-            >
-              📋 Задача
             </button>
             <button
               type="button"
