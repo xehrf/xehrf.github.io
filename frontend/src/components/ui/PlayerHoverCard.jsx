@@ -317,20 +317,28 @@ function PortalPopover({ anchorRect, onDismiss, onMouseEnter, onMouseLeave, pinn
       const width = el.offsetWidth || 300;
       const height = el.offsetHeight || 380;
       const gap = 12;
+      const margin = 16;
 
-      let left = anchorRect.right + gap;
-      let top = anchorRect.top + anchorRect.height / 2 - height / 2;
+      // Anchor on the cursor when we have it (hover/click captured the
+      // pointer position). Falls back to the trigger's bounding box for
+      // any non-pointer code path.
+      const focusX = anchorRect.cursorX ?? anchorRect.left + anchorRect.width / 2;
+      const focusY = anchorRect.cursorY ?? anchorRect.top + anchorRect.height / 2;
 
-      // Flip left if we'd run off the right edge.
-      if (left + width > window.innerWidth - 16) {
-        left = anchorRect.left - width - gap;
+      // Prefer the side of the cursor with more room, so wide triggers
+      // (whole rows / cards) don't push the popover off-screen.
+      const spaceRight = window.innerWidth - focusX - margin;
+      const spaceLeft = focusX - margin;
+      let left;
+      if (spaceRight >= width + gap) {
+        left = focusX + gap;
+      } else if (spaceLeft >= width + gap) {
+        left = focusX - width - gap;
+      } else {
+        left = Math.max(margin, Math.min(window.innerWidth - width - margin, focusX - width / 2));
       }
-      // If we'd run off the left side too, center over the anchor.
-      if (left < 16) {
-        left = Math.max(16, Math.min(window.innerWidth - width - 16, anchorRect.left));
-        top = anchorRect.bottom + gap;
-      }
-      // Clamp vertically.
+
+      let top = focusY - height / 2;
       top = Math.max(12, Math.min(top, window.innerHeight - height - 12));
       setPos({ top, left, ready: true });
     }
@@ -407,6 +415,19 @@ export function PlayerHoverCard({ userId, disabled, children, onCompare, compare
     if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
   }
 
+  function rectWithCursor(rect, e) {
+    return {
+      top: rect.top,
+      left: rect.left,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+      cursorX: e?.clientX,
+      cursorY: e?.clientY,
+    };
+  }
+
   function scheduleOpen(rect) {
     clearTimers();
     openTimer.current = setTimeout(() => {
@@ -425,7 +446,7 @@ export function PlayerHoverCard({ userId, disabled, children, onCompare, compare
 
   function handleEnter(e) {
     if (disabled || !safeId) return;
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = rectWithCursor(e.currentTarget.getBoundingClientRect(), e);
     if (open) {
       // Already open — just refresh the anchor & cancel any pending close.
       clearTimers();
@@ -444,7 +465,7 @@ export function PlayerHoverCard({ userId, disabled, children, onCompare, compare
   function handleClick(e) {
     if (disabled || !safeId) return;
     clearTimers();
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = rectWithCursor(e.currentTarget.getBoundingClientRect(), e);
     setAnchorRect(rect);
     // Click toggles the pinned state so the card stays open / closes again.
     if (pinned) {

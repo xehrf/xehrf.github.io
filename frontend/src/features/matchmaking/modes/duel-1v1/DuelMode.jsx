@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiFetch, getWebSocketBaseUrl } from "../../../../api/client.js";
+import { apiFetch, getWebSocketBaseUrl, resolveAssetUrl } from "../../../../api/client.js";
 import { Button } from "../../../../components/ui/Button.jsx";
 import { Card } from "../../../../components/ui/Card.jsx";
 import { CompyraEmoji, CompyraText } from "../../../../components/ui/CompyraEmoji.jsx";
+import { MediaAsset } from "../../../../components/ui/MediaAsset.jsx";
+import { PlayerHoverCard } from "../../../../components/ui/PlayerHoverCard.jsx";
 import {
   useArenaStats,
   formatWait,
@@ -286,9 +288,35 @@ function PostMatchScreen({ result, myUserId, opponentSnapshot, onRematch, onNewM
   const streakBonus = iWon ? Number(result?.winner_streak_bonus ?? 0) : 0;
   const REASON_MAP = { surrender: iWon ? "Соперник сдался" : "Вы сдались", timeout: "Время вышло", timeout_draw: "Ничья по времени" };
   const reasonText = REASON_MAP[result?.reason] ?? (iWon ? "Решение принято первым" : "Соперник решил быстрее");
-  const opponentName = opponentSnapshot?.display_name ?? opponentSnapshot?.nickname ?? opponentSnapshot?.name ?? "Соперник";
-  const opponentPts = opponentSnapshot?.pts ?? null;
+  const opponentUserId = opponentSnapshot?.user_id ?? null;
+  // The WS snapshot only carries name/pts; fetch the full profile so we can
+  // render the same avatar the user sees everywhere else.
+  const [opponentProfile, setOpponentProfile] = useState(null);
+  const [avatarBroken, setAvatarBroken] = useState(false);
+  useEffect(() => {
+    setAvatarBroken(false);
+    if (opponentUserId == null) {
+      setOpponentProfile(null);
+      return undefined;
+    }
+    let cancelled = false;
+    apiFetch(`/users/${opponentUserId}/profile`)
+      .then((data) => { if (!cancelled) setOpponentProfile(data); })
+      .catch(() => { if (!cancelled) setOpponentProfile(null); });
+    return () => { cancelled = true; };
+  }, [opponentUserId]);
+  const opponentName =
+    opponentProfile?.nickname
+    ?? opponentProfile?.display_name
+    ?? opponentSnapshot?.display_name
+    ?? opponentSnapshot?.nickname
+    ?? opponentSnapshot?.name
+    ?? "Соперник";
+  const opponentPts = opponentProfile?.pts ?? opponentSnapshot?.pts ?? null;
   const oppInitial = opponentName[0]?.toUpperCase() ?? "?";
+  const opponentAvatarUrl = resolveAssetUrl(opponentProfile?.avatar_url || "");
+  const showOpponentAvatar = opponentAvatarUrl && !avatarBroken;
+  const opponentHoverDisabled = opponentUserId == null || isSameUserId(opponentUserId, myUserId);
   return (
     <div className="mx-auto max-w-xl space-y-4">
       <Card
@@ -331,19 +359,32 @@ function PostMatchScreen({ result, myUserId, opponentSnapshot, onRematch, onNewM
         </div>
       </Card>
       {opponentSnapshot && (
-        <Card className="flex flex-col items-start gap-4 p-4 sm:flex-row sm:items-center">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent/15 text-lg font-bold text-accent">
-            {oppInitial}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs uppercase tracking-wider text-muted">Соперник</p>
-            <p className="truncate font-semibold text-foreground">{opponentName}</p>
-            {opponentPts != null && <p className="text-xs text-muted">{opponentPts} PTS</p>}
-          </div>
-          <div className="text-2xl">
-            <CompyraText size={28}>{iWon ? "😞" : isDraw ? "🤝" : "😎"}</CompyraText>
-          </div>
-        </Card>
+        <PlayerHoverCard userId={opponentUserId} disabled={opponentHoverDisabled}>
+          <Card className="flex flex-col items-start gap-4 p-4 sm:flex-row sm:items-center">
+            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-border bg-accent/15">
+              {showOpponentAvatar ? (
+                <MediaAsset
+                  src={opponentAvatarUrl}
+                  alt={`Аватар ${opponentName}`}
+                  className="h-full w-full object-cover"
+                  onError={() => setAvatarBroken(true)}
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-lg font-bold text-accent">
+                  {oppInitial}
+                </div>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs uppercase tracking-wider text-muted">Соперник</p>
+              <p className="truncate font-semibold text-foreground">{opponentName}</p>
+              {opponentPts != null && <p className="text-xs text-muted">{opponentPts} PTS</p>}
+            </div>
+            <div className="text-2xl">
+              <CompyraText size={28}>{iWon ? "😞" : isDraw ? "🤝" : "😎"}</CompyraText>
+            </div>
+          </Card>
+        </PlayerHoverCard>
       )}
       <div className="flex flex-col gap-3">
         {result?.match_id && (
