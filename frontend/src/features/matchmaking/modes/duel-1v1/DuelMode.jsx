@@ -723,7 +723,6 @@ export function DuelMode({ user }) {
         <MatchArena
           activeMatch={activeMatch}
           myUserId={myUserId}
-          onNavigateTask={(taskId) => navigate(`/tasks/${taskId}/solve`)}
           onSurrender={requestSurrender}
           surrendering={surrendering}
         />

@@ -307,7 +307,10 @@ export function useGameEngine({
         return;
       }
 
-      clearActiveTimer();
+      // Keep the per-round interval alive so the countdown stays visible while
+      // we wait for the opponent. tickRoundTimer guards against re-submission
+      // because myAnswer is no longer null, and the interval gets cleared when
+      // the round_result / game_finished event arrives.
       answerLedgerRef.current = {
         ...answerLedgerRef.current,
         [answerKey]: answerEvent,
@@ -318,7 +321,7 @@ export function useGameEngine({
       sendWS("game_answer_submitted", answerEvent);
       maybeBroadcastRoundResult();
     },
-    [clearActiveTimer, maybeBroadcastRoundResult, myUserId, sendWS],
+    [maybeBroadcastRoundResult, myUserId, sendWS],
   );
 
   const nextRound = useCallback(() => {
