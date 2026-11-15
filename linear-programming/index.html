@@ -72,9 +72,9 @@
   lecture:{id:'lecture',p:[2,3],unit:'ден. ед.',story:'Из лекции: предприятие выпускает продукцию П₁ и П₂, используя четыре ограниченных ресурса. Найди план выпуска с максимальной прибылью.',res:[{name:'S₁ · ресурс 1',a:1,b:3,t:18},{name:'S₂ · ресурс 2',a:2,b:1,t:16},{name:'S₃ · ресурс 3',a:0,b:1,t:5},{name:'S₄ · ресурс 4',a:3,b:0,t:21}]},
   mobile:{id:'mobile',p:[7,4],unit:'тыс. ₸',story:'Вымышленный пример: мастерская ремонтирует дисплеи (x₁) и аккумуляторы (x₂). Прибыль 7 и 4 тыс. ₸ за заказ. Ограничения: часы мастера, запас деталей и число заказов.',res:[{name:'S₁ · часы мастера',a:2,b:1,t:12},{name:'S₂ · дисплеи',a:1,b:0,t:4},{name:'S₃ · аккумуляторы',a:0,b:1,t:6},{name:'S₄ · заказов',a:1,b:1,t:8}]}
  };
+ const clone=x=>JSON.parse(JSON.stringify(x));
  let state=clone(cases.lecture),plan={x:2,y:2},lastOpt=null,graph={xmax:10,ymax:7};
  const $=id=>document.getElementById(id);
- const clone=x=>JSON.parse(JSON.stringify(x));
  const fmt=x=>Number.isFinite(x)?(Math.abs(x)<1e-8?'0':Number(x.toFixed(2)).toLocaleString('ru-RU',{maximumFractionDigits:2})):'—';
  const clamp=(x,min,max)=>Math.min(max,Math.max(min,Number.isFinite(x)?x:min));
  function applyScenario(which){state=clone(cases[which]);plan={x:2,y:2};$('lectureBtn').setAttribute('aria-pressed',String(which==='lecture'));$('mobileBtn').setAttribute('aria-pressed',String(which==='mobile'));$('story').textContent=state.story;$('p1').value=state.p[0];$('p2').value=state.p[1];buildInputs();$('levelSlider').value=100;update();}
